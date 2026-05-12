@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-xl-4">
+        <div class="card card-clean">
+            <div class="card-body">
+                <div class="section-title mb-3">Customer Portal Login</div>
+
+                <p class="text-muted">
+                    Enter the customer portal password to view repair status information.
+                </p>
+
+                <form method="post" action="{{ url_for('customer_login') }}">
+                    <div class="mb-3">
+                        <label class="small-label">Password</label>
+                        <input type="password" class="form-control" name="password" required autofocus>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">
+                        Enter Portal
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

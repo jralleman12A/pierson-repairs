@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+.customer-detail-wrap {
+    max-width: 850px;
+    margin: 0 auto;
+}
+
+.customer-status {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.customer-status-awaiting { background: #5c3d00; color: #ffd166; }
+.customer-status-repair { background: #123b66; color: #8ecaff; }
+.customer-status-parts { background: #4b2d63; color: #d7a8ff; }
+.customer-status-complete { background: #1e5c35; color: #b7ffd0; }
+.customer-status-scrapped { background: #5b1d1d; color: #ffb3b3; }
+.customer-status-default { background: #343a40; color: #ffffff; }
+
+.customer-meta th {
+    width: 210px;
+}
+</style>
+
+<div class="customer-detail-wrap">
+
+    <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <a href="{{ url_for('customer_portal', search=unit['serial_number']) }}" class="btn btn-secondary btn-sm">
+            Back to Search
+        </a>
+
+        <a href="{{ url_for('customer_logout') }}" class="btn btn-outline-secondary btn-sm">
+            Logout
+        </a>
+    </div>
+
+    <div class="card card-clean">
+        <div class="card-body">
+            <div class="section-title mb-3">Repair Status Detail</div>
+
+            <table class="table customer-meta">
+                <tr>
+                    <th>Intake ID</th>
+                    <td><strong>{{ unit["intake_id"] }}</strong></td>
+                </tr>
+
+                <tr>
+                    <th>Brand</th>
+                    <td>{{ unit["brand"] or "" }}</td>
+                </tr>
+
+                <tr>
+                    <th>Model</th>
+                    <td>{{ unit["model"] or "" }}</td>
+                </tr>
+
+                <tr>
+                    <th>Serial Number</th>
+                    <td>{{ unit["serial_number"] or "" }}</td>
+                </tr>
+
+                <tr>
+                    <th>Screen Size</th>
+                    <td>{{ unit["screen_size"] or "" }}</td>
+                </tr>
+
+                <tr>
+                    <th>Date Received</th>
+                    <td>{{ unit["date_received"] or "" }}</td>
+                </tr>
+
+                <tr>
+                    <th>Status</th>
+                    <td>
+                        {% set status = unit["status"] or "" %}
+
+                        {% if status == "Awaiting Diagnosis" %}
+                            <span class="customer-status customer-status-awaiting">{{ status }}</span>
+                        {% elif status == "In Repair" %}
+                            <span class="customer-status customer-status-repair">{{ status }}</span>
+                        {% elif status == "Waiting on Parts" %}
+                            <span class="customer-status customer-status-parts">{{ status }}</span>
+                        {% elif status == "Completed" %}
+                            <span class="customer-status customer-status-complete">{{ status }}</span>
+                        {% elif status == "Shipped Back to MCPS" %}
+                            <span class="customer-status customer-status-complete">{{ status }}</span>
+                        {% elif status == "Scrapped" %}
+                            <span class="customer-status customer-status-scrapped">{{ status }}</span>
+                        {% else %}
+                            <span class="customer-status customer-status-default">{{ status }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+
+                <tr>
+                    <th>Shipped Back</th>
+                    <td>
+                        {% if unit["shipped_back_mcps"] %}
+                            Yes
+                        {% else %}
+                            No
+                        {% endif %}
+                    </td>
+                </tr>
+
+                <tr>
+                    <th>Shipped Date</th>
+                    <td>{{ unit["shipped_back_date"] or "" }}</td>
+                </tr>
+
+
+                <tr>
+                    <th>Tech Check-Off Slip</th>
+                    <td>
+                        {% if unit["checkoff_file"] %}
+                            <a href="{{ url_for('customer_view_checkoff', unit_id=unit['id']) }}" target="_blank" class="btn btn-sm btn-success">View Check-Off Slip</a>
+                        {% else %}
+                            Not Uploaded
+                        {% endif %}
+                    </td>
+                </tr>
+
+                <tr>
+                    <th>Final Outcome</th>
+                    <td>{{ unit["final_outcome"] or "" }}</td>
+                </tr>
+
+                <tr>
+                    <th>Last Updated</th>
+                    <td>{{ unit["updated_at"] or "" }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

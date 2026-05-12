@@ -1,0 +1,105 @@
+
+"""Import existing Boxlight Tracker SQLite data into the hosted SQLAlchemy database.
+
+Usage after setting DATABASE_URL:
+    python scripts/import_sqlite_to_postgres.py /path/to/repair_tracker.db
+
+This script is idempotent by intake_id for units and note id for notes.
+"""
+from __future__ import annotations
+
+import os
+import sqlite3
+import sys
+from pathlib import Path
+
+# Allow importing app.py from project root.
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from app import app, db, Unit, RepairNote  # noqa: E402
+
+
+def row_value(row, key, default=""):
+    try:
+        value = row[key]
+    except Exception:
+        return default
+    return default if value is None else value
+
+
+def main(sqlite_path: str) -> None:
+    sqlite_path = str(Path(sqlite_path).resolve())
+    if not os.path.exists(sqlite_path):
+        raise FileNotFoundError(sqlite_path)
+
+    source = sqlite3.connect(sqlite_path)
+    source.row_factory = sqlite3.Row
+    cur = source.cursor()
+
+    with app.app_context():
+        db.create_all()
+
+        cur.execute("SELECT * FROM units ORDER BY id")
+        units = cur.fetchall()
+        imported_units = 0
+        for row in units:
+            intake_id = row_value(row, "intake_id")
+            if not intake_id:
+                continue
+            unit = Unit.query.filter_by(intake_id=intake_id).first()
+            if not unit:
+                unit = Unit(intake_id=intake_id)
+                db.session.add(unit)
+                imported_units += 1
+
+            unit.brand = row_value(row, "brand")
+            unit.model = row_value(row, "model")
+            unit.serial_number = row_value(row, "serial_number")
+            unit.screen_size = row_value(row, "screen_size")
+            unit.source = row_value(row, "source")
+            unit.date_received = row_value(row, "date_received")
+            unit.status = row_value(row, "status", "Awaiting Diagnosis")
+            unit.reported_issue = row_value(row, "reported_issue")
+            unit.final_outcome = row_value(row, "final_outcome")
+            unit.repaired_date = row_value(row, "repaired_date")
+            unit.delivery_date = row_value(row, "delivery_date")
+            unit.checkoff_file = row_value(row, "checkoff_file")
+            unit.checkoff_uploaded_at = row_value(row, "checkoff_uploaded_at")
+            unit.shipped_back_mcps = bool(row_value(row, "shipped_back_mcps", 0))
+            unit.shipped_back_date = row_value(row, "shipped_back_date")
+            unit.is_deleted = bool(row_value(row, "is_deleted", 0))
+
+        db.session.commit()
+
+        cur.execute("SELECT * FROM repair_notes ORDER BY id")
+        notes = cur.fetchall()
+        imported_notes = 0
+        for row in notes:
+            existing = RepairNote.query.filter_by(id=row_value(row, "id")).first()
+            if existing:
+                continue
+            unit_id = row_value(row, "unit_id")
+            if not unit_id:
+                continue
+            note = RepairNote(
+                id=row_value(row, "id"),
+                unit_id=unit_id,
+                note_text=row_value(row, "note_text"),
+                technician=row_value(row, "technician"),
+            )
+            db.session.add(note)
+            imported_notes += 1
+
+        db.session.commit()
+
+    source.close()
+    print(f"Imported/updated {len(units)} units ({imported_units} new).")
+    print(f"Imported {imported_notes} notes.")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python scripts/import_sqlite_to_postgres.py /path/to/repair_tracker.db")
+        raise SystemExit(1)
+    main(sys.argv[1])

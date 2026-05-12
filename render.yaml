@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: pierson-repairs
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    disk:
+      name: pierson-repairs-uploads
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: UPLOAD_FOLDER
+        value: /var/data/uploads
+      - key: CUSTOMER_PORTAL_PASSWORD
+        value: MCPS1234
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pierson-repairs-db
+          property: connectionString
+
+databases:
+  - name: pierson-repairs-db
+    plan: starter
