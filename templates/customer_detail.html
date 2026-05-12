@@ -2,128 +2,199 @@
 
 {% block content %}
 <style>
-.customer-detail-wrap {
-    max-width: 850px;
+.customer-shell {
+    max-width: 1200px;
     margin: 0 auto;
+}
+
+.customer-detail-card {
+    background: #13203a;
+    border: 1px solid #263b63;
+    border-radius: 18px;
+    padding: 24px;
+}
+
+.customer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+
+.customer-title-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.customer-title-line h1 {
+    margin: 0;
+    font-size: 32px;
+}
+
+.customer-subtitle {
+    color: #cbd5e1;
+    margin-top: 6px;
+}
+
+.customer-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.customer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 18px;
+}
+
+.customer-box {
+    background: #0f172a;
+    border: 1px solid #23395d;
+    border-radius: 14px;
+    padding: 16px;
+}
+
+.customer-box strong {
+    color: #cbd5e1;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.customer-box p {
+    margin: 0;
 }
 
 .customer-status {
     display: inline-block;
-    padding: 5px 12px;
+    padding: 6px 12px;
     border-radius: 999px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
+    background: #14532d;
+    color: #bbf7d0;
 }
 
-.customer-status-awaiting { background: #5c3d00; color: #ffd166; }
-.customer-status-repair { background: #123b66; color: #8ecaff; }
-.customer-status-parts { background: #4b2d63; color: #d7a8ff; }
-.customer-status-complete { background: #1e5c35; color: #b7ffd0; }
-.customer-status-scrapped { background: #5b1d1d; color: #ffb3b3; }
-.customer-status-default { background: #343a40; color: #ffffff; }
+.customer-final {
+    margin-top: 24px;
+    background: #0f172a;
+    border: 1px solid #23395d;
+    border-radius: 14px;
+    padding: 18px;
+}
 
-.customer-meta th {
-    width: 210px;
+.customer-final strong {
+    color: #cbd5e1;
+}
+
+.customer-final p {
+    margin-bottom: 0;
+}
+
+.btn-green {
+    background: #198754 !important;
+    color: white !important;
 }
 </style>
 
-<div class="customer-detail-wrap">
+<div class="customer-shell">
+    <div class="customer-detail-card">
 
-    <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <a href="{{ url_for('customer_portal', search=unit['serial_number']) }}" class="btn btn-secondary btn-sm">
-            Back to Search
-        </a>
+        <div class="customer-header">
+            <div>
+                <div class="customer-title-line">
+                    <h1>{{ unit["intake_id"] or "" }}</h1>
+                    <span class="customer-status">{{ unit["status"] or "" }}</span>
+                </div>
+                <div class="customer-subtitle">
+                    {{ unit["brand"] or "" }} {{ unit["model"] or "" }}
+                </div>
+            </div>
 
-        <a href="{{ url_for('customer_logout') }}" class="btn btn-outline-secondary btn-sm">
-            Logout
-        </a>
-    </div>
+            <div class="customer-actions">
+                <a href="{{ url_for('customer_portal', search=unit['serial_number']) }}" class="btn btn-secondary">
+                    Back to Portal
+                </a>
 
-    <div class="card card-clean">
-        <div class="card-body">
-            <div class="section-title mb-3">Repair Status Detail</div>
+                <a href="{{ url_for('customer_packing_slip', unit_id=unit['id']) }}" class="btn btn-primary">
+                    View Packing Slip
+                </a>
 
-            <table class="table customer-meta">
-                <tr>
-                    <th>Intake ID</th>
-                    <td><strong>{{ unit["intake_id"] }}</strong></td>
-                </tr>
-
-                <tr>
-                    <th>Brand</th>
-                    <td>{{ unit["brand"] or "" }}</td>
-                </tr>
-
-                <tr>
-                    <th>Model</th>
-                    <td>{{ unit["model"] or "" }}</td>
-                </tr>
-
-                <tr>
-                    <th>Serial Number</th>
-                    <td>{{ unit["serial_number"] or "" }}</td>
-                </tr>
-
-                <tr>
-                    <th>Screen Size</th>
-                    <td>{{ unit["screen_size"] or "" }}</td>
-                </tr>
-
-                <tr>
-                    <th>Date Received</th>
-                    <td>{{ unit["date_received"] or "" }}</td>
-                </tr>
-
-                <tr>
-                    <th>Status</th>
-                    <td>
-                        {% set status = unit["status"] or "" %}
-
-                        {% if status == "Awaiting Diagnosis" %}
-                            <span class="customer-status customer-status-awaiting">{{ status }}</span>
-                        {% elif status == "In Repair" %}
-                            <span class="customer-status customer-status-repair">{{ status }}</span>
-                        {% elif status == "Waiting on Parts" %}
-                            <span class="customer-status customer-status-parts">{{ status }}</span>
-                        {% elif status == "Completed" %}
-                            <span class="customer-status customer-status-complete">{{ status }}</span>
-                        {% elif status == "Shipped Back to MCPS" %}
-                            <span class="customer-status customer-status-complete">{{ status }}</span>
-                        {% elif status == "Scrapped" %}
-                            <span class="customer-status customer-status-scrapped">{{ status }}</span>
-                        {% else %}
-                            <span class="customer-status customer-status-default">{{ status }}</span>
-                        {% endif %}
-                    </td>
-                </tr>
-
-                <tr>
-                    <th>Shipped Back</th>
-                    <td>
-                        {% if unit["shipped_back_mcps"] %}
-                            Yes
-                        {% else %}
-                            No
-                        {% endif %}
-                    </td>
-                </tr>
-
-                <tr>
-                    <th>Shipped Date</th>
-                    <td>{{ unit["shipped_back_date"] or "" }}</td>
-                </tr>
-
-                <tr>
-                    <th>Final Outcome</th>
-                    <td>{{ unit["final_outcome"] or "" }}</td>
-                </tr>
-
-                <tr>
-                    <th>Last Updated</th>
-                    <td>{{ unit["updated_at"] or "" }}</td>
-                </tr>
-            </table>
+                {% if unit["checkoff_file"] %}
+                    <a href="{{ url_for('customer_checkoff_file', unit_id=unit['id']) }}" target="_blank" class="btn btn-green">
+                        View Check-Off Slip
+                    </a>
+                {% endif %}
+            </div>
         </div>
+
+        <div class="customer-grid">
+            <div class="customer-box">
+                <strong>Brand</strong>
+                <p>{{ unit["brand"] or "" }}</p>
+            </div>
+
+            <div class="customer-box">
+                <strong>Model</strong>
+                <p>{{ unit["model"] or "" }}</p>
+            </div>
+
+            <div class="customer-box">
+                <strong>Serial Number</strong>
+                <p>{{ unit["serial_number"] or "" }}</p>
+            </div>
+
+            <div class="customer-box">
+                <strong>Screen Size</strong>
+                <p>{{ unit["screen_size"] or "" }}</p>
+            </div>
+
+            <div class="customer-box">
+                <strong>Date Received</strong>
+                <p>{{ unit["date_received"] or "" }}</p>
+            </div>
+
+            <div class="customer-box">
+                <strong>Repaired Date</strong>
+                <p>{{ unit["repaired_date"] or "" }}</p>
+            </div>
+
+            <div class="customer-box">
+                <strong>Delivery Date</strong>
+                <p>{{ unit["delivery_date"] or "" }}</p>
+            </div>
+
+            <div class="customer-box">
+                <strong>Shipped Back Date</strong>
+                <p>{{ unit["shipped_back_date"] or "" }}</p>
+            </div>
+
+            <div class="customer-box">
+                <strong>Tech Check-Off Slip</strong>
+                <p>
+                    {% if unit["checkoff_file"] %}
+                        On File
+                    {% else %}
+                        Not Uploaded
+                    {% endif %}
+                </p>
+            </div>
+
+            <div class="customer-box">
+                <strong>Last Updated</strong>
+                <p>{{ unit["updated_at"] or "" }}</p>
+            </div>
+        </div>
+
+        <div class="customer-final">
+            <strong>Final Outcome</strong>
+            <p>{{ unit["final_outcome"] or "No final outcome has been entered yet." }}</p>
+        </div>
+
     </div>
 </div>
 {% endblock %}
