@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-xl-4">
+        <div class="card card-clean">
+            <div class="card-body">
+                <div class="section-title mb-3">Pierson Repairs Login</div>
+                <form method="post">
+                    <div class="mb-3">
+                        <label class="small-label">Username</label>
+                        <input type="text" class="form-control" name="username" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label class="small-label">Password</label>
+                        <input type="password" class="form-control" name="password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Login</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
