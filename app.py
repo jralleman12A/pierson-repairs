@@ -64,7 +64,7 @@ CUSTOMER_PORTAL_PASSWORD = os.getenv("CUSTOMER_PORTAL_PASSWORD", "MCPS1234")
 
 # Optional first admin bootstrap. Change these env vars in Render, then remove/change after creating your admin.
 BOOTSTRAP_ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-BOOTSTRAP_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "ChangeMe123!")
+BOOTSTRAP_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Pierson1993!")
 
 
 db = SQLAlchemy(app)
