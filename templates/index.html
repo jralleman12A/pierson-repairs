@@ -1,1 +1,357 @@
+{% extends "base.html" %}
 
+{% block content %}
+
+<style>
+.table-wrap {
+    overflow-x: auto;
+}
+
+.units-table {
+    width: 100%;
+}
+
+.units-table td,
+.units-table th {
+    vertical-align: middle;
+    padding: 10px 12px;
+    white-space: nowrap;
+}
+
+.units-table tbody tr {
+    height: auto !important;
+}
+
+.panel-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: nowrap;
+    min-width: 120px;
+}
+
+.panel-actions .btn {
+    white-space: nowrap;
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+.status-badge {
+    white-space: nowrap;
+}
+
+.shipped-yes {
+    color: #198754;
+    font-weight: bold;
+}
+
+.shipped-no {
+    color: #dc3545;
+    font-weight: bold;
+}
+</style>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-2">
+        <div class="stat-card stat-total">
+            <div class="stat-label">Total</div>
+            <div class="stat-value">{{ counts["Total"] }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-2">
+        <div class="stat-card stat-awaiting">
+            <div class="stat-label">Awaiting</div>
+            <div class="stat-value">{{ counts["Awaiting Diagnosis"] }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-2">
+        <div class="stat-card stat-repair">
+            <div class="stat-label">In Repair</div>
+            <div class="stat-value">{{ counts["In Repair"] }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-2">
+        <div class="stat-card stat-parts">
+            <div class="stat-label">Waiting Parts</div>
+            <div class="stat-value">{{ counts["Waiting on Parts"] }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-2">
+        <div class="stat-card stat-complete">
+            <div class="stat-label">Completed</div>
+            <div class="stat-value">{{ counts["Completed"] }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-2">
+        <div class="stat-card stat-scrapped">
+            <div class="stat-label">Scrapped</div>
+            <div class="stat-value">{{ counts["Scrapped"] }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+
+    <div class="col-xl-4">
+        <div class="card card-clean">
+            <div class="card-body">
+
+                <div class="section-title">Add New Unit</div>
+
+                <form method="post" action="{{ url_for('add_unit') }}">
+
+                    <div class="mb-3">
+                        <label class="small-label">Intake ID</label>
+                        <input type="text" class="form-control" name="intake_id" value="{{ next_intake_id }}">
+                    </div>
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="small-label">Brand</label>
+                            <input type="text" class="form-control" name="brand">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small-label">Model</label>
+                            <input type="text" class="form-control" name="model">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small-label">Serial Number</label>
+                            <input type="text" class="form-control" name="serial_number">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small-label">Screen Size</label>
+                            <input type="text" class="form-control" name="screen_size">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small-label">Source</label>
+                            <input type="text" class="form-control" name="source">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small-label">Date Received</label>
+                            <input type="date" class="form-control" name="date_received">
+                        </div>
+
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="small-label">Status</label>
+
+                        <select class="form-select" name="status">
+                            <option value="Awaiting Diagnosis">Awaiting Diagnosis</option>
+                            <option value="In Repair">In Repair</option>
+                            <option value="Waiting on Parts">Waiting on Parts</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Shipped Back to MCPS">Shipped Back to MCPS</option>
+                            <option value="Scrapped">Scrapped</option>
+                        </select>
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="small-label">Reported Issue</label>
+
+                        <textarea class="form-control" name="reported_issue" rows="4"></textarea>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary w-100">
+                            Add Unit
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-8">
+
+        <div class="card card-clean mb-4">
+            <div class="card-body">
+
+                <div class="section-title">Search and Filter</div>
+
+                <form method="get" action="{{ url_for('index') }}" class="row g-3">
+
+                    <div class="col-md-6">
+                        <input
+                            type="text"
+                            class="form-control"
+                            name="search"
+                            placeholder="Search..."
+                            value="{{ search }}"
+                        >
+                    </div>
+
+                    <div class="col-md-3">
+                        <select class="form-select" name="status">
+                            <option value="">All Statuses</option>
+
+                            <option value="Awaiting Diagnosis"
+                                {% if status_filter == "Awaiting Diagnosis" %}selected{% endif %}>
+                                Awaiting Diagnosis
+                            </option>
+
+                            <option value="In Repair"
+                                {% if status_filter == "In Repair" %}selected{% endif %}>
+                                In Repair
+                            </option>
+
+                            <option value="Waiting on Parts"
+                                {% if status_filter == "Waiting on Parts" %}selected{% endif %}>
+                                Waiting on Parts
+                            </option>
+
+                            <option value="Completed"
+                                {% if status_filter == "Completed" %}selected{% endif %}>
+                                Completed
+                            </option>
+
+                            <option value="Shipped Back to MCPS"
+                                {% if status_filter == "Shipped Back to MCPS" %}selected{% endif %}>
+                                Shipped Back to MCPS
+                            </option>
+
+                            <option value="Scrapped"
+                                {% if status_filter == "Scrapped" %}selected{% endif %}>
+                                Scrapped
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3 d-grid">
+                        <button type="submit" class="btn btn-soft">
+                            Apply Filters
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+
+        <div class="card card-clean">
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="section-title mb-0">Active Units</div>
+                    <span class="badge text-bg-secondary">{{ units|length }} shown</span>
+                </div>
+
+                <div class="table-wrap">
+
+                    <table class="table table-hover align-middle units-table">
+
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Intake</th>
+                                <th>Actions</th>
+                                <th>Panel Info</th>
+                                <th>Serial Number</th>
+                                <th>Status</th>
+                                <th>Shipped</th>
+                                <th>Ship Date</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for unit in units %}
+                            <tr>
+
+                                <td>{{ unit["id"] }}</td>
+
+                                <td>
+                                    <strong>{{ unit["intake_id"] }}</strong>
+                                </td>
+
+                                <td>
+                                    <div class="panel-actions">
+
+                                        <a href="{{ url_for('unit_detail', unit_id=unit['id']) }}"
+                                           class="btn btn-sm btn-primary">
+                                            Open
+                                        </a>
+
+                                        <a href="{{ url_for('edit_unit', unit_id=unit['id']) }}"
+                                           class="btn btn-sm btn-secondary">
+                                            Edit
+                                        </a>
+
+                                    </div>
+                                </td>
+
+                                <td>
+                                    <strong>{{ unit["brand"] or "" }}</strong><br>
+                                    <small>{{ unit["model"] or "" }}</small>
+                                </td>
+
+                                <td>{{ unit["serial_number"] or "" }}</td>
+
+                                <td>
+
+                                    {% set status = unit["status"] or "" %}
+
+                                    {% if status == "Awaiting Diagnosis" %}
+                                        <span class="status-badge status-awaiting">{{ status }}</span>
+
+                                    {% elif status == "In Repair" %}
+                                        <span class="status-badge status-repair">{{ status }}</span>
+
+                                    {% elif status == "Waiting on Parts" %}
+                                        <span class="status-badge status-parts">{{ status }}</span>
+
+                                    {% elif status == "Completed" %}
+                                        <span class="status-badge status-complete">{{ status }}</span>
+
+                                    {% elif status == "Shipped Back to MCPS" %}
+                                        <span class="status-badge status-complete">{{ status }}</span>
+
+                                    {% elif status == "Scrapped" %}
+                                        <span class="status-badge status-scrapped">{{ status }}</span>
+
+                                    {% else %}
+                                        <span class="status-badge">{{ status }}</span>
+
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    {% if unit["shipped_back_mcps"] %}
+                                        <span class="shipped-yes">✔</span>
+                                    {% else %}
+                                        <span class="shipped-no">✖</span>
+                                    {% endif %}
+                                </td>
+
+                                <td>{{ unit["shipped_back_date"] or "" }}</td>
+
+                            </tr>
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+                {% if not units %}
+                    <div class="empty-state">No active units found.</div>
+                {% endif %}
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{% endblock %}

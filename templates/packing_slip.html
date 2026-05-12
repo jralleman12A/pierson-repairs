@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Packing Slip - {{ unit["intake_id"] }}</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f4f0;
+    padding: 16px;
+    color: #1a1a1a;
+}
+
+.page-actions {
+    margin-bottom: 12px;
+}
+
+.page-actions a,
+.page-actions button {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    background: white;
+    cursor: pointer;
+    text-decoration: none;
+    color: #111;
+    font-size: 14px;
+}
+
+.page-actions button {
+    background: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+}
+
+.slip {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    max-width: 850px;
+    overflow: hidden;
+}
+
+.slip-header {
+    background: #1a1a2e;
+    color: white;
+    padding: 10px 18px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.slip-body {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1fr 170px;
+    gap: 18px;
+}
+
+.field-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+.field-label {
+    width: 105px;
+    color: #777;
+    font-size: 13px;
+}
+
+.field-value {
+    font-family: "Courier New", monospace;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #e0f3dc;
+    color: #126b25;
+}
+
+.qr-box {
+    text-align: center;
+}
+
+.qr-box img {
+    width: 130px;
+    height: 130px;
+}
+
+.qr-box small {
+    display: block;
+    color: #777;
+    margin-top: 4px;
+    font-size: 11px;
+}
+
+.label-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-top: 2px dashed #ccc;
+}
+
+.label-block {
+    padding: 14px 16px;
+    overflow: hidden;
+}
+
+.label-block:first-child {
+    border-right: 2px dashed #ccc;
+}
+
+.label-title {
+    font-size: 10px;
+    color: #888;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.label-main {
+    font-family: "Courier New", monospace;
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.barcode-holder {
+    width: 100%;
+    height: 55px;
+    overflow: hidden;
+}
+
+.barcode-holder svg {
+    max-width: 100%;
+    height: 52px;
+    display: block;
+}
+
+.barcode-text {
+    font-size: 10px;
+    color: #666;
+    margin-top: 4px;
+}
+
+.footer {
+    border-top: 1px solid #eee;
+    padding: 9px 18px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #777;
+}
+
+@media print {
+    body {
+        background: white;
+        padding: 0;
+    }
+
+    .page-actions {
+        display: none;
+    }
+
+    .slip {
+        max-width: 100%;
+        border-radius: 0;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="page-actions">
+    <a href="{{ url_for('unit_detail', unit_id=unit['id']) }}">Back to Unit</a>
+    <button onclick="window.print()">Print Packing Slip</button>
+</div>
+
+{% set box_id = "BOX-" ~ unit["intake_id"] %}
+{% set date_out = unit["shipped_back_date"] or today %}
+{% set unit_url = "https://mcps-boxlight-portal.onrender.com/unit/" ~ unit["id"] %}
+
+<div class="slip">
+
+    <div class="slip-header">
+        <strong>Repair Return — Packing Slip</strong>
+        <span>{{ unit["intake_id"] }}</span>
+    </div>
+
+    <div class="slip-body">
+        <div>
+            <div class="field-row"><div class="field-label">Job ID</div><div class="field-value">{{ unit["intake_id"] }}</div></div>
+            <div class="field-row"><div class="field-label">Unit SN</div><div class="field-value">{{ unit["serial_number"] or "" }}</div></div>
+            <div class="field-row"><div class="field-label">Box ID</div><div class="field-value">{{ box_id }}</div></div>
+            <div class="field-row"><div class="field-label">Model</div><div class="field-value">{{ unit["model"] or "" }}</div></div>
+            <div class="field-row"><div class="field-label">Date in</div><div class="field-value">{{ unit["date_received"] or "" }}</div></div>
+            <div class="field-row"><div class="field-label">Date out</div><div class="field-value">{{ date_out }}</div></div>
+            <div class="field-row"><div class="field-label">Status</div><div><span class="status-badge">{{ unit["status"] or "" }}</span></div></div>
+        </div>
+
+        <div class="qr-box">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data={{ unit_url|urlencode }}">
+            <small>Scan with phone to open record</small>
+        </div>
+    </div>
+
+    <div class="label-section">
+        <div class="label-block">
+            <div class="label-title">✂ Unit Label — Apply to Unit</div>
+            <div class="label-main">{{ unit["serial_number"] or "" }}</div>
+            <div class="barcode-holder" id="unitBarcode"></div>
+            <div class="barcode-text">Serial: {{ unit["serial_number"] or "" }}</div>
+        </div>
+
+        <div class="label-block">
+            <div class="label-title">✂ Box Label — Apply to Box</div>
+            <div class="label-main">{{ box_id }}</div>
+            <div class="barcode-holder" id="boxBarcode"></div>
+            <div class="barcode-text">Job: {{ unit["intake_id"] }}</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <span>Please apply both labels before storing or shipping this unit.</span>
+        <span>Shipped: {{ date_out }}</span>
+    </div>
+
+</div>
+
+<script>
+const CODE39 = {
+    "0":"101001101101", "1":"110100101011", "2":"101100101011", "3":"110110010101",
+    "4":"101001101011", "5":"110100110101", "6":"101100110101", "7":"101001011011",
+    "8":"110100101101", "9":"101100101101", "A":"110101001011", "B":"101101001011",
+    "C":"110110100101", "D":"101011001011", "E":"110101100101", "F":"101101100101",
+    "G":"101010011011", "H":"110101001101", "I":"101101001101", "J":"101011001101",
+    "K":"110101010011", "L":"101101010011", "M":"110110101001", "N":"101011010011",
+    "O":"110101101001", "P":"101101101001", "Q":"101010110011", "R":"110101011001",
+    "S":"101101011001", "T":"101011011001", "U":"110010101011", "V":"100110101011",
+    "W":"110011010101", "X":"100101101011", "Y":"110010110101", "Z":"100110110101",
+    "-":"100101011011", ".":"110010101101", " ":"100110101101", "$":"100100100101",
+    "/":"100100101001", "+":"100101001001", "%":"101001001001", "*":"100101101101"
+};
+
+function drawCode39(containerId, value) {
+    const container = document.getElementById(containerId);
+    const text = "*" + String(value || "").toUpperCase() + "*";
+
+    let x = 0;
+    const narrow = 1.4;
+    const wide = 3.4;
+    const height = 48;
+    let bars = "";
+
+    for (const ch of text) {
+        const pattern = CODE39[ch];
+        if (!pattern) continue;
+
+        for (let i = 0; i < pattern.length; i++) {
+            const w = pattern[i] === "1" ? wide : narrow;
+            if (i % 2 === 0) {
+                bars += `<rect x="${x}" y="0" width="${w}" height="${height}" fill="black"></rect>`;
+            }
+            x += w;
+        }
+        x += narrow;
+    }
+
+    container.innerHTML = `
+        <svg viewBox="0 0 ${x} ${height}" preserveAspectRatio="xMinYMid meet">
+            ${bars}
+        </svg>
+    `;
+}
+
+drawCode39("unitBarcode", "{{ unit['serial_number'] or '' }}");
+drawCode39("boxBarcode", "{{ box_id }}");
+</script>
+
+</body>
+</html>

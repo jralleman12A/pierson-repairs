@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+.unit-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.unit-title-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.unit-title-line h2{margin:0}
+.status-pill-detail{display:inline-block;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:700;background:#1e5c35;color:#b7ffd0;white-space:nowrap}
+.detail-date-grid{display:grid;grid-template-columns:1fr;gap:12px}
+.checkoff-box{border:1px dashed rgba(255,255,255,.25);border-radius:12px;padding:14px}
+.checkoff-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+</style>
+
+<div class="row g-4">
+    <div class="col-xl-5">
+        <div class="card card-clean">
+            <div class="card-body">
+                <div class="unit-heading mb-3">
+                    <div>
+                        <div class="section-title mb-2">Unit Details</div>
+                        <div class="unit-title-line">
+                            <h2>{{ unit["intake_id"] or "" }}</h2>
+                            <span class="status-pill-detail">{{ unit["status"] or "" }}</span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 flex-wrap">
+                        <a href="{{ url_for('packing_slip_for_unit', unit_id=unit['id']) }}" class="btn btn-primary btn-sm">Packing Slip</a>
+                        <a href="{{ url_for('edit_unit', unit_id=unit['id']) }}" class="btn btn-secondary btn-sm">Edit Unit</a>
+                    </div>
+                </div>
+
+                <table class="table unit-meta">
+                    <tr><th>ID</th><td>{{ unit["id"] }}</td></tr>
+                    <tr><th>Brand</th><td>{{ unit["brand"] or "" }}</td></tr>
+                    <tr><th>Model</th><td>{{ unit["model"] or "" }}</td></tr>
+                    <tr><th>Serial Number</th><td>{{ unit["serial_number"] or "" }}</td></tr>
+                    <tr><th>Screen Size</th><td>{{ unit["screen_size"] or "" }}</td></tr>
+                    <tr><th>Source</th><td>{{ unit["source"] or "" }}</td></tr>
+                    <tr><th>Date Received</th><td>{{ unit["date_received"] or "" }}</td></tr>
+                    <tr><th>Return Ship Date</th><td>{{ unit["shipped_back_date"] or "" }}</td></tr>
+                    <tr><th>Reported Issue</th><td>{{ unit["reported_issue"] or "" }}</td></tr>
+                    <tr><th>Final Outcome</th><td>{{ unit["final_outcome"] or "" }}</td></tr>
+                </table>
+
+                <hr>
+
+                <div class="section-title">Repair / Delivery Dates</div>
+                <form method="post" action="{{ url_for('update_dates', unit_id=unit['id']) }}">
+                    <div class="detail-date-grid">
+                        <div>
+                            <label class="small-label">Repaired Date</label>
+                            <input type="date" class="form-control" name="repaired_date" value="{{ unit['repaired_date'] or '' }}">
+                        </div>
+                        <div>
+                            <label class="small-label">Delivery Date</label>
+                            <input type="date" class="form-control" name="delivery_date" value="{{ unit['delivery_date'] or '' }}">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Save Dates</button>
+                    </div>
+                </form>
+
+                <hr>
+
+                <div class="section-title">Update Status</div>
+                <form method="post" action="{{ url_for('update_status', unit_id=unit['id']) }}">
+                    <div class="mb-3">
+                        <select class="form-select" name="status">
+
+                            <option value="Awaiting Diagnosis" {% if unit["status"] == "Awaiting Diagnosis" %}selected{% endif %}>Awaiting Diagnosis</option>
+                            <option value="Picking up from MCPS" {% if unit["status"] == "Picking up from MCPS" %}selected{% endif %}>Picking up from MCPS</option>
+                            <option value="In Repair" {% if unit["status"] == "In Repair" %}selected{% endif %}>In Repair</option>
+                            <option value="Waiting on Parts" {% if unit["status"] == "Waiting on Parts" %}selected{% endif %}>Waiting on Parts</option>
+                            <option value="Completed" {% if unit["status"] == "Completed" %}selected{% endif %}>Completed</option>
+                            <option value="Delivering to MCPS" {% if unit["status"] == "Delivering to MCPS" %}selected{% endif %}>Delivering to MCPS</option>
+                            <option value="Delivered to MCPS" {% if unit["status"] == "Delivered to MCPS" %}selected{% endif %}>Delivered to MCPS</option>
+                            <option value="Shipped Back to MCPS" {% if unit["status"] == "Shipped Back to MCPS" %}selected{% endif %}>Shipped Back to MCPS</option>
+                            <option value="Scrapped" {% if unit["status"] == "Scrapped" %}selected{% endif %}>Scrapped</option>
+
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">Save Status</button>
+                </form>
+
+                <hr>
+
+                <form method="post" action="{{ url_for('archive_unit', unit_id=unit['id']) }}" onsubmit="return confirm('Archive this unit?');">
+                    <button type="submit" class="btn btn-warning w-100">Archive This Unit</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-7">
+        <div class="card card-clean mb-4">
+            <div class="card-body">
+                <div class="section-title">Tech Check-Off Slip</div>
+
+                <div class="checkoff-box mb-3">
+                    {% if unit["checkoff_file"] %}
+                        <p class="mb-2"><strong>Slip on file:</strong> {{ unit["checkoff_file"] }}</p>
+                        <p class="text-muted mb-3">Uploaded: {{ unit["checkoff_uploaded_at"] or "" }}</p>
+                        <div class="checkoff-actions">
+                            <a href="{{ url_for('view_checkoff', unit_id=unit['id']) }}" target="_blank" class="btn btn-success">View Uploaded Slip</a>
+                        </div>
+                    {% else %}
+                        <div class="empty-state mb-0">No tech check-off slip uploaded yet.</div>
+                    {% endif %}
+                </div>
+
+                <form method="post" action="{{ url_for('upload_checkoff', unit_id=unit['id']) }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="small-label">Upload / Replace Check-Off Slip</label>
+                        <input type="file" class="form-control" name="checkoff_file" accept=".pdf,.png,.jpg,.jpeg" required>
+                        <div class="form-text">Allowed: PDF, PNG, JPG, JPEG. Uploading a new file replaces the old slip.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Upload Slip</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card card-clean mb-4">
+            <div class="card-body">
+                <div class="section-title">Add Repair Note</div>
+                <form method="post" action="{{ url_for('add_note', unit_id=unit['id']) }}">
+                    <div class="mb-3">
+                        <label class="small-label">Technician</label>
+                        <input type="text" class="form-control" name="technician" placeholder="Technician name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="small-label">Note</label>
+                        <textarea class="form-control" name="note_text" rows="4" placeholder="Add repair note" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Note</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card card-clean">
+            <div class="card-body">
+                <div class="section-title">Repair Notes</div>
+                {% if notes %}
+                    {% for note in notes %}
+                        <div class="note-box">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <strong>{{ note["technician"] or "Unknown Tech" }}</strong>
+                                <small class="text-muted">{{ note["created_at"] or "" }}</small>
+                            </div>
+                            <div class="mt-2">{{ note["note_text"] or "" }}</div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">No notes yet.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
