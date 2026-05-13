@@ -175,7 +175,7 @@
                 </div>
                 <div class="pickup-action">
                     <form method="post" action="{{ url_for('driver_pickup', unit_id=unit['id']) }}"
-                          onsubmit="return confirm('Mark {{ unit[\'intake_id\'] }} as picked up?');">
+                          onsubmit="return confirm('Confirm pickup?');">
                         <button type="submit" class="btn-pickup">
                             ✓ Mark Picked Up
                         </button>
