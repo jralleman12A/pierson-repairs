@@ -734,11 +734,15 @@ def driver_pickup(unit_id: int):
 @app.route("/driver/pickup-slip")
 @driver_login_required
 def driver_pickup_slip():
-    units = Unit.query.filter_by(
-        status="Picking up from MCPS", is_deleted=False
-    ).order_by(Unit.id.desc()).all()
-    today = datetime.now().strftime("%Y-%m-%d")
-    return render_template("driver_pickup_slip.html", units=units, today=today)
+    try:
+        units = Unit.query.filter_by(
+            status="Picking up from MCPS", is_deleted=False
+        ).order_by(Unit.id.desc()).all()
+        today = datetime.now().strftime("%Y-%m-%d")
+        return render_template("driver_pickup_slip.html", units=units, today=today)
+    except Exception as exc:
+        flash(f"Error loading pickup slip: {exc}", "danger")
+        return redirect(url_for("driver_portal"))
 
 
 @app.route("/customer")
