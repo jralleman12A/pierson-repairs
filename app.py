@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import csv
+import io
 import os
+import smtplib
 from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 from functools import wraps
 from pathlib import Path
 from typing import Any
@@ -85,6 +91,8 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 CUSTOMER_PORTAL_PASSWORD = os.getenv("CUSTOMER_PORTAL_PASSWORD", "MCPS1234")
 DRIVER_PORTAL_PASSWORD = os.getenv("DRIVER_PORTAL_PASSWORD", "Driver1234")
+GMAIL_USER = os.getenv("GMAIL_USER", "")
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
 BOOTSTRAP_ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 BOOTSTRAP_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
@@ -161,6 +169,18 @@ class RepairNote(db.Model, RowLikeMixin):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class EmailSettings(db.Model, RowLikeMixin):
+    __tablename__ = "email_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    recipients = db.Column(db.Text, default="")          # comma-separated emails
+    frequency = db.Column(db.String(20), default="monthly")  # weekly, biweekly, monthly
+    include_active = db.Column(db.Boolean, default=True)
+    include_archived = db.Column(db.Boolean, default=False)
+    last_sent = db.Column(db.String(40), default="")
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 @app.template_filter("dt")
 def format_datetime(value):
     if not value:
@@ -191,7 +211,136 @@ def inject_globals():
     }
 
 
-def init_database() -> None:
+def def send_report_email(settings, units):
+    """Send the repair report email with CSV attachment."""
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
+        return False, "Gmail credentials not configured. Add GMAIL_USER and GMAIL_APP_PASSWORD in Render environment variables."
+
+    recipients = [r.strip() for r in settings.recipients.split(",") if r.strip()]
+    if not recipients:
+        return False, "No recipient email addresses configured."
+
+    # Build CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Intake ID", "Brand", "Model", "Serial Number", "Screen Size",
+        "Date Received", "Status", "Shipped Back", "Shipped Back Date",
+        "Final Outcome", "Last Updated"
+    ])
+    for unit in units:
+        writer.writerow([
+            unit.intake_id,
+            unit.brand,
+            unit.model,
+            unit.serial_number,
+            unit.screen_size,
+            unit.date_received,
+            unit.status,
+            "Yes" if unit.shipped_back_mcps else "No",
+            unit.shipped_back_date,
+            unit.final_outcome,
+            unit.updated_at,
+        ])
+    csv_data = output.getvalue()
+
+    # Count by status for summary
+    status_counts = {}
+    for unit in units:
+        status_counts[unit.status] = status_counts.get(unit.status, 0) + 1
+
+    summary_lines = "
+".join(f"  - {status}: {count}" for status, count in sorted(status_counts.items()))
+    today = datetime.now().strftime("%B %d, %Y")
+
+    # Build email
+    msg = MIMEMultipart()
+    msg["From"] = GMAIL_USER
+    msg["To"] = ", ".join(recipients)
+    msg["Subject"] = f"Pierson Repairs - MCPS Boxlight Report ({today})"
+
+    body = f"""MCPS Boxlight Repair Report
+Generated: {today}
+
+Total Units: {len(units)}
+
+Status Breakdown:
+{summary_lines}
+
+A full CSV report is attached.
+
+---
+Pierson Repairs Tracker
+"""
+    msg.attach(MIMEText(body, "plain"))
+
+    # Attach CSV
+    filename = f"MCPS_Boxlight_Report_{datetime.now().strftime('%Y%m%d')}.csv"
+    part = MIMEBase("application", "octet-stream")
+    part.set_payload(csv_data.encode("utf-8"))
+    encoders.encode_base64(part)
+    part.add_header("Content-Disposition", f"attachment; filename={filename}")
+    msg.attach(part)
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+            server.sendmail(GMAIL_USER, recipients, msg.as_string())
+        return True, f"Report sent to {', '.join(recipients)}"
+    except Exception as e:
+        return False, f"Failed to send email: {e}"
+
+
+@app.route("/settings", methods=["GET", "POST"])
+@admin_login_required
+def email_settings():
+    settings = EmailSettings.query.first()
+    if not settings:
+        settings = EmailSettings()
+        db.session.add(settings)
+        db.session.commit()
+
+    if request.method == "POST":
+        action = request.form.get("action", "save")
+
+        # Always save settings first
+        settings.recipients = request.form.get("recipients", "").strip()
+        settings.frequency = request.form.get("frequency", "monthly")
+        settings.include_active = "include_active" in request.form
+        settings.include_archived = "include_archived" in request.form
+        db.session.commit()
+
+        if action == "send":
+            # Build unit list based on settings
+            query = Unit.query
+            if settings.include_active and settings.include_archived:
+                pass  # all units
+            elif settings.include_active:
+                query = query.filter_by(is_deleted=False)
+            elif settings.include_archived:
+                query = query.filter_by(is_deleted=True)
+            else:
+                query = query.filter_by(is_deleted=False)
+
+            units = query.order_by(Unit.id.desc()).all()
+            success, message = send_report_email(settings, units)
+
+            if success:
+                settings.last_sent = datetime.now().strftime("%Y-%m-%d %H:%M")
+                db.session.commit()
+                flash(message, "success")
+            else:
+                flash(message, "danger")
+        else:
+            flash("Email settings saved.", "success")
+
+        return redirect(url_for("email_settings"))
+
+    return render_template("email_settings.html", settings=settings,
+                           gmail_configured=bool(GMAIL_USER and GMAIL_APP_PASSWORD))
+
+
+init_database() -> None:
     with app.app_context():
         db.create_all()
         if BOOTSTRAP_ADMIN_USERNAME and BOOTSTRAP_ADMIN_PASSWORD:
@@ -242,7 +391,7 @@ def driver_login_required(view_func):
     @wraps(view_func)
     def wrapped(*args, **kwargs):
         if not session.get("driver_portal_logged_in"):
-            return redirect(url_for("login"))
+            return redirect(url_for("driver_login"))
         return view_func(*args, **kwargs)
     return wrapped
 
@@ -700,6 +849,20 @@ def customer_logout():
     return redirect(url_for("login"))
 
 
+@app.route("/driver-login", methods=["GET", "POST"])
+def driver_login():
+    if session.get("driver_portal_logged_in"):
+        return redirect(url_for("driver_portal"))
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        if password == DRIVER_PORTAL_PASSWORD:
+            session.clear()
+            session["driver_portal_logged_in"] = True
+            return redirect(url_for("driver_portal"))
+        flash("Invalid driver password.", "danger")
+    return render_template("driver_login.html")
+
+
 @app.route("/driver-logout")
 def driver_logout():
     session.pop("driver_portal_logged_in", None)
@@ -803,6 +966,135 @@ def customer_packing_slip(unit_id: int):
         return redirect(url_for("customer_portal"))
     today = datetime.now().strftime("%Y-%m-%d")
     return render_template("packing_slip.html", unit=unit, today=today, portal="customer")
+
+
+def send_report_email(settings, units):
+    """Send the repair report email with CSV attachment."""
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
+        return False, "Gmail credentials not configured. Add GMAIL_USER and GMAIL_APP_PASSWORD in Render environment variables."
+
+    recipients = [r.strip() for r in settings.recipients.split(",") if r.strip()]
+    if not recipients:
+        return False, "No recipient email addresses configured."
+
+    # Build CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Intake ID", "Brand", "Model", "Serial Number", "Screen Size",
+        "Date Received", "Status", "Shipped Back", "Shipped Back Date",
+        "Final Outcome", "Last Updated"
+    ])
+    for unit in units:
+        writer.writerow([
+            unit.intake_id,
+            unit.brand,
+            unit.model,
+            unit.serial_number,
+            unit.screen_size,
+            unit.date_received,
+            unit.status,
+            "Yes" if unit.shipped_back_mcps else "No",
+            unit.shipped_back_date,
+            unit.final_outcome,
+            unit.updated_at,
+        ])
+    csv_data = output.getvalue()
+
+    # Count by status for summary
+    status_counts = {}
+    for unit in units:
+        status_counts[unit.status] = status_counts.get(unit.status, 0) + 1
+
+    summary_lines = "
+".join(f"  - {status}: {count}" for status, count in sorted(status_counts.items()))
+    today = datetime.now().strftime("%B %d, %Y")
+
+    # Build email
+    msg = MIMEMultipart()
+    msg["From"] = GMAIL_USER
+    msg["To"] = ", ".join(recipients)
+    msg["Subject"] = f"Pierson Repairs - MCPS Boxlight Report ({today})"
+
+    body = f"""MCPS Boxlight Repair Report
+Generated: {today}
+
+Total Units: {len(units)}
+
+Status Breakdown:
+{summary_lines}
+
+A full CSV report is attached.
+
+---
+Pierson Repairs Tracker
+"""
+    msg.attach(MIMEText(body, "plain"))
+
+    # Attach CSV
+    filename = f"MCPS_Boxlight_Report_{datetime.now().strftime('%Y%m%d')}.csv"
+    part = MIMEBase("application", "octet-stream")
+    part.set_payload(csv_data.encode("utf-8"))
+    encoders.encode_base64(part)
+    part.add_header("Content-Disposition", f"attachment; filename={filename}")
+    msg.attach(part)
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+            server.sendmail(GMAIL_USER, recipients, msg.as_string())
+        return True, f"Report sent to {', '.join(recipients)}"
+    except Exception as e:
+        return False, f"Failed to send email: {e}"
+
+
+@app.route("/settings", methods=["GET", "POST"])
+@admin_login_required
+def email_settings():
+    settings = EmailSettings.query.first()
+    if not settings:
+        settings = EmailSettings()
+        db.session.add(settings)
+        db.session.commit()
+
+    if request.method == "POST":
+        action = request.form.get("action", "save")
+
+        # Always save settings first
+        settings.recipients = request.form.get("recipients", "").strip()
+        settings.frequency = request.form.get("frequency", "monthly")
+        settings.include_active = "include_active" in request.form
+        settings.include_archived = "include_archived" in request.form
+        db.session.commit()
+
+        if action == "send":
+            # Build unit list based on settings
+            query = Unit.query
+            if settings.include_active and settings.include_archived:
+                pass  # all units
+            elif settings.include_active:
+                query = query.filter_by(is_deleted=False)
+            elif settings.include_archived:
+                query = query.filter_by(is_deleted=True)
+            else:
+                query = query.filter_by(is_deleted=False)
+
+            units = query.order_by(Unit.id.desc()).all()
+            success, message = send_report_email(settings, units)
+
+            if success:
+                settings.last_sent = datetime.now().strftime("%Y-%m-%d %H:%M")
+                db.session.commit()
+                flash(message, "success")
+            else:
+                flash(message, "danger")
+        else:
+            flash("Email settings saved.", "success")
+
+        return redirect(url_for("email_settings"))
+
+    return render_template("email_settings.html", settings=settings,
+                           gmail_configured=bool(GMAIL_USER and GMAIL_APP_PASSWORD))
 
 
 init_database()
