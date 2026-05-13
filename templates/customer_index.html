@@ -10,123 +10,175 @@
 .customer-help {
     color: var(--muted);
     font-size: 14px;
+    margin-bottom: 16px;
+}
+
+/* Cards use base.html surface variables so dark mode works */
+.customer-portal-wrap .card-clean {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+
+.customer-portal-wrap .section-title {
+    color: var(--text);
+}
+
+/* Table */
+.customer-portal-wrap .table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.customer-portal-wrap .table {
+    color: var(--text);
+    margin-bottom: 0;
+}
+
+.customer-portal-wrap .table thead th {
+    background: var(--surface-2);
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.customer-portal-wrap .table tbody td {
+    padding: 14px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: middle;
+}
+
+.customer-portal-wrap .table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.customer-portal-wrap .table tbody tr:hover {
+    background: var(--surface-2);
+}
+
+/* Status pills */
+.customer-status {
+    display: inline-block;
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.customer-status-awaiting  { background: #5c3d00; color: #ffd166; }
+.customer-status-repair    { background: #123b66; color: #8ecaff; }
+.customer-status-parts     { background: #4b2d63; color: #d7a8ff; }
+.customer-status-complete  { background: #14532d; color: #bbf7d0; }
+.customer-status-scrapped  { background: #5b1d1d; color: #ffb3b3; }
+.customer-status-default   { background: #334155; color: #ffffff; }
+
+/* Badge */
+.customer-portal-wrap .badge {
+    background: #334155 !important;
+    color: #ffffff !important;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.empty-state {
+    color: var(--muted);
+    padding: 30px;
+    text-align: center;
 }
 </style>
 
 <div class="customer-portal-wrap">
 
-    <div class="customer-actions">
-        <a href="{{ url_for('customer_logout') }}" class="btn btn-sm btn-secondary">Logout</a>
-    </div>
-
-    <div class="card card-clean mb-4">
-        <div class="card-body">
-            <div class="section-title">Customer Repair Status Portal</div>
-
-            <p class="customer-help">
-                Search by serial number, intake ID, model, or brand to view repair status.
-            </p>
-
-            <form method="get" action="{{ url_for('customer_portal') }}" class="row g-3">
-                <div class="col-md-9">
-                    <input
-                        type="text"
-                        class="form-control"
-                        name="search"
-                        value="{{ search }}"
-                        placeholder="Enter serial number or intake ID..."
-                    >
-                </div>
-
-                <div class="col-md-3 d-grid">
-                    <button type="submit" class="btn btn-primary">
-                        Search
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div class="card card-clean">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                <div class="section-title mb-0">
-                    {% if search %}
-                        Search Results
-                    {% else %}
-                        Current Repair Records
-                    {% endif %}
-                </div>
-
-                <span class="badge text-bg-secondary">{{ units|length }} found</span>
+    <div class="card-clean mb-4" style="padding: 24px;">
+        <div class="section-title">Customer Repair Status Portal</div>
+        <p class="customer-help">
+            Search by serial number, intake ID, model, or brand to view repair status.
+        </p>
+        <form method="get" action="{{ url_for('customer_portal') }}" class="row g-3">
+            <div class="col-md-9">
+                <input
+                    type="text"
+                    class="form-control"
+                    name="search"
+                    value="{{ search }}"
+                    placeholder="Enter serial number or intake ID..."
+                >
             </div>
+            <div class="col-md-3 d-grid">
+                <button type="submit" class="btn btn-primary">Search</button>
+            </div>
+        </form>
+    </div>
 
-            {% if units %}
-                <div class="table-wrap">
-                    <table class="table table-hover align-middle customer-table">
-                        <thead>
-                            <tr>
-                                <th>Intake ID</th>
-                                <th>Panel</th>
-                                <th>Serial Number</th>
-                                <th>Date Received</th>
-                                <th>Status</th>
-                                <th>Shipped Date</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-                            {% for unit in units %}
-                            <tr>
-                                <td><strong>{{ unit["intake_id"] }}</strong></td>
-
-                                <td>
-                                    <strong>{{ unit["brand"] or "" }}</strong><br>
-                                    <small>{{ unit["model"] or "" }}</small>
-                                </td>
-
-                                <td>{{ unit["serial_number"] or "" }}</td>
-                                <td>{{ unit["date_received"] or "" }}</td>
-
-                                <td>
-                                    {% set status = unit["status"] or "" %}
-
-                                    {% if status == "Awaiting Diagnosis" %}
-                                        <span class="customer-status customer-status-awaiting">{{ status }}</span>
-                                    {% elif status == "In Repair" %}
-                                        <span class="customer-status customer-status-repair">{{ status }}</span>
-                                    {% elif status == "Waiting on Parts" %}
-                                        <span class="customer-status customer-status-parts">{{ status }}</span>
-                                    {% elif status == "Completed" %}
-                                        <span class="customer-status customer-status-complete">{{ status }}</span>
-                                    {% elif status == "Shipped Back to MCPS" %}
-                                        <span class="customer-status customer-status-complete">{{ status }}</span>
-                                    {% elif status == "Scrapped" %}
-                                        <span class="customer-status customer-status-scrapped">{{ status }}</span>
-                                    {% else %}
-                                        <span class="customer-status customer-status-default">{{ status }}</span>
-                                    {% endif %}
-                                </td>
-
-                                <td>{{ unit["shipped_back_date"] or "" }}</td>
-
-                                <td>
-                                    <a href="{{ url_for('customer_unit_detail', unit_id=unit['id']) }}" class="btn btn-sm btn-primary">
-                                        View
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <div class="empty-state">
-                    No matching records found.
-                </div>
-            {% endif %}
+    <div class="card-clean" style="padding: 24px;">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <div class="section-title mb-0">
+                {% if search %}Search Results{% else %}Current Repair Records{% endif %}
+            </div>
+            <span class="badge">{{ units|length }} found</span>
         </div>
+
+        {% if units %}
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Intake ID</th>
+                            <th>Panel</th>
+                            <th>Serial Number</th>
+                            <th>Date Received</th>
+                            <th>Status</th>
+                            <th>Shipped Date</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for unit in units %}
+                        <tr>
+                            <td><strong>{{ unit["intake_id"] }}</strong></td>
+                            <td>
+                                <strong>{{ unit["brand"] or "" }}</strong><br>
+                                <small style="color:var(--muted);">{{ unit["model"] or "" }}</small>
+                            </td>
+                            <td>{{ unit["serial_number"] or "" }}</td>
+                            <td>{{ unit["date_received"] or "" }}</td>
+                            <td>
+                                {% set status = unit["status"] or "" %}
+                                {% if status == "Awaiting Diagnosis" %}
+                                    <span class="customer-status customer-status-awaiting">{{ status }}</span>
+                                {% elif status == "In Repair" %}
+                                    <span class="customer-status customer-status-repair">{{ status }}</span>
+                                {% elif status == "Waiting on Parts" %}
+                                    <span class="customer-status customer-status-parts">{{ status }}</span>
+                                {% elif status in ["Completed", "Shipped Back to MCPS", "Delivered to MCPS"] %}
+                                    <span class="customer-status customer-status-complete">{{ status }}</span>
+                                {% elif status == "Scrapped" %}
+                                    <span class="customer-status customer-status-scrapped">{{ status }}</span>
+                                {% else %}
+                                    <span class="customer-status customer-status-default">{{ status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ unit["shipped_back_date"] or "" }}</td>
+                            <td>
+                                <a href="{{ url_for('customer_unit_detail', unit_id=unit['id']) }}" class="btn btn-sm btn-primary">
+                                    View
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty-state">No matching records found.</div>
+        {% endif %}
     </div>
 
 </div>
