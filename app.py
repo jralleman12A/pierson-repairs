@@ -303,32 +303,30 @@ def login():
             return redirect(url_for("driver_portal"))
 
     if request.method == "POST":
-        portal = request.form.get("portal", "admin")
+        portal = request.form.get("portal", "").strip()
+        password = request.form.get("password", "")
 
-        if portal == "customer":
-            password = request.form.get("password", "")
-            if password == CUSTOMER_PORTAL_PASSWORD:
-                session.clear()
-                session["customer_portal_logged_in"] = True
-                return redirect(url_for("customer_portal"))
-            flash("Invalid customer portal password.", "danger")
-            return render_template("login.html", active_tab="customer")
+        # Always clear session before setting a new one
+        session.clear()
 
-        elif portal == "driver":
-            password = request.form.get("password", "")
+        if portal == "driver":
             if password == DRIVER_PORTAL_PASSWORD:
-                session.clear()
                 session["driver_portal_logged_in"] = True
                 return redirect(url_for("driver_portal"))
             flash("Invalid driver portal password.", "danger")
             return render_template("login.html", active_tab="driver")
 
+        elif portal == "customer":
+            if password == CUSTOMER_PORTAL_PASSWORD:
+                session["customer_portal_logged_in"] = True
+                return redirect(url_for("customer_portal"))
+            flash("Invalid customer portal password.", "danger")
+            return render_template("login.html", active_tab="customer")
+
         else:  # admin
             username = request.form.get("username", "").strip()
-            password = request.form.get("password", "")
             user = User.query.filter_by(username=username).first()
             if user and user.check_password(password):
-                session.clear()
                 session["user_id"] = user.id
                 session["role"] = user.role
                 return redirect(request.args.get("next") or url_for("index"))
