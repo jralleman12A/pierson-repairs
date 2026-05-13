@@ -13,18 +13,18 @@
                 <div style="display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap;">
                     <button type="button" id="tab-admin" onclick="showTab('admin')"
                         style="flex:1; padding:10px; border-radius:12px; border:2px solid #2563eb;
-                               background:#2563eb; color:#fff; font-weight:700; cursor:pointer; transition:all .15s; min-width:120px;">
-                        Admin Login
+                               background:#2563eb; color:#fff; font-weight:700; cursor:pointer; transition:all .15s; min-width:100px;">
+                        Admin
                     </button>
                     <button type="button" id="tab-customer" onclick="showTab('customer')"
                         style="flex:1; padding:10px; border-radius:12px; border:2px solid #2563eb;
-                               background:transparent; color:#2563eb; font-weight:700; cursor:pointer; transition:all .15s; min-width:120px;">
-                        Customer Portal
+                               background:transparent; color:#2563eb; font-weight:700; cursor:pointer; transition:all .15s; min-width:100px;">
+                        Customer
                     </button>
                     <button type="button" id="tab-driver" onclick="showTab('driver')"
                         style="flex:1; padding:10px; border-radius:12px; border:2px solid #16a34a;
-                               background:transparent; color:#16a34a; font-weight:700; cursor:pointer; transition:all .15s; min-width:120px;">
-                        Driver Portal
+                               background:transparent; color:#16a34a; font-weight:700; cursor:pointer; transition:all .15s; min-width:100px;">
+                        Driver
                     </button>
                 </div>
 
@@ -37,53 +37,30 @@
                     {% endif %}
                 {% endwith %}
 
-                <!-- Admin form -->
-                <div id="form-admin">
-                    <form method="post" action="{{ url_for('login') }}">
-                        <input type="hidden" name="portal" value="admin">
-                        <div class="mb-3">
-                            <label class="small-label">Username</label>
-                            <input type="text" class="form-control" name="username" required autofocus>
-                        </div>
-                        <div class="mb-3">
-                            <label class="small-label">Password</label>
-                            <input type="password" class="form-control" name="password" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary w-100">Login to Admin</button>
-                    </form>
-                </div>
+                <!-- Single unified form -->
+                <form method="post" action="{{ url_for('login') }}" id="login-form">
+                    <input type="hidden" name="portal" id="portal-field" value="admin">
 
-                <!-- Customer form -->
-                <div id="form-customer" style="display:none;">
-                    <p class="text-muted mb-3" style="font-size:13px;">
-                        Enter the customer portal password to view repair status information.
-                    </p>
-                    <form method="post" action="{{ url_for('login') }}">
-                        <input type="hidden" name="portal" value="customer">
-                        <div class="mb-3">
-                            <label class="small-label">Portal Password</label>
-                            <input type="password" class="form-control" name="password" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary w-100">Enter Customer Portal</button>
-                    </form>
-                </div>
+                    <!-- Username field (admin only) -->
+                    <div class="mb-3" id="username-group">
+                        <label class="small-label">Username</label>
+                        <input type="text" class="form-control" name="username" id="username-input" autofocus>
+                    </div>
 
-                <!-- Driver form -->
-                <div id="form-driver" style="display:none;">
-                    <p class="text-muted mb-3" style="font-size:13px;">
-                        Enter the driver portal password to view your pickup list.
-                    </p>
-                    <form method="post" action="{{ url_for('login') }}">
-                        <input type="hidden" name="portal" value="driver">
-                        <div class="mb-3">
-                            <label class="small-label">Driver Password</label>
-                            <input type="password" class="form-control" name="password" required>
-                        </div>
-                        <button type="submit" class="btn w-100" style="background:#16a34a; color:#fff; font-weight:700; border-radius:12px; padding:10px;">
-                            Enter Driver Portal
-                        </button>
-                    </form>
-                </div>
+                    <!-- Password field (all portals) -->
+                    <div class="mb-3">
+                        <label class="small-label" id="password-label">Password</label>
+                        <input type="password" class="form-control" name="password" required>
+                    </div>
+
+                    <!-- Helper text -->
+                    <p class="text-muted mb-3" id="portal-hint" style="font-size:13px; display:none;"></p>
+
+                    <button type="submit" class="btn btn-primary w-100" id="submit-btn"
+                        style="font-weight:700; border-radius:12px; padding:10px;">
+                        Login to Admin
+                    </button>
+                </form>
 
             </div>
         </div>
@@ -94,29 +71,59 @@
 const activeTab = "{{ active_tab | default('admin') }}";
 
 function showTab(tab) {
-    document.getElementById('form-admin').style.display = tab === 'admin' ? 'block' : 'none';
-    document.getElementById('form-customer').style.display = tab === 'customer' ? 'block' : 'none';
-    document.getElementById('form-driver').style.display = tab === 'driver' ? 'block' : 'none';
+    // Update hidden field
+    document.getElementById('portal-field').value = tab;
 
-    // Reset all tabs
-    document.getElementById('tab-admin').style.background = 'transparent';
-    document.getElementById('tab-admin').style.color = '#2563eb';
-    document.getElementById('tab-customer').style.background = 'transparent';
-    document.getElementById('tab-customer').style.color = '#2563eb';
-    document.getElementById('tab-driver').style.background = 'transparent';
-    document.getElementById('tab-driver').style.color = '#16a34a';
+    // Show/hide username field
+    const usernameGroup = document.getElementById('username-group');
+    const usernameInput = document.getElementById('username-input');
+    usernameGroup.style.display = tab === 'admin' ? 'block' : 'none';
+    usernameInput.required = tab === 'admin';
 
-    // Activate selected tab
-    if (tab === 'admin') {
-        document.getElementById('tab-admin').style.background = '#2563eb';
-        document.getElementById('tab-admin').style.color = '#fff';
-    } else if (tab === 'customer') {
-        document.getElementById('tab-customer').style.background = '#2563eb';
-        document.getElementById('tab-customer').style.color = '#fff';
-    } else if (tab === 'driver') {
-        document.getElementById('tab-driver').style.background = '#16a34a';
-        document.getElementById('tab-driver').style.color = '#fff';
-    }
+    // Update password label
+    const labels = {
+        admin: 'Password',
+        customer: 'Portal Password',
+        driver: 'Driver Password'
+    };
+    document.getElementById('password-label').textContent = labels[tab];
+
+    // Update hint text
+    const hints = {
+        admin: '',
+        customer: 'Enter the customer portal password to view repair status.',
+        driver: 'Enter the driver portal password to view your pickup list.'
+    };
+    const hint = document.getElementById('portal-hint');
+    hint.textContent = hints[tab];
+    hint.style.display = hints[tab] ? 'block' : 'none';
+
+    // Update submit button
+    const btnLabels = {
+        admin: 'Login to Admin',
+        customer: 'Enter Customer Portal',
+        driver: 'Enter Driver Portal'
+    };
+    const btn = document.getElementById('submit-btn');
+    btn.textContent = btnLabels[tab];
+    btn.style.background = tab === 'driver' ? '#16a34a' : '#2563eb';
+
+    // Update tab styles
+    const tabs = ['admin', 'customer', 'driver'];
+    tabs.forEach(t => {
+        const el = document.getElementById('tab-' + t);
+        const isDriver = t === 'driver';
+        const color = isDriver ? '#16a34a' : '#2563eb';
+        if (t === tab) {
+            el.style.background = color;
+            el.style.color = '#fff';
+            el.style.borderColor = color;
+        } else {
+            el.style.background = 'transparent';
+            el.style.color = color;
+            el.style.borderColor = color;
+        }
+    });
 }
 
 showTab(activeTab);
