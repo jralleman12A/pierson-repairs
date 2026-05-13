@@ -211,134 +211,6 @@ def inject_globals():
     }
 
 
-def send_report_email(settings, units):
-    """Send the repair report email with CSV attachment."""
-    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
-        return False, "Gmail credentials not configured. Add GMAIL_USER and GMAIL_APP_PASSWORD in Render environment variables."
-
-    recipients = [r.strip() for r in settings.recipients.split(",") if r.strip()]
-    if not recipients:
-        return False, "No recipient email addresses configured."
-
-    # Build CSV in memory
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "Intake ID", "Brand", "Model", "Serial Number", "Screen Size",
-        "Date Received", "Status", "Shipped Back", "Shipped Back Date",
-        "Final Outcome", "Last Updated"
-    ])
-    for unit in units:
-        writer.writerow([
-            unit.intake_id,
-            unit.brand,
-            unit.model,
-            unit.serial_number,
-            unit.screen_size,
-            unit.date_received,
-            unit.status,
-            "Yes" if unit.shipped_back_mcps else "No",
-            unit.shipped_back_date,
-            unit.final_outcome,
-            unit.updated_at,
-        ])
-    csv_data = output.getvalue()
-
-    # Count by status for summary
-    status_counts = {}
-    for unit in units:
-        status_counts[unit.status] = status_counts.get(unit.status, 0) + 1
-
-    summary_lines = "\n".join(
-        f"  - {s}: {c}" for s, c in sorted(status_counts.items())
-    )
-    today = datetime.now().strftime("%B %d, %Y")
-
-    # Build email
-    msg = MIMEMultipart()
-    msg["From"] = GMAIL_USER
-    msg["To"] = ", ".join(recipients)
-    msg["Subject"] = f"Pierson Repairs - MCPS Boxlight Report ({today})"
-
-    body = f"""MCPS Boxlight Repair Report
-Generated: {today}
-
-Total Units: {len(units)}
-
-Status Breakdown:
-{summary_lines}
-
-A full CSV report is attached.
-
----
-Pierson Repairs Tracker
-"""
-    msg.attach(MIMEText(body, "plain"))
-
-    # Attach CSV
-    filename = f"MCPS_Boxlight_Report_{datetime.now().strftime('%Y%m%d')}.csv"
-    part = MIMEBase("application", "octet-stream")
-    part.set_payload(csv_data.encode("utf-8"))
-    encoders.encode_base64(part)
-    part.add_header("Content-Disposition", f"attachment; filename={filename}")
-    msg.attach(part)
-
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-            server.sendmail(GMAIL_USER, recipients, msg.as_string())
-        return True, f"Report sent to {', '.join(recipients)}"
-    except Exception as e:
-        return False, f"Failed to send email: {e}"
-
-
-@app.route("/settings", methods=["GET", "POST"])
-@admin_login_required
-def email_settings():
-    settings = EmailSettings.query.first()
-    if not settings:
-        settings = EmailSettings()
-        db.session.add(settings)
-        db.session.commit()
-
-    if request.method == "POST":
-        action = request.form.get("action", "save")
-
-        # Always save settings first
-        settings.recipients = request.form.get("recipients", "").strip()
-        settings.frequency = request.form.get("frequency", "monthly")
-        settings.include_active = "include_active" in request.form
-        settings.include_archived = "include_archived" in request.form
-        db.session.commit()
-
-        if action == "send":
-            # Build unit list based on settings
-            query = Unit.query
-            if settings.include_active and settings.include_archived:
-                pass  # all units
-            elif settings.include_active:
-                query = query.filter_by(is_deleted=False)
-            elif settings.include_archived:
-                query = query.filter_by(is_deleted=True)
-            else:
-                query = query.filter_by(is_deleted=False)
-
-            units = query.order_by(Unit.id.desc()).all()
-            success, message = send_report_email(settings, units)
-
-            if success:
-                settings.last_sent = datetime.now().strftime("%Y-%m-%d %H:%M")
-                db.session.commit()
-                flash(message, "success")
-            else:
-                flash(message, "danger")
-        else:
-            flash("Email settings saved.", "success")
-
-        return redirect(url_for("email_settings"))
-
-    return render_template("email_settings.html", settings=settings,
-                           gmail_configured=bool(GMAIL_USER and GMAIL_APP_PASSWORD))
 
 
 def init_database() -> None:
@@ -969,6 +841,8 @@ def customer_packing_slip(unit_id: int):
     return render_template("packing_slip.html", unit=unit, today=today, portal="customer")
 
 
+
+
 def send_report_email(settings, units):
     """Send the repair report email with CSV attachment."""
     if not GMAIL_USER or not GMAIL_APP_PASSWORD:
@@ -978,7 +852,6 @@ def send_report_email(settings, units):
     if not recipients:
         return False, "No recipient email addresses configured."
 
-    # Build CSV in memory
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
@@ -988,52 +861,35 @@ def send_report_email(settings, units):
     ])
     for unit in units:
         writer.writerow([
-            unit.intake_id,
-            unit.brand,
-            unit.model,
-            unit.serial_number,
-            unit.screen_size,
-            unit.date_received,
-            unit.status,
+            unit.intake_id, unit.brand, unit.model, unit.serial_number,
+            unit.screen_size, unit.date_received, unit.status,
             "Yes" if unit.shipped_back_mcps else "No",
-            unit.shipped_back_date,
-            unit.final_outcome,
-            unit.updated_at,
+            unit.shipped_back_date, unit.final_outcome, unit.updated_at,
         ])
     csv_data = output.getvalue()
 
-    # Count by status for summary
     status_counts = {}
     for unit in units:
         status_counts[unit.status] = status_counts.get(unit.status, 0) + 1
-
     summary_lines = "\n".join(
         f"  - {s}: {c}" for s, c in sorted(status_counts.items())
     )
     today = datetime.now().strftime("%B %d, %Y")
 
-    # Build email
     msg = MIMEMultipart()
     msg["From"] = GMAIL_USER
     msg["To"] = ", ".join(recipients)
     msg["Subject"] = f"Pierson Repairs - MCPS Boxlight Report ({today})"
 
-    body = f"""MCPS Boxlight Repair Report
-Generated: {today}
-
-Total Units: {len(units)}
-
-Status Breakdown:
-{summary_lines}
-
-A full CSV report is attached.
-
----
-Pierson Repairs Tracker
-"""
+    body = (
+        f"MCPS Boxlight Repair Report\n"
+        f"Generated: {today}\n\n"
+        f"Total Units: {len(units)}\n\n"
+        f"Status Breakdown:\n{summary_lines}\n\n"
+        f"A full CSV report is attached.\n\n---\nPierson Repairs Tracker\n"
+    )
     msg.attach(MIMEText(body, "plain"))
 
-    # Attach CSV
     filename = f"MCPS_Boxlight_Report_{datetime.now().strftime('%Y%m%d')}.csv"
     part = MIMEBase("application", "octet-stream")
     part.set_payload(csv_data.encode("utf-8"))
@@ -1061,8 +917,6 @@ def email_settings():
 
     if request.method == "POST":
         action = request.form.get("action", "save")
-
-        # Always save settings first
         settings.recipients = request.form.get("recipients", "").strip()
         settings.frequency = request.form.get("frequency", "monthly")
         settings.include_active = "include_active" in request.form
@@ -1070,20 +924,13 @@ def email_settings():
         db.session.commit()
 
         if action == "send":
-            # Build unit list based on settings
             query = Unit.query
-            if settings.include_active and settings.include_archived:
-                pass  # all units
-            elif settings.include_active:
+            if settings.include_active and not settings.include_archived:
                 query = query.filter_by(is_deleted=False)
-            elif settings.include_archived:
+            elif settings.include_archived and not settings.include_active:
                 query = query.filter_by(is_deleted=True)
-            else:
-                query = query.filter_by(is_deleted=False)
-
             units = query.order_by(Unit.id.desc()).all()
             success, message = send_report_email(settings, units)
-
             if success:
                 settings.last_sent = datetime.now().strftime("%Y-%m-%d %H:%M")
                 db.session.commit()
