@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pickup Slip — {{ today }}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: #fff;
+            color: #000;
+            padding: 32px;
+        }
+
+        .slip-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 3px solid #000;
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+
+        .slip-header h1 {
+            font-size: 28px;
+            font-weight: 900;
+            margin-bottom: 4px;
+        }
+
+        .slip-header p {
+            font-size: 14px;
+            color: #444;
+        }
+
+        .slip-meta {
+            text-align: right;
+            font-size: 14px;
+        }
+
+        .slip-meta strong {
+            display: block;
+            font-size: 18px;
+        }
+
+        .slip-location {
+            background: #f4f4f4;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .slip-location strong {
+            font-size: 15px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 32px;
+        }
+
+        thead th {
+            background: #1a1a2e;
+            color: #fff;
+            padding: 12px 14px;
+            text-align: left;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        tbody td {
+            padding: 14px;
+            border-bottom: 1px solid #ddd;
+            font-size: 15px;
+            vertical-align: middle;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: 2px solid #000;
+        }
+
+        .checkbox-col {
+            width: 60px;
+            text-align: center;
+        }
+
+        .checkbox-box {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #000;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .intake-id {
+            font-weight: 800;
+            font-size: 17px;
+        }
+
+        .summary {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #444;
+            border-top: 1px solid #ccc;
+            padding-top: 12px;
+        }
+
+        .signature-line {
+            margin-top: 48px;
+            display: flex;
+            gap: 48px;
+        }
+
+        .sig-block {
+            flex: 1;
+            border-top: 1px solid #000;
+            padding-top: 8px;
+            font-size: 13px;
+            color: #444;
+        }
+
+        .no-panels {
+            text-align: center;
+            padding: 48px;
+            color: #666;
+            font-size: 18px;
+        }
+
+        .print-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1a1a2e;
+            color: #fff;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        @media print {
+            .print-btn { display: none; }
+            body { padding: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="slip-header">
+        <div>
+            <h1>Pierson Repairs</h1>
+            <p>Panel Pickup Slip</p>
+        </div>
+        <div class="slip-meta">
+            <strong>{{ today }}</strong>
+            <span>{{ units|length }} panel{{ 's' if units|length != 1 else '' }} to collect</span>
+        </div>
+    </div>
+
+    <div class="slip-location">
+        <strong>📍 Pickup Location: MCPS</strong><br>
+        Collect all panels listed below and confirm with a check.
+    </div>
+
+    {% if units %}
+        <table>
+            <thead>
+                <tr>
+                    <th class="checkbox-col">✓</th>
+                    <th>Intake ID</th>
+                    <th>Brand / Model</th>
+                    <th>Serial Number</th>
+                    <th>Screen Size</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for unit in units %}
+                <tr>
+                    <td class="checkbox-col"><span class="checkbox-box"></span></td>
+                    <td class="intake-id">{{ unit["intake_id"] }}</td>
+                    <td>{{ unit["brand"] or "" }} {{ unit["model"] or "" }}</td>
+                    <td style="font-family: monospace; font-size:13px;">{{ unit["serial_number"] or "—" }}</td>
+                    <td>{{ unit["screen_size"] or "—" }}"</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="summary">
+            <span>Total panels: <strong>{{ units|length }}</strong></span>
+            <span>Driver initials: ________</span>
+        </div>
+
+        <div class="signature-line">
+            <div class="sig-block">Driver Signature</div>
+            <div class="sig-block">Date / Time</div>
+            <div class="sig-block">Received By</div>
+        </div>
+
+    {% else %}
+        <div class="no-panels">
+            No panels are currently scheduled for pickup.
+        </div>
+    {% endif %}
+
+    <button class="print-btn" onclick="window.print()">🖨️ Print This Slip</button>
+
+</body>
+</html>
