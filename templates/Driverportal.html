@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+.driver-wrap {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.driver-header-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.driver-header-card h2 {
+    margin: 0 0 4px 0;
+    color: var(--text);
+    font-size: 22px;
+}
+
+.driver-header-card p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.driver-actions-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.pickup-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.pickup-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    transition: border-color 0.2s ease;
+}
+
+.pickup-card:hover {
+    border-color: #16a34a;
+}
+
+.pickup-info {
+    flex: 1;
+}
+
+.pickup-id {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 6px;
+}
+
+.pickup-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.pickup-meta span strong {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.pickup-action form {
+    margin: 0;
+}
+
+.btn-pickup {
+    background: #16a34a;
+    color: #ffffff !important;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    white-space: nowrap;
+}
+
+.btn-pickup:hover {
+    background: #15803d;
+}
+
+.empty-state {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--muted);
+}
+
+.empty-state .empty-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.pickup-count {
+    background: #16a34a;
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+@media (max-width: 600px) {
+    .pickup-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .pickup-action {
+        width: 100%;
+    }
+    .btn-pickup {
+        width: 100%;
+        text-align: center;
+    }
+}
+</style>
+
+<div class="driver-wrap">
+
+    <div class="driver-header-card">
+        <div class="driver-actions-row">
+            <div>
+                <h2>📋 Today's Pickup List</h2>
+                <p>MCPS Location — tap a panel to mark it as picked up</p>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <span class="pickup-count">{{ units|length }} to pick up</span>
+                {% if units %}
+                <a href="{{ url_for('driver_pickup_slip') }}" class="btn btn-outline-light btn-sm" target="_blank">
+                    🖨️ Print Slip
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if units %}
+        <div class="pickup-list">
+            {% for unit in units %}
+            <div class="pickup-card">
+                <div class="pickup-info">
+                    <div class="pickup-id">{{ unit["intake_id"] }}</div>
+                    <div class="pickup-meta">
+                        <span><strong>Brand:</strong> {{ unit["brand"] or "—" }}</span>
+                        <span><strong>Model:</strong> {{ unit["model"] or "—" }}</span>
+                        <span><strong>Serial:</strong> {{ unit["serial_number"] or "—" }}</span>
+                        <span><strong>Screen:</strong> {{ unit["screen_size"] or "—" }}</span>
+                    </div>
+                </div>
+                <div class="pickup-action">
+                    <form method="post" action="{{ url_for('driver_pickup', unit_id=unit['id']) }}"
+                          onsubmit="return confirm('Mark {{ unit[\'intake_id\'] }} as picked up?');">
+                        <button type="submit" class="btn-pickup">
+                            ✓ Mark Picked Up
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">✅</div>
+            <strong>All clear!</strong>
+            <p style="margin-top:8px;">No panels are currently scheduled for pickup.</p>
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}
