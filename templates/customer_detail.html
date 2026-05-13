@@ -133,7 +133,7 @@
 
                 {% if unit["checkoff_file"] %}
                   <a href="{{ url_for('customer_view_checkoff', unit_id=unit['id']) }}" target="_blank" class="btn btn-green">
-                        View Check-Off Slip
+                        View Tech Sign-Off
                     </a>
                 {% endif %}
             </div>
@@ -181,7 +181,7 @@
             </div>
 
             <div class="customer-box">
-                <strong>Tech Check-Off Slip</strong>
+                <strong>Tech Sign-Off</strong>
                 <p>
                     {% if unit["checkoff_file"] %}
                         On File
