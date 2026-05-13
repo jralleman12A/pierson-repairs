@@ -211,7 +211,7 @@ def inject_globals():
     }
 
 
-def def send_report_email(settings, units):
+def send_report_email(settings, units):
     """Send the repair report email with CSV attachment."""
     if not GMAIL_USER or not GMAIL_APP_PASSWORD:
         return False, "Gmail credentials not configured. Add GMAIL_USER and GMAIL_APP_PASSWORD in Render environment variables."
@@ -249,8 +249,9 @@ def def send_report_email(settings, units):
     for unit in units:
         status_counts[unit.status] = status_counts.get(unit.status, 0) + 1
 
-    summary_lines = "
-".join(f"  - {status}: {count}" for status, count in sorted(status_counts.items()))
+    summary_lines = "\n".join(
+        f"  - {s}: {c}" for s, c in sorted(status_counts.items())
+    )
     today = datetime.now().strftime("%B %d, %Y")
 
     # Build email
@@ -340,7 +341,7 @@ def email_settings():
                            gmail_configured=bool(GMAIL_USER and GMAIL_APP_PASSWORD))
 
 
-init_database() -> None:
+def init_database() -> None:
     with app.app_context():
         db.create_all()
         if BOOTSTRAP_ADMIN_USERNAME and BOOTSTRAP_ADMIN_PASSWORD:
@@ -1006,8 +1007,9 @@ def send_report_email(settings, units):
     for unit in units:
         status_counts[unit.status] = status_counts.get(unit.status, 0) + 1
 
-    summary_lines = "
-".join(f"  - {status}: {count}" for status, count in sorted(status_counts.items()))
+    summary_lines = "\n".join(
+        f"  - {s}: {c}" for s, c in sorted(status_counts.items())
+    )
     today = datetime.now().strftime("%B %d, %Y")
 
     # Build email
