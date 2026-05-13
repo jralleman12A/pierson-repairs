@@ -84,6 +84,7 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 CUSTOMER_PORTAL_PASSWORD = os.getenv("CUSTOMER_PORTAL_PASSWORD", "MCPS1234")
+DRIVER_PORTAL_PASSWORD = os.getenv("DRIVER_PORTAL_PASSWORD", "Driver1234")
 BOOTSTRAP_ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 BOOTSTRAP_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
@@ -237,6 +238,15 @@ def customer_login_required(view_func):
     return wrapped
 
 
+def driver_login_required(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if not session.get("driver_portal_logged_in"):
+            return redirect(url_for("login"))
+        return view_func(*args, **kwargs)
+    return wrapped
+
+
 def generate_next_intake_id() -> str:
     year = datetime.now().year
     prefix = f"BX-{year}-"
@@ -287,6 +297,8 @@ def login():
         return redirect(url_for("index"))
     if session.get("customer_portal_logged_in"):
         return redirect(url_for("customer_portal"))
+    if session.get("driver_portal_logged_in"):
+        return redirect(url_for("driver_portal"))
 
     if request.method == "POST":
         portal = request.form.get("portal", "admin")
@@ -299,6 +311,15 @@ def login():
                 return redirect(url_for("customer_portal"))
             flash("Invalid customer portal password.", "danger")
             return render_template("login.html", active_tab="customer")
+
+        elif portal == "driver":
+            password = request.form.get("password", "")
+            if password == DRIVER_PORTAL_PASSWORD:
+                session.clear()
+                session["driver_portal_logged_in"] = True
+                return redirect(url_for("driver_portal"))
+            flash("Invalid driver portal password.", "danger")
+            return render_template("login.html", active_tab="driver")
 
         else:  # admin
             username = request.form.get("username", "").strip()
@@ -677,6 +698,45 @@ def customer_logout():
     session.pop("customer_portal_logged_in", None)
     flash("You have been logged out.", "success")
     return redirect(url_for("login"))
+
+
+@app.route("/driver-logout")
+def driver_logout():
+    session.pop("driver_portal_logged_in", None)
+    flash("You have been logged out.", "success")
+    return redirect(url_for("login"))
+
+
+@app.route("/driver")
+@driver_login_required
+def driver_portal():
+    units = Unit.query.filter_by(
+        status="Picking up from MCPS", is_deleted=False
+    ).order_by(Unit.id.desc()).all()
+    return render_template("driver_portal.html", units=units)
+
+
+@app.route("/driver/pickup/<int:unit_id>", methods=["POST"])
+@driver_login_required
+def driver_pickup(unit_id: int):
+    unit = get_active_unit(unit_id)
+    if unit is None:
+        flash("Unit not found.", "danger")
+        return redirect(url_for("driver_portal"))
+    apply_status_side_effects(unit, "In Repair")
+    db.session.commit()
+    flash(f"{unit.intake_id} marked as picked up and In Repair.", "success")
+    return redirect(url_for("driver_portal"))
+
+
+@app.route("/driver/pickup-slip")
+@driver_login_required
+def driver_pickup_slip():
+    units = Unit.query.filter_by(
+        status="Picking up from MCPS", is_deleted=False
+    ).order_by(Unit.id.desc()).all()
+    today = datetime.now().strftime("%Y-%m-%d")
+    return render_template("driver_pickup_slip.html", units=units, today=today)
 
 
 @app.route("/customer")
