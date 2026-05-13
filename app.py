@@ -181,6 +181,16 @@ class EmailSettings(db.Model, RowLikeMixin):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ArcadeScore(db.Model, RowLikeMixin):
+    __tablename__ = "arcade_scores"
+
+    id = db.Column(db.Integer, primary_key=True)
+    player_name = db.Column(db.String(32), nullable=False)
+    score = db.Column(db.Integer, nullable=False)
+    wave = db.Column(db.Integer, default=1)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 @app.template_filter("dt")
 def format_datetime(value):
     if not value:
@@ -841,6 +851,37 @@ def customer_packing_slip(unit_id: int):
     return render_template("packing_slip.html", unit=unit, today=today, portal="customer")
 
 
+
+
+@app.route("/arcade/scores")
+@admin_login_required
+def arcade_scores():
+    scores = ArcadeScore.query.order_by(ArcadeScore.score.desc()).limit(10).all()
+    return {
+        "scores": [
+            {
+                "rank": i + 1,
+                "name": s.player_name,
+                "score": s.score,
+                "wave": s.wave,
+                "date": s.created_at.strftime("%Y-%m-%d") if s.created_at else ""
+            }
+            for i, s in enumerate(scores)
+        ]
+    }
+
+
+@app.route("/arcade/submit", methods=["POST"])
+@admin_login_required
+def arcade_submit():
+    data = request.get_json()
+    name = (data.get("name") or "Anonymous").strip()[:32]
+    score = int(data.get("score", 0))
+    wave = int(data.get("wave", 1))
+    entry = ArcadeScore(player_name=name, score=score, wave=wave)
+    db.session.add(entry)
+    db.session.commit()
+    return {"ok": True}
 
 
 def send_report_email(settings, units):
