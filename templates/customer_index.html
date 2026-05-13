@@ -13,14 +13,21 @@
     margin-bottom: 16px;
 }
 
-/* Cards use base.html surface variables so dark mode works */
+/* Cards — override any Bootstrap interference */
 .customer-portal-wrap .card-clean {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text);
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text) !important;
 }
 
 .customer-portal-wrap .section-title {
+    color: var(--text) !important;
+}
+
+.customer-portal-wrap p,
+.customer-portal-wrap td,
+.customer-portal-wrap th,
+.customer-portal-wrap strong {
     color: var(--text);
 }
 
@@ -31,15 +38,22 @@
     overflow: hidden;
 }
 
+/* Kill Bootstrap's internal table color overrides */
 .customer-portal-wrap .table {
-    color: var(--text);
+    --bs-table-color: var(--text);
+    --bs-table-bg: transparent;
+    --bs-table-hover-bg: var(--surface-2);
+    --bs-table-hover-color: var(--text);
+    --bs-table-border-color: var(--border);
+    --bs-table-striped-color: var(--text);
+    color: var(--text) !important;
     margin-bottom: 0;
 }
 
 .customer-portal-wrap .table thead th {
-    background: var(--surface-2);
-    color: var(--text);
-    border-bottom: 1px solid var(--border);
+    background: var(--surface-2) !important;
+    color: var(--text) !important;
+    border-bottom: 1px solid var(--border) !important;
     padding: 14px 12px;
     font-size: 13px;
     white-space: nowrap;
@@ -47,17 +61,23 @@
 
 .customer-portal-wrap .table tbody td {
     padding: 14px 12px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text);
+    border-bottom: 1px solid var(--border) !important;
+    color: var(--text) !important;
     vertical-align: middle;
+    background: transparent !important;
 }
 
 .customer-portal-wrap .table tbody tr:last-child td {
-    border-bottom: none;
+    border-bottom: none !important;
 }
 
-.customer-portal-wrap .table tbody tr:hover {
-    background: var(--surface-2);
+.customer-portal-wrap .table tbody tr:hover td {
+    background: var(--surface-2) !important;
+    color: var(--text) !important;
+}
+
+.customer-portal-wrap strong {
+    color: var(--text) !important;
 }
 
 /* Status pills */
