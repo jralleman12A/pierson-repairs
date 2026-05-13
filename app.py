@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import csv
@@ -20,16 +19,9 @@ from flask import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
-
-
-def normalize_database_url(url: str | None) -> str:
-    if not url:
-        return "sqlite:///repair_tracker_local.db"
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql://", 1)
-    return url
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -40,7 +32,7 @@ EXPORT_FOLDER = Path(os.getenv("EXPORT_FOLDER", BASE_DIR / "exports")).resolve()
 CHECKOFF_FOLDER.mkdir(parents=True, exist_ok=True)
 EXPORT_FOLDER.mkdir(parents=True, exist_ok=True)
 
-ALLOWED_CHECKOFF_EXTENSIONS = {"pdf", "png", "jpg", "jpeg"}
+ALLOWED_CHECKOFF_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "webp"}
 
 STATUSES = [
     "Awaiting Diagnosis",
@@ -54,17 +46,46 @@ STATUSES = [
     "Scrapped",
 ]
 
+STATUS_BADGE_CLASSES = {
+    "Awaiting Diagnosis": "customer-status-awaiting",
+    "Picking up from MCPS": "customer-status-pickup",
+    "In Repair": "customer-status-repair",
+    "Waiting on Parts": "customer-status-parts",
+    "Completed": "customer-status-complete",
+    "Delivering to MCPS": "customer-status-delivering",
+    "Delivered to MCPS": "customer-status-delivered",
+    "Shipped Back to MCPS": "customer-status-shipped",
+    "Scrapped": "customer-status-scrapped",
+}
+
+
+def normalize_database_url(url: str | None) -> str:
+    if not url:
+        return "sqlite:///repair_tracker_local.db"
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql://", 1)
+    return url
+
+
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "change-me-before-production")
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+
+app.secret_key = os.getenv("SECRET_KEY", "dev-only-change-me")
 app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(os.getenv("DATABASE_URL"))
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_MB", "25")) * 1024 * 1024
 
-CUSTOMER_PORTAL_PASSWORD = os.getenv("CUSTOMER_PORTAL_PASSWORD", "MCPS1234")
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() not in {"0", "false", "no"}
+if os.getenv("FLASK_DEBUG") == "1":
+    COOKIE_SECURE = False
 
-# Optional first admin bootstrap. Change these env vars in Render, then remove/change after creating your admin.
-BOOTSTRAP_ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-BOOTSTRAP_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Pierson1993!")
+app.config["SESSION_COOKIE_SECURE"] = COOKIE_SECURE
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+CUSTOMER_PORTAL_PASSWORD = os.getenv("CUSTOMER_PORTAL_PASSWORD", "MCPS1234")
+BOOTSTRAP_ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
+BOOTSTRAP_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 
 db = SQLAlchemy(app)
@@ -120,6 +141,14 @@ class Unit(db.Model, RowLikeMixin):
 
     notes = db.relationship("RepairNote", backref="unit", lazy=True, cascade="all, delete-orphan")
 
+    @property
+    def badge_class(self) -> str:
+        return STATUS_BADGE_CLASSES.get(self.status, "customer-status-default")
+
+    @property
+    def checkoff_status(self) -> str:
+        return "Uploaded" if self.checkoff_file else "Not Uploaded"
+
 
 class RepairNote(db.Model, RowLikeMixin):
     __tablename__ = "repair_notes"
@@ -138,6 +167,27 @@ def format_datetime(value):
     if isinstance(value, datetime):
         return value.strftime("%Y-%m-%d %H:%M")
     return str(value)
+
+
+@app.template_filter("dash")
+def dash(value):
+    return value if value not in {None, ""} else "—"
+
+
+def current_user() -> User | None:
+    user_id = session.get("user_id")
+    if not user_id:
+        return None
+    return db.session.get(User, user_id)
+
+
+@app.context_processor
+def inject_globals():
+    return {
+        "current_user": current_user(),
+        "STATUSES": STATUSES,
+        "STATUS_BADGE_CLASSES": STATUS_BADGE_CLASSES,
+    }
 
 
 def init_database() -> None:
@@ -169,13 +219,6 @@ def allowed_checkoff_file(filename: str) -> bool:
     return extension in ALLOWED_CHECKOFF_EXTENSIONS
 
 
-def current_user() -> User | None:
-    user_id = session.get("user_id")
-    if not user_id:
-        return None
-    return db.session.get(User, user_id)
-
-
 def admin_login_required(view_func):
     @wraps(view_func)
     def wrapped(*args, **kwargs):
@@ -189,7 +232,7 @@ def customer_login_required(view_func):
     @wraps(view_func)
     def wrapped(*args, **kwargs):
         if not session.get("customer_portal_logged_in"):
-            return redirect(url_for("customer_login"))
+            return redirect(url_for("customer_login", next=request.path))
         return view_func(*args, **kwargs)
     return wrapped
 
@@ -197,11 +240,7 @@ def customer_login_required(view_func):
 def generate_next_intake_id() -> str:
     year = datetime.now().year
     prefix = f"BX-{year}-"
-    last = (
-        Unit.query.filter(Unit.intake_id.like(f"{prefix}%"))
-        .order_by(Unit.id.desc())
-        .first()
-    )
+    last = Unit.query.filter(Unit.intake_id.like(f"{prefix}%")).order_by(Unit.id.desc()).first()
     if last and last.intake_id:
         try:
             next_number = int(last.intake_id.split("-")[-1]) + 1
@@ -212,7 +251,7 @@ def generate_next_intake_id() -> str:
     return f"{prefix}{next_number:04d}"
 
 
-def get_dashboard_counts() -> dict:
+def get_dashboard_counts() -> dict[str, int]:
     counts = {}
     for status in STATUSES:
         counts[status] = Unit.query.filter_by(status=status, is_deleted=False).count()
@@ -227,14 +266,18 @@ def apply_status_side_effects(unit: Unit, status: str) -> None:
         unit.shipped_back_mcps = True
         if not unit.shipped_back_date:
             unit.shipped_back_date = datetime.now().strftime("%Y-%m-%d")
-    elif status not in {"Delivered to MCPS", "Shipped Back to MCPS"}:
+    else:
         unit.shipped_back_mcps = False
         unit.shipped_back_date = ""
 
 
-@app.context_processor
-def inject_globals():
-    return {"current_user": current_user(), "STATUSES": STATUSES}
+def get_active_unit(unit_id: int) -> Unit | None:
+    return Unit.query.filter_by(id=unit_id, is_deleted=False).first()
+
+
+@app.route("/health")
+def health():
+    return {"status": "ok", "app": "pierson-repairs"}, 200
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -264,24 +307,23 @@ def logout():
 def index():
     search = request.args.get("search", "").strip()
     status_filter = request.args.get("status", "").strip()
-
     query = Unit.query.filter_by(is_deleted=False)
+
     if search:
         like_search = f"%{search}%"
-        query = query.filter(
-            or_(
-                Unit.intake_id.ilike(like_search),
-                Unit.brand.ilike(like_search),
-                Unit.model.ilike(like_search),
-                Unit.serial_number.ilike(like_search),
-                Unit.reported_issue.ilike(like_search),
-                Unit.source.ilike(like_search),
-            )
-        )
+        query = query.filter(or_(
+            Unit.intake_id.ilike(like_search),
+            Unit.brand.ilike(like_search),
+            Unit.model.ilike(like_search),
+            Unit.serial_number.ilike(like_search),
+            Unit.reported_issue.ilike(like_search),
+            Unit.source.ilike(like_search),
+        ))
+
     if status_filter:
         query = query.filter_by(status=status_filter)
-    units = query.order_by(Unit.id.desc()).all()
 
+    units = query.order_by(Unit.id.desc()).all()
     return render_template(
         "index.html",
         units=units,
@@ -311,9 +353,11 @@ def add_unit():
     if not model and not serial_number:
         flash("Please enter at least a model or a serial number.", "danger")
         return redirect(url_for("index"))
+
     if not validate_date(date_received):
         flash("Date Received must be in YYYY-MM-DD format.", "danger")
         return redirect(url_for("index"))
+
     if status not in STATUSES:
         status = "Awaiting Diagnosis"
 
@@ -336,13 +380,14 @@ def add_unit():
     except Exception as exc:
         db.session.rollback()
         flash(f"Error adding unit: {exc}", "danger")
+
     return redirect(url_for("index"))
 
 
 @app.route("/unit/<int:unit_id>")
 @admin_login_required
 def unit_detail(unit_id: int):
-    unit = Unit.query.filter_by(id=unit_id, is_deleted=False).first()
+    unit = get_active_unit(unit_id)
     if unit is None:
         flash("Unit not found.", "danger")
         return redirect(url_for("index"))
@@ -353,7 +398,7 @@ def unit_detail(unit_id: int):
 @app.route("/unit/<int:unit_id>/edit", methods=["GET", "POST"])
 @admin_login_required
 def edit_unit(unit_id: int):
-    unit = Unit.query.filter_by(id=unit_id, is_deleted=False).first()
+    unit = get_active_unit(unit_id)
     if unit is None:
         flash("Unit not found.", "danger")
         return redirect(url_for("index"))
@@ -369,9 +414,11 @@ def edit_unit(unit_id: int):
         if not intake_id:
             flash("Intake ID is required.", "danger")
             return redirect(url_for("edit_unit", unit_id=unit_id))
-        if not validate_date(date_received) or not validate_date(shipped_back_date) or not validate_date(repaired_date) or not validate_date(delivery_date):
+
+        if not all(validate_date(value) for value in [date_received, shipped_back_date, repaired_date, delivery_date]):
             flash("Dates must be in YYYY-MM-DD format.", "danger")
             return redirect(url_for("edit_unit", unit_id=unit_id))
+
         if status not in STATUSES:
             status = unit.status
 
@@ -386,8 +433,8 @@ def edit_unit(unit_id: int):
         unit.final_outcome = request.form.get("final_outcome", "").strip()
         unit.repaired_date = repaired_date
         unit.delivery_date = delivery_date
-        unit.shipped_back_date = shipped_back_date
         apply_status_side_effects(unit, status)
+
         if shipped_back_date:
             unit.shipped_back_date = shipped_back_date
 
@@ -405,15 +452,21 @@ def edit_unit(unit_id: int):
 @app.route("/unit/<int:unit_id>/add_note", methods=["POST"])
 @admin_login_required
 def add_note(unit_id: int):
-    unit = Unit.query.filter_by(id=unit_id, is_deleted=False).first()
+    unit = get_active_unit(unit_id)
     if unit is None:
         flash("Unit not found.", "danger")
         return redirect(url_for("index"))
+
     note_text = request.form.get("note_text", "").strip()
     if not note_text:
         flash("Note text cannot be blank.", "danger")
         return redirect(url_for("unit_detail", unit_id=unit_id))
-    note = RepairNote(unit_id=unit_id, note_text=note_text, technician=request.form.get("technician", "").strip())
+
+    technician = request.form.get("technician", "").strip()
+    if not technician and current_user():
+        technician = current_user().username
+
+    note = RepairNote(unit_id=unit_id, note_text=note_text, technician=technician)
     db.session.add(note)
     db.session.commit()
     flash("Repair note added.", "success")
@@ -423,14 +476,16 @@ def add_note(unit_id: int):
 @app.route("/unit/<int:unit_id>/update_status", methods=["POST"])
 @admin_login_required
 def update_status(unit_id: int):
-    unit = Unit.query.filter_by(id=unit_id, is_deleted=False).first()
+    unit = get_active_unit(unit_id)
     if unit is None:
         flash("Unit not found.", "danger")
         return redirect(url_for("index"))
+
     status = request.form.get("status", "").strip()
     if status not in STATUSES:
         flash("Invalid status selected.", "danger")
         return redirect(url_for("unit_detail", unit_id=unit_id))
+
     apply_status_side_effects(unit, status)
     db.session.commit()
     flash("Status updated.", "success")
@@ -440,15 +495,18 @@ def update_status(unit_id: int):
 @app.route("/unit/<int:unit_id>/update_dates", methods=["POST"])
 @admin_login_required
 def update_dates(unit_id: int):
-    unit = Unit.query.filter_by(id=unit_id, is_deleted=False).first()
+    unit = get_active_unit(unit_id)
     if unit is None:
         flash("Unit not found.", "danger")
         return redirect(url_for("index"))
+
     repaired_date = request.form.get("repaired_date", "").strip()
     delivery_date = request.form.get("delivery_date", "").strip()
+
     if not validate_date(repaired_date) or not validate_date(delivery_date):
         flash("Dates must be in YYYY-MM-DD format.", "danger")
         return redirect(url_for("unit_detail", unit_id=unit_id))
+
     unit.repaired_date = repaired_date
     unit.delivery_date = delivery_date
     db.session.commit()
@@ -459,16 +517,18 @@ def update_dates(unit_id: int):
 @app.route("/unit/<int:unit_id>/upload_checkoff", methods=["POST"])
 @admin_login_required
 def upload_checkoff(unit_id: int):
-    unit = Unit.query.filter_by(id=unit_id, is_deleted=False).first()
+    unit = get_active_unit(unit_id)
     if unit is None:
         flash("Unit not found.", "danger")
         return redirect(url_for("index"))
+
     uploaded_file = request.files.get("checkoff_file")
     if not uploaded_file or uploaded_file.filename == "":
         flash("Please choose a check-off slip file to upload.", "danger")
         return redirect(url_for("unit_detail", unit_id=unit_id))
+
     if not allowed_checkoff_file(uploaded_file.filename):
-        flash("Allowed file types are PDF, PNG, JPG, and JPEG.", "danger")
+        flash("Allowed file types are PDF, PNG, JPG, JPEG, and WEBP.", "danger")
         return redirect(url_for("unit_detail", unit_id=unit_id))
 
     original_filename = secure_filename(uploaded_file.filename)
@@ -476,10 +536,12 @@ def upload_checkoff(unit_id: int):
     safe_intake_id = secure_filename(unit.intake_id or f"unit_{unit_id}")
     filename = f"{safe_intake_id}_checkoff.{extension}"
     filepath = CHECKOFF_FOLDER / filename
+
     if unit.checkoff_file and unit.checkoff_file != filename:
         old_path = CHECKOFF_FOLDER / unit.checkoff_file
         if old_path.exists():
             old_path.unlink(missing_ok=True)
+
     uploaded_file.save(filepath)
     unit.checkoff_file = filename
     unit.checkoff_uploaded_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
@@ -491,21 +553,23 @@ def upload_checkoff(unit_id: int):
 @app.route("/unit/<int:unit_id>/checkoff")
 @admin_login_required
 def view_checkoff(unit_id: int):
-    unit = Unit.query.filter_by(id=unit_id, is_deleted=False).first()
+    unit = get_active_unit(unit_id)
     if unit is None or not unit.checkoff_file:
         flash("No check-off slip uploaded for this unit.", "danger")
         return redirect(url_for("unit_detail", unit_id=unit_id))
+
     filepath = CHECKOFF_FOLDER / unit.checkoff_file
     if not filepath.exists():
         flash("The uploaded check-off slip file could not be found.", "danger")
         return redirect(url_for("unit_detail", unit_id=unit_id))
-    return send_file(filepath)
+
+    return send_file(filepath, as_attachment=False)
 
 
 @app.route("/unit/<int:unit_id>/archive", methods=["POST"])
 @admin_login_required
 def archive_unit(unit_id: int):
-    unit = Unit.query.filter_by(id=unit_id, is_deleted=False).first()
+    unit = get_active_unit(unit_id)
     if unit:
         unit.is_deleted = True
         db.session.commit()
@@ -527,7 +591,7 @@ def restore_unit(unit_id: int):
 @app.route("/unit/<int:unit_id>/packing-slip")
 @admin_login_required
 def packing_slip_for_unit(unit_id: int):
-    unit = Unit.query.filter_by(id=unit_id, is_deleted=False).first()
+    unit = get_active_unit(unit_id)
     if unit is None:
         flash("Unit not found.", "danger")
         return redirect(url_for("index"))
@@ -543,6 +607,7 @@ def export_csv():
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"repair_tracker_export_{timestamp}.csv"
         filepath = EXPORT_FOLDER / filename
+
         with open(filepath, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow([
@@ -553,27 +618,41 @@ def export_csv():
             ])
             for row in rows:
                 writer.writerow([
-                    row.id, f'=\"{row.intake_id or ""}\"', row.brand, row.model,
-                    f'=\"{row.serial_number or ""}\"', f'=\"{row.screen_size or ""}\"', row.source,
-                    row.date_received, row.status, row.reported_issue, row.final_outcome,
-                    row.repaired_date, row.delivery_date, row.checkoff_file, row.checkoff_uploaded_at,
-                    "Yes" if row.shipped_back_mcps else "No", row.shipped_back_date,
-                    "Yes" if row.is_deleted else "No", row.created_at, row.updated_at,
+                    row.id,
+                    f'=\"{row.intake_id or ""}\"',
+                    row.brand,
+                    row.model,
+                    f'=\"{row.serial_number or ""}\"',
+                    f'=\"{row.screen_size or ""}\"',
+                    row.source,
+                    row.date_received,
+                    row.status,
+                    row.reported_issue,
+                    row.final_outcome,
+                    row.repaired_date,
+                    row.delivery_date,
+                    row.checkoff_file,
+                    row.checkoff_uploaded_at,
+                    "Yes" if row.shipped_back_mcps else "No",
+                    row.shipped_back_date,
+                    "Yes" if row.is_deleted else "No",
+                    row.created_at,
+                    row.updated_at,
                 ])
+
         return send_file(filepath, as_attachment=True)
     except Exception as exc:
         flash(f"CSV export failed: {exc}", "danger")
         return redirect(url_for("index"))
 
 
-# Customer portal from the same live production database.
 @app.route("/customer-login", methods=["GET", "POST"])
 def customer_login():
     if request.method == "POST":
         password = request.form.get("password", "")
         if password == CUSTOMER_PORTAL_PASSWORD:
             session["customer_portal_logged_in"] = True
-            return redirect(url_for("customer_portal"))
+            return redirect(request.args.get("next") or url_for("customer_portal"))
         flash("Invalid customer portal password.", "danger")
     return render_template("customer_login.html")
 
@@ -590,6 +669,7 @@ def customer_logout():
 def customer_portal():
     search = request.args.get("search", "").strip()
     query = Unit.query.filter_by(is_deleted=False)
+
     if search:
         like_search = f"%{search}%"
         query = query.filter(or_(
@@ -600,6 +680,7 @@ def customer_portal():
             Unit.source.ilike(like_search),
             Unit.status.ilike(like_search),
         ))
+
     units = query.order_by(Unit.id.desc()).all()
     return render_template("customer_index.html", units=units, search=search)
 
@@ -607,7 +688,7 @@ def customer_portal():
 @app.route("/customer/unit/<int:unit_id>")
 @customer_login_required
 def customer_unit_detail(unit_id: int):
-    unit = Unit.query.filter_by(id=unit_id, is_deleted=False).first()
+    unit = get_active_unit(unit_id)
     if unit is None:
         flash("That repair record could not be found.", "danger")
         return redirect(url_for("customer_portal"))
@@ -617,18 +698,40 @@ def customer_unit_detail(unit_id: int):
 @app.route("/customer/unit/<int:unit_id>/checkoff")
 @customer_login_required
 def customer_view_checkoff(unit_id: int):
-    unit = Unit.query.filter_by(id=unit_id, is_deleted=False).first()
-    if unit is None or not unit.checkoff_file:
+    unit = get_active_unit(unit_id)
+    if unit is None:
+        flash("That repair record could not be found.", "danger")
+        return redirect(url_for("customer_portal"))
+
+    if not unit.checkoff_file:
         flash("No check-off slip is available for this unit.", "danger")
         return redirect(url_for("customer_unit_detail", unit_id=unit_id))
+
     filepath = CHECKOFF_FOLDER / unit.checkoff_file
     if not filepath.exists():
         flash("The check-off slip file could not be found.", "danger")
         return redirect(url_for("customer_unit_detail", unit_id=unit_id))
-    return send_file(filepath)
+
+    return send_file(filepath, as_attachment=False)
+
+
+@app.route("/customer/unit/<int:unit_id>/packing-slip")
+@customer_login_required
+def customer_packing_slip(unit_id: int):
+    unit = get_active_unit(unit_id)
+    if unit is None:
+        flash("That repair record could not be found.", "danger")
+        return redirect(url_for("customer_portal"))
+    today = datetime.now().strftime("%Y-%m-%d")
+    return render_template("packing_slip.html", unit=unit, today=today)
 
 
 init_database()
 
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=os.getenv("FLASK_DEBUG") == "1")
+    app.run(
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "5000")),
+        debug=os.getenv("FLASK_DEBUG") == "1",
+    )
