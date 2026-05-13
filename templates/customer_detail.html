@@ -137,10 +137,18 @@
 }
 
 @media (max-width: 700px) {
-    .customer-title-line h1 { font-size: 24px; }
-    .customer-header { flex-direction: column; }
-    .customer-actions { width: 100%; }
-    .customer-actions .btn { flex: 1; text-align: center; }
+    .customer-detail-card { padding: 16px; }
+    .customer-title-line h1 { font-size: 22px; }
+    .customer-header { flex-direction: column; gap: 12px; }
+    .customer-actions { width: 100%; flex-direction: column; }
+    .customer-actions .btn { width: 100%; text-align: center; }
+    .customer-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .customer-box { padding: 12px; }
+    .customer-box p { font-size: 14px; }
+}
+
+@media (max-width: 480px) {
+    .customer-grid { grid-template-columns: 1fr; }
 }
 </style>
 
