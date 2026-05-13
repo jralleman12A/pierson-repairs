@@ -62,6 +62,99 @@
             --status-scrapped-text: #fecdd3;
         }
 
+        body.hacker {
+            --bg: #000000;
+            --surface: #0a0a0a;
+            --surface-2: #0f0f0f;
+            --text: #00ff41;
+            --muted: #00cc33;
+            --border: #003d10;
+            --header-a: #000000;
+            --header-b: #001a05;
+            --shadow: 0 0 20px rgba(0,255,65,0.15);
+            --row-hover: #001a05;
+        }
+
+        body.hacker .topbar {
+            border: 1px solid #00ff41;
+            box-shadow: 0 0 20px rgba(0,255,65,0.2);
+        }
+
+        body.hacker .topbar-title {
+            color: #00ff41;
+            font-family: monospace;
+            letter-spacing: 3px;
+        }
+
+        body.hacker .topbar-subtitle {
+            color: #00cc33;
+            font-family: monospace;
+        }
+
+        body.hacker .card-clean {
+            border-color: #003d10;
+            box-shadow: 0 0 10px rgba(0,255,65,0.1);
+        }
+
+        body.hacker .btn-primary {
+            background: #00ff41 !important;
+            color: #000 !important;
+            border-color: #00ff41 !important;
+            font-family: monospace;
+            font-weight: 700;
+        }
+
+        body.hacker .btn-light {
+            background: transparent !important;
+            color: #00ff41 !important;
+            border: 1px solid #00ff41 !important;
+            font-family: monospace;
+        }
+
+        body.hacker .btn-outline-light {
+            color: #00ff41 !important;
+            border-color: #00ff41 !important;
+        }
+
+        body.hacker .form-control {
+            background: #0a0a0a !important;
+            color: #00ff41 !important;
+            border-color: #003d10 !important;
+            font-family: monospace;
+        }
+
+        body.hacker .table {
+            color: #00ff41 !important;
+        }
+
+        body.hacker .section-title {
+            color: #00ff41;
+            font-family: monospace;
+            letter-spacing: 2px;
+        }
+
+        body.hacker #themeToggle {
+            background: #000 !important;
+            color: #00ff41 !important;
+            border: 1px solid #00ff41 !important;
+            font-family: monospace;
+            animation: hackerPulse 2s infinite;
+        }
+
+        @keyframes hackerPulse {
+            0%, 100% { box-shadow: 0 0 5px rgba(0,255,65,0.5); }
+            50% { box-shadow: 0 0 15px rgba(0,255,65,0.9); }
+        }
+
+        /* Matrix rain canvas */
+        #matrix-canvas {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            pointer-events: none;
+            display: none;
+        }
+
         body {
             background: var(--bg);
             color: var(--text);
@@ -389,7 +482,7 @@
                 {% else %}
                     <a href="{{ url_for('login') }}" class="btn btn-light btn-sm">Login</a>
                 {% endif %}
-                <button type="button" class="btn btn-dark btn-sm" onclick="toggleTheme()" id="themeToggle">Dark Mode</button>
+                <button type="button" class="btn btn-dark btn-sm" onclick="handleThemeClick()" id="themeToggle">Dark Mode</button>
             </div>
         </div>
     </div>
@@ -410,22 +503,113 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// ── Theme management ──
 function applyThemeLabel() {
     const btn = document.getElementById("themeToggle");
     if (!btn) return;
-    btn.textContent = document.body.classList.contains("dark") ? "Light Mode" : "Dark Mode";
+    const isHacker = document.body.classList.contains("hacker");
+    const isDark = document.body.classList.contains("dark");
+    if (isHacker) btn.textContent = "// HACKER.EXE";
+    else if (isDark) btn.textContent = "Light Mode";
+    else btn.textContent = "Dark Mode";
 }
 
 function toggleTheme() {
-    document.body.classList.toggle("dark");
-    localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
+    if (document.body.classList.contains("hacker")) {
+        document.body.classList.remove("hacker", "dark");
+        localStorage.setItem("theme", "light");
+    } else {
+        document.body.classList.toggle("dark");
+        localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
+    }
     applyThemeLabel();
 }
 
-if (localStorage.getItem("theme") === "dark") {
+// ── Triple-click hacker mode ──
+let themeClickCount = 0;
+let themeClickTimer = null;
+
+function handleThemeClick() {
+    themeClickCount++;
+    if (themeClickTimer) clearTimeout(themeClickTimer);
+    themeClickTimer = setTimeout(() => { themeClickCount = 0; }, 600);
+
+    if (themeClickCount >= 3) {
+        themeClickCount = 0;
+        if (document.body.classList.contains("hacker")) {
+            // Exit hacker mode
+            document.body.classList.remove("hacker", "dark");
+            localStorage.setItem("theme", "light");
+            applyThemeLabel();
+        } else {
+            // Enter hacker mode via Matrix rain
+            runMatrixRain(() => {
+                document.body.classList.remove("dark");
+                document.body.classList.add("hacker", "dark");
+                localStorage.setItem("theme", "hacker");
+                applyThemeLabel();
+            });
+        }
+    } else {
+        toggleTheme();
+    }
+}
+
+// ── Matrix rain animation ──
+function runMatrixRain(onComplete) {
+    const canvas = document.getElementById("matrix-canvas");
+    canvas.style.display = "block";
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const chars = "PIERSON01アイウエオカキクケコサシスセソPIERSONREPAIRS0110MCPSBOXLIGHT";
+    const fontSize = 14;
+    const cols = Math.floor(canvas.width / fontSize);
+    const drops = Array(cols).fill(1);
+    let frame = 0;
+    const maxFrames = 120;
+
+    const interval = setInterval(() => {
+        frame++;
+        const alpha = Math.min(frame / 20, 1);
+        ctx.fillStyle = `rgba(0,0,0,${0.05 + alpha * 0.1})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = frame > 80 ? "#00ff41" : "#0f0";
+        ctx.font = fontSize + "px monospace";
+
+        for (let i = 0; i < drops.length; i++) {
+            const char = chars[Math.floor(Math.random() * chars.length)];
+            ctx.fillStyle = drops[i] * fontSize < 60 ? "#afffbe" : "#00ff41";
+            ctx.fillText(char, i * fontSize, drops[i] * fontSize);
+            if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+            drops[i]++;
+        }
+
+        if (frame >= maxFrames) {
+            clearInterval(interval);
+            // Flash white then reveal hacker mode
+            ctx.fillStyle = "rgba(0,255,65,0.15)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            onComplete();
+            setTimeout(() => {
+                canvas.style.display = "none";
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }, 400);
+        }
+    }, 16);
+}
+
+// ── Init ──
+const savedTheme = localStorage.getItem("theme");
+if (savedTheme === "hacker") {
+    document.body.classList.add("hacker", "dark");
+} else if (savedTheme === "dark") {
     document.body.classList.add("dark");
 }
 applyThemeLabel();
 </script>
+<canvas id="matrix-canvas"></canvas>
 </body>
 </html>
