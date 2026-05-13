@@ -616,7 +616,7 @@ def packing_slip_for_unit(unit_id: int):
         flash("Unit not found.", "danger")
         return redirect(url_for("index"))
     today = datetime.now().strftime("%Y-%m-%d")
-    return render_template("packing_slip.html", unit=unit, today=today)
+    return render_template("packing_slip.html", unit=unit, today=today, portal="admin")
 
 
 @app.route("/export/csv")
@@ -738,7 +738,7 @@ def customer_packing_slip(unit_id: int):
         flash("That repair record could not be found.", "danger")
         return redirect(url_for("customer_portal"))
     today = datetime.now().strftime("%Y-%m-%d")
-    return render_template("packing_slip.html", unit=unit, today=today)
+    return render_template("packing_slip.html", unit=unit, today=today, portal="customer")
 
 
 init_database()
