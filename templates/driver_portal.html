@@ -126,18 +126,22 @@
     font-weight: 700;
 }
 
-@media (max-width: 600px) {
-    .pickup-card {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .pickup-action {
-        width: 100%;
-    }
-    .btn-pickup {
-        width: 100%;
-        text-align: center;
-    }
+@media (max-width: 768px) {
+    .driver-wrap { padding: 0; }
+
+    .driver-header-card { padding: 16px; border-radius: 14px; }
+    .driver-header-card h2 { font-size: 18px; }
+
+    .driver-actions-row { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .driver-actions-row > div:last-child { width: 100%; }
+    .driver-actions-row .btn { flex: 1; text-align: center; }
+
+    .pickup-card { padding: 14px; border-radius: 12px; }
+    .pickup-card { flex-direction: column; align-items: flex-start; }
+    .pickup-id { font-size: 17px; }
+    .pickup-meta { gap: 8px; font-size: 13px; }
+    .pickup-action { width: 100%; margin-top: 10px; }
+    .btn-pickup { width: 100%; text-align: center; padding: 14px; font-size: 16px; }
 }
 </style>
 
