@@ -8,10 +8,10 @@
 }
 
 .customer-detail-card {
-    background: var(--card);
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 18px;
-    padding: 24px;
+    padding: 28px;
     color: var(--text);
 }
 
@@ -21,7 +21,7 @@
     align-items: flex-start;
     gap: 16px;
     flex-wrap: wrap;
-    margin-bottom: 24px;
+    margin-bottom: 28px;
 }
 
 .customer-title-line {
@@ -38,73 +38,109 @@
 }
 
 .customer-subtitle {
-    color: var(--text-soft);
+    color: var(--muted);
     margin-top: 6px;
+    font-size: 15px;
 }
 
 .customer-actions {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
+    align-items: center;
 }
 
+/* Info grid boxes */
 .customer-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
 }
 
 .customer-box {
-    background: var(--card-2);
+    background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 16px;
     color: var(--text);
-    box-shadow: 0 2px 8px var(--shadow);
 }
 
 .customer-box strong {
-    color: var(--text-soft);
     display: block;
-    margin-bottom: 6px;
-    font-size: 13px;
+    color: var(--muted);
+    font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+    font-weight: 700;
 }
 
 .customer-box p {
     margin: 0;
     color: var(--text);
     font-size: 15px;
+    font-weight: 500;
 }
 
+/* Final outcome box */
 .customer-final {
-    margin-top: 24px;
-    background: var(--card-2);
+    background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 18px;
     color: var(--text);
-    box-shadow: 0 2px 8px var(--shadow);
 }
 
 .customer-final strong {
-    color: var(--text-soft);
     display: block;
-    margin-bottom: 8px;
-    font-size: 13px;
+    color: var(--muted);
+    font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
+    font-weight: 700;
 }
 
 .customer-final p {
-    margin-bottom: 0;
+    margin: 0;
     color: var(--text);
+    font-size: 15px;
 }
 
+/* Status pill */
+.customer-status {
+    display: inline-block;
+    padding: 6px 13px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.customer-status-awaiting  { background: #5c3d00; color: #ffd166; }
+.customer-status-repair    { background: #123b66; color: #8ecaff; }
+.customer-status-parts     { background: #4b2d63; color: #d7a8ff; }
+.customer-status-complete  { background: #14532d; color: #bbf7d0; }
+.customer-status-delivered { background: #14532d; color: #bbf7d0; }
+.customer-status-shipped   { background: #14532d; color: #bbf7d0; }
+.customer-status-scrapped  { background: #5b1d1d; color: #ffb3b3; }
+.customer-status-default   { background: #334155; color: #ffffff; }
+
 .btn-green {
-    background: #198754 !important;
-    color: white !important;
+    background: #16a34a !important;
+    color: #ffffff !important;
+}
+
+.btn-green:hover {
+    background: #15803d !important;
+}
+
+@media (max-width: 700px) {
+    .customer-title-line h1 { font-size: 24px; }
+    .customer-header { flex-direction: column; }
+    .customer-actions { width: 100%; }
+    .customer-actions .btn { flex: 1; text-align: center; }
 }
 </style>
 
@@ -115,7 +151,20 @@
             <div>
                 <div class="customer-title-line">
                     <h1>{{ unit["intake_id"] or "" }}</h1>
-                    <span class="customer-status">{{ unit["status"] or "" }}</span>
+                    {% set status = unit["status"] or "" %}
+                    {% if status == "Awaiting Diagnosis" %}
+                        <span class="customer-status customer-status-awaiting">{{ status }}</span>
+                    {% elif status == "In Repair" %}
+                        <span class="customer-status customer-status-repair">{{ status }}</span>
+                    {% elif status == "Waiting on Parts" %}
+                        <span class="customer-status customer-status-parts">{{ status }}</span>
+                    {% elif status in ["Completed", "Shipped Back to MCPS", "Delivered to MCPS"] %}
+                        <span class="customer-status customer-status-complete">{{ status }}</span>
+                    {% elif status == "Scrapped" %}
+                        <span class="customer-status customer-status-scrapped">{{ status }}</span>
+                    {% else %}
+                        <span class="customer-status customer-status-default">{{ status }}</span>
+                    {% endif %}
                 </div>
                 <div class="customer-subtitle">
                     {{ unit["brand"] or "" }} {{ unit["model"] or "" }}
@@ -123,16 +172,14 @@
             </div>
 
             <div class="customer-actions">
-                <a href="{{ url_for('customer_portal', search=unit['serial_number']) }}" class="btn btn-secondary">
+                <a href="{{ url_for('customer_portal') }}" class="btn btn-secondary">
                     Back to Portal
                 </a>
-
                 <a href="{{ url_for('customer_packing_slip', unit_id=unit['id']) }}" class="btn btn-primary">
                     View Packing Slip
                 </a>
-
                 {% if unit["checkoff_file"] %}
-                  <a href="{{ url_for('customer_view_checkoff', unit_id=unit['id']) }}" target="_blank" class="btn btn-green">
+                    <a href="{{ url_for('customer_view_checkoff', unit_id=unit['id']) }}" target="_blank" class="btn btn-green">
                         View Tech Sign-Off
                     </a>
                 {% endif %}
@@ -142,58 +189,43 @@
         <div class="customer-grid">
             <div class="customer-box">
                 <strong>Brand</strong>
-                <p>{{ unit["brand"] or "" }}</p>
+                <p>{{ unit["brand"] or "—" }}</p>
             </div>
-
             <div class="customer-box">
                 <strong>Model</strong>
-                <p>{{ unit["model"] or "" }}</p>
+                <p>{{ unit["model"] or "—" }}</p>
             </div>
-
             <div class="customer-box">
                 <strong>Serial Number</strong>
-                <p>{{ unit["serial_number"] or "" }}</p>
+                <p>{{ unit["serial_number"] or "—" }}</p>
             </div>
-
             <div class="customer-box">
                 <strong>Screen Size</strong>
-                <p>{{ unit["screen_size"] or "" }}</p>
+                <p>{{ unit["screen_size"] or "—" }}</p>
             </div>
-
             <div class="customer-box">
                 <strong>Date Received</strong>
-                <p>{{ unit["date_received"] or "" }}</p>
+                <p>{{ unit["date_received"] or "—" }}</p>
             </div>
-
             <div class="customer-box">
                 <strong>Repaired Date</strong>
-                <p>{{ unit["repaired_date"] or "" }}</p>
+                <p>{{ unit["repaired_date"] or "—" }}</p>
             </div>
-
             <div class="customer-box">
                 <strong>Delivery Date</strong>
-                <p>{{ unit["delivery_date"] or "" }}</p>
+                <p>{{ unit["delivery_date"] or "—" }}</p>
             </div>
-
             <div class="customer-box">
                 <strong>Shipped Back Date</strong>
-                <p>{{ unit["shipped_back_date"] or "" }}</p>
+                <p>{{ unit["shipped_back_date"] or "—" }}</p>
             </div>
-
             <div class="customer-box">
                 <strong>Tech Sign-Off</strong>
-                <p>
-                    {% if unit["checkoff_file"] %}
-                        On File
-                    {% else %}
-                        Not Uploaded
-                    {% endif %}
-                </p>
+                <p>{% if unit["checkoff_file"] %}On File{% else %}Not Uploaded{% endif %}</p>
             </div>
-
             <div class="customer-box">
                 <strong>Last Updated</strong>
-                <p>{{ unit["updated_at"] or "" }}</p>
+                <p>{{ unit["updated_at"] or "—" }}</p>
             </div>
         </div>
 
