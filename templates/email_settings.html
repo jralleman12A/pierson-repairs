@@ -1,1 +1,274 @@
+{% extends "base.html" %}
 
+{% block content %}
+<style>
+.settings-wrap {
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.settings-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 28px;
+    margin-bottom: 20px;
+}
+
+.settings-section h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 6px 0;
+}
+
+.settings-section .section-desc {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 24px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+    font-size: 14px;
+}
+
+.form-group .help-text {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+.frequency-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.freq-option input[type="radio"] {
+    display: none;
+}
+
+.freq-option label {
+    display: block;
+    padding: 12px;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    text-align: center;
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--text);
+    font-size: 14px;
+    transition: all 0.15s ease;
+    background: var(--surface-2);
+}
+
+.freq-option input[type="radio"]:checked + label {
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #ffffff;
+}
+
+.checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.checkbox-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #2563eb;
+}
+
+.checkbox-row label {
+    margin: 0;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 600;
+}
+
+.status-bar {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.status-bar .status-item {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.status-bar .status-item strong {
+    color: var(--text);
+}
+
+.gmail-warning {
+    background: #7f1d1d;
+    border: 1px solid #991b1b;
+    color: #fee2e2;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    font-size: 13px;
+}
+
+.gmail-ok {
+    background: #14532d;
+    border: 1px solid #166534;
+    color: #dcfce7;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    font-size: 13px;
+}
+
+.action-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.btn-send {
+    background: #16a34a;
+    color: #fff !important;
+    border: none;
+    padding: 11px 22px;
+    border-radius: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn-send:hover { background: #15803d; }
+.btn-send:disabled { background: #64748b; cursor: not-allowed; }
+
+@media (max-width: 600px) {
+    .settings-section { padding: 18px; }
+    .frequency-grid { grid-template-columns: 1fr; }
+    .action-row { flex-direction: column; }
+    .action-row .btn, .action-row .btn-send { width: 100%; text-align: center; }
+}
+</style>
+
+<div class="settings-wrap">
+
+    <div class="settings-section">
+        <h2>Email Report Settings</h2>
+        <p class="section-desc">Configure who receives repair status reports and how often.</p>
+
+        <!-- Gmail status -->
+        {% if gmail_configured %}
+            <div class="gmail-ok">
+                Gmail is configured and ready to send.
+            </div>
+        {% else %}
+            <div class="gmail-warning">
+                Gmail is not configured. Add <strong>GMAIL_USER</strong> and <strong>GMAIL_APP_PASSWORD</strong>
+                to your Render environment variables to enable sending.
+            </div>
+        {% endif %}
+
+        <!-- Last sent / status bar -->
+        <div class="status-bar">
+            <div class="status-item">
+                <strong>Schedule:</strong> {{ settings.frequency | capitalize }}
+            </div>
+            <div class="status-item">
+                <strong>Last Sent:</strong> {{ settings.last_sent or "Never" }}
+            </div>
+            <div class="status-item">
+                <strong>Recipients:</strong>
+                {% if settings.recipients %}
+                    {{ settings.recipients.split(",")|length }} configured
+                {% else %}
+                    None
+                {% endif %}
+            </div>
+        </div>
+
+        <form method="post" id="settings-form">
+
+            <!-- Recipients -->
+            <div class="form-group">
+                <label>Recipient Emails</label>
+                <input type="text" class="form-control" name="recipients"
+                       value="{{ settings.recipients }}"
+                       placeholder="email@example.com, another@example.com">
+                <div class="help-text">Separate multiple emails with commas.</div>
+            </div>
+
+            <!-- Frequency -->
+            <div class="form-group">
+                <label>Report Frequency</label>
+                <div class="frequency-grid">
+                    <div class="freq-option">
+                        <input type="radio" name="frequency" id="freq-weekly" value="weekly"
+                               {% if settings.frequency == "weekly" %}checked{% endif %}>
+                        <label for="freq-weekly">Weekly</label>
+                    </div>
+                    <div class="freq-option">
+                        <input type="radio" name="frequency" id="freq-biweekly" value="biweekly"
+                               {% if settings.frequency == "biweekly" %}checked{% endif %}>
+                        <label for="freq-biweekly">Bi-Weekly</label>
+                    </div>
+                    <div class="freq-option">
+                        <input type="radio" name="frequency" id="freq-monthly" value="monthly"
+                               {% if settings.frequency == "monthly" or not settings.frequency %}checked{% endif %}>
+                        <label for="freq-monthly">Monthly</label>
+                    </div>
+                </div>
+                <div class="help-text" style="margin-top:8px;">
+                    Note: Automatic scheduling requires a Render Cron Job. Use "Send Now" for manual sends.
+                </div>
+            </div>
+
+            <!-- What to include -->
+            <div class="form-group">
+                <label>Include in Report</label>
+                <div class="checkbox-row">
+                    <input type="checkbox" name="include_active" id="inc-active"
+                           {% if settings.include_active %}checked{% endif %}>
+                    <label for="inc-active">Active units (not archived)</label>
+                </div>
+                <div class="checkbox-row">
+                    <input type="checkbox" name="include_archived" id="inc-archived"
+                           {% if settings.include_archived %}checked{% endif %}>
+                    <label for="inc-archived">Archived units</label>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="action-row">
+                <button type="submit" name="action" value="save" class="btn btn-primary">
+                    Save Settings
+                </button>
+                <button type="submit" name="action" value="send" class="btn-send"
+                        {% if not gmail_configured %}disabled title="Configure Gmail first"{% endif %}
+                        onclick="return confirm('Send report now to configured recipients?');">
+                    Send Report Now
+                </button>
+            </div>
+
+        </form>
+    </div>
+
+</div>
+{% endblock %}
