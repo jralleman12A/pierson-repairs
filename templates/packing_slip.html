@@ -181,7 +181,11 @@ body {
 <body>
 
 <div class="page-actions">
-    <a href="{{ url_for('unit_detail', unit_id=unit['id']) }}">Back to Unit</a>
+    {% if portal == 'customer' %}
+        <a href="{{ url_for('customer_unit_detail', unit_id=unit['id']) }}">Back to Unit</a>
+    {% else %}
+        <a href="{{ url_for('unit_detail', unit_id=unit['id']) }}">Back to Unit</a>
+    {% endif %}
     <button onclick="window.print()">Print Packing Slip</button>
 </div>
 
