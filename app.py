@@ -292,13 +292,15 @@ def health():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    # If already logged in, redirect to the right place
-    if session.get("user_id"):
-        return redirect(url_for("index"))
-    if session.get("customer_portal_logged_in"):
-        return redirect(url_for("customer_portal"))
-    if session.get("driver_portal_logged_in"):
-        return redirect(url_for("driver_portal"))
+    # Only auto-redirect if navigating to login directly (no 'next' param)
+    # This prevents driver/customer sessions from hijacking admin navigation
+    if not request.args.get("next"):
+        if session.get("user_id"):
+            return redirect(url_for("index"))
+        if session.get("customer_portal_logged_in"):
+            return redirect(url_for("customer_portal"))
+        if session.get("driver_portal_logged_in"):
+            return redirect(url_for("driver_portal"))
 
     if request.method == "POST":
         portal = request.form.get("portal", "admin")
