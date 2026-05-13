@@ -10,16 +10,21 @@
                 <p class="text-muted mb-4" style="font-size:14px;">Select your portal to continue.</p>
 
                 <!-- Portal toggle tabs -->
-                <div style="display:flex; gap:8px; margin-bottom:24px;">
+                <div style="display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap;">
                     <button type="button" id="tab-admin" onclick="showTab('admin')"
                         style="flex:1; padding:10px; border-radius:12px; border:2px solid #2563eb;
-                               background:#2563eb; color:#fff; font-weight:700; cursor:pointer; transition:all .15s;">
+                               background:#2563eb; color:#fff; font-weight:700; cursor:pointer; transition:all .15s; min-width:120px;">
                         Admin Login
                     </button>
                     <button type="button" id="tab-customer" onclick="showTab('customer')"
                         style="flex:1; padding:10px; border-radius:12px; border:2px solid #2563eb;
-                               background:transparent; color:#2563eb; font-weight:700; cursor:pointer; transition:all .15s;">
+                               background:transparent; color:#2563eb; font-weight:700; cursor:pointer; transition:all .15s; min-width:120px;">
                         Customer Portal
+                    </button>
+                    <button type="button" id="tab-driver" onclick="showTab('driver')"
+                        style="flex:1; padding:10px; border-radius:12px; border:2px solid #16a34a;
+                               background:transparent; color:#16a34a; font-weight:700; cursor:pointer; transition:all .15s; min-width:120px;">
+                        Driver Portal
                     </button>
                 </div>
 
@@ -63,6 +68,23 @@
                     </form>
                 </div>
 
+                <!-- Driver form -->
+                <div id="form-driver" style="display:none;">
+                    <p class="text-muted mb-3" style="font-size:13px;">
+                        Enter the driver portal password to view your pickup list.
+                    </p>
+                    <form method="post" action="{{ url_for('login') }}">
+                        <input type="hidden" name="portal" value="driver">
+                        <div class="mb-3">
+                            <label class="small-label">Driver Password</label>
+                            <input type="password" class="form-control" name="password" required>
+                        </div>
+                        <button type="submit" class="btn w-100" style="background:#16a34a; color:#fff; font-weight:700; border-radius:12px; padding:10px;">
+                            Enter Driver Portal
+                        </button>
+                    </form>
+                </div>
+
             </div>
         </div>
     </div>
@@ -72,23 +94,28 @@
 const activeTab = "{{ active_tab | default('admin') }}";
 
 function showTab(tab) {
-    const isAdmin = tab === 'admin';
-    document.getElementById('form-admin').style.display = isAdmin ? 'block' : 'none';
-    document.getElementById('form-customer').style.display = isAdmin ? 'none' : 'block';
+    document.getElementById('form-admin').style.display = tab === 'admin' ? 'block' : 'none';
+    document.getElementById('form-customer').style.display = tab === 'customer' ? 'block' : 'none';
+    document.getElementById('form-driver').style.display = tab === 'driver' ? 'block' : 'none';
 
-    const tabAdmin = document.getElementById('tab-admin');
-    const tabCustomer = document.getElementById('tab-customer');
+    // Reset all tabs
+    document.getElementById('tab-admin').style.background = 'transparent';
+    document.getElementById('tab-admin').style.color = '#2563eb';
+    document.getElementById('tab-customer').style.background = 'transparent';
+    document.getElementById('tab-customer').style.color = '#2563eb';
+    document.getElementById('tab-driver').style.background = 'transparent';
+    document.getElementById('tab-driver').style.color = '#16a34a';
 
-    if (isAdmin) {
-        tabAdmin.style.background = '#2563eb';
-        tabAdmin.style.color = '#fff';
-        tabCustomer.style.background = 'transparent';
-        tabCustomer.style.color = '#2563eb';
-    } else {
-        tabCustomer.style.background = '#2563eb';
-        tabCustomer.style.color = '#fff';
-        tabAdmin.style.background = 'transparent';
-        tabAdmin.style.color = '#2563eb';
+    // Activate selected tab
+    if (tab === 'admin') {
+        document.getElementById('tab-admin').style.background = '#2563eb';
+        document.getElementById('tab-admin').style.color = '#fff';
+    } else if (tab === 'customer') {
+        document.getElementById('tab-customer').style.background = '#2563eb';
+        document.getElementById('tab-customer').style.color = '#fff';
+    } else if (tab === 'driver') {
+        document.getElementById('tab-driver').style.background = '#16a34a';
+        document.getElementById('tab-driver').style.color = '#fff';
     }
 }
 
