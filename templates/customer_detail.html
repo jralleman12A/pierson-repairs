@@ -125,7 +125,7 @@
                 </a>
 
                 {% if unit["checkoff_file"] %}
-                    <a href="{{ url_for('customer_checkoff_file', unit_id=unit['id']) }}" target="_blank" class="btn btn-green">
+                  <a href="{{ url_for('customer_view_checkoff', unit_id=unit['id']) }}" target="_blank" class="btn btn-green">
                         View Check-Off Slip
                     </a>
                 {% endif %}
