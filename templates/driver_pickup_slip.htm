@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pickup Slip — {{ today }}</title>
+    <title>Pickup Slip - {{ today }}</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -187,8 +187,8 @@
                     <td class="checkbox-col"><span class="checkbox-box"></span></td>
                     <td class="intake-id">{{ unit["intake_id"] }}</td>
                     <td>{{ unit["brand"] or "" }} {{ unit["model"] or "" }}</td>
-                    <td style="font-family: monospace; font-size:13px;">{{ unit["serial_number"] or "—" }}</td>
-                    <td>{{ unit["screen_size"] or "—" }}"</td>
+                    <td style="font-family: monospace; font-size:13px;">{{ unit["serial_number"] or "" }}</td>
+                    <td>{{ unit["screen_size"] or "" }}"</td>
                 </tr>
                 {% endfor %}
             </tbody>
