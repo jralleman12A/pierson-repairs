@@ -232,7 +232,7 @@ def customer_login_required(view_func):
     @wraps(view_func)
     def wrapped(*args, **kwargs):
         if not session.get("customer_portal_logged_in"):
-            return redirect(url_for("customer_login", next=request.path))
+            return redirect(url_for("login"))
         return view_func(*args, **kwargs)
     return wrapped
 
@@ -282,23 +282,43 @@ def health():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    # If already logged in, redirect to the right place
+    if session.get("user_id"):
+        return redirect(url_for("index"))
+    if session.get("customer_portal_logged_in"):
+        return redirect(url_for("customer_portal"))
+
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
-        user = User.query.filter_by(username=username).first()
-        if user and user.check_password(password):
-            session.clear()
-            session["user_id"] = user.id
-            session["role"] = user.role
-            return redirect(request.args.get("next") or url_for("index"))
-        flash("Invalid username or password.", "danger")
-    return render_template("login.html")
+        portal = request.form.get("portal", "admin")
+
+        if portal == "customer":
+            password = request.form.get("password", "")
+            if password == CUSTOMER_PORTAL_PASSWORD:
+                session.clear()
+                session["customer_portal_logged_in"] = True
+                return redirect(url_for("customer_portal"))
+            flash("Invalid customer portal password.", "danger")
+            return render_template("login.html", active_tab="customer")
+
+        else:  # admin
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "")
+            user = User.query.filter_by(username=username).first()
+            if user and user.check_password(password):
+                session.clear()
+                session["user_id"] = user.id
+                session["role"] = user.role
+                return redirect(request.args.get("next") or url_for("index"))
+            flash("Invalid username or password.", "danger")
+            return render_template("login.html", active_tab="admin")
+
+    return render_template("login.html", active_tab="admin")
 
 
 @app.route("/logout")
 def logout():
     session.clear()
-    flash("Logged out.", "success")
+    flash("You have been logged out.", "success")
     return redirect(url_for("login"))
 
 
@@ -646,22 +666,17 @@ def export_csv():
         return redirect(url_for("index"))
 
 
-@app.route("/customer-login", methods=["GET", "POST"])
+@app.route("/customer-login")
 def customer_login():
-    if request.method == "POST":
-        password = request.form.get("password", "")
-        if password == CUSTOMER_PORTAL_PASSWORD:
-            session["customer_portal_logged_in"] = True
-            return redirect(request.args.get("next") or url_for("customer_portal"))
-        flash("Invalid customer portal password.", "danger")
-    return render_template("customer_login.html")
+    # Redirect old customer login URL to the unified login page
+    return redirect(url_for("login"))
 
 
 @app.route("/customer-logout")
 def customer_logout():
     session.pop("customer_portal_logged_in", None)
-    flash("You have been logged out of the customer portal.", "success")
-    return redirect(url_for("customer_login"))
+    flash("You have been logged out.", "success")
+    return redirect(url_for("login"))
 
 
 @app.route("/customer")
