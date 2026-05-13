@@ -332,6 +332,10 @@
                 {% elif session.get('customer_portal_logged_in') %}
                     <a href="{{ url_for('customer_portal') }}" class="btn btn-light btn-sm">Portal Home</a>
                     <a href="{{ url_for('customer_logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
+                {% elif session.get('driver_portal_logged_in') %}
+                    <a href="{{ url_for('driver_portal') }}" class="btn btn-light btn-sm">Pickup List</a>
+                    <a href="{{ url_for('driver_pickup_slip') }}" class="btn btn-outline-light btn-sm">Print Slip</a>
+                    <a href="{{ url_for('driver_logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
                 {% else %}
                     <a href="{{ url_for('login') }}" class="btn btn-light btn-sm">Login</a>
                 {% endif %}
