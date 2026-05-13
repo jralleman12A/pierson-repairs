@@ -324,9 +324,17 @@
                 <p class="topbar-subtitle">Repair intake, status tracking, notes, and exports</p>
             </div>
             <div class="toolbar">
-                <a href="{{ url_for('index') }}" class="btn btn-light btn-sm">Home</a>
-                <a href="{{ url_for('archived_units') }}" class="btn btn-outline-light btn-sm">Archived</a>
-                <a href="{{ url_for('export_csv') }}" class="btn btn-warning btn-sm">Download CSV</a>
+                {% if current_user %}
+                    <a href="{{ url_for('index') }}" class="btn btn-light btn-sm">Home</a>
+                    <a href="{{ url_for('archived_units') }}" class="btn btn-outline-light btn-sm">Archived</a>
+                    <a href="{{ url_for('export_csv') }}" class="btn btn-warning btn-sm">Download CSV</a>
+                    <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
+                {% elif session.get('customer_portal_logged_in') %}
+                    <a href="{{ url_for('customer_portal') }}" class="btn btn-light btn-sm">Portal Home</a>
+                    <a href="{{ url_for('customer_logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="btn btn-light btn-sm">Login</a>
+                {% endif %}
                 <button type="button" class="btn btn-dark btn-sm" onclick="toggleTheme()" id="themeToggle">Dark Mode</button>
             </div>
         </div>
