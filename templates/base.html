@@ -565,93 +565,221 @@ function toggleTheme() {
     applyThemeLabel();
 }
 
-// ── Triple-click hacker mode ──
-let themeClickCount = 0;
-let themeClickTimer = null;
+// ── Triple-click → Fallout terminal ──
+let themeClickCount = 0, themeClickTimer = null;
 
 function handleThemeClick() {
     themeClickCount++;
     if (themeClickTimer) clearTimeout(themeClickTimer);
     themeClickTimer = setTimeout(() => { themeClickCount = 0; }, 600);
-
     if (themeClickCount >= 3) {
         themeClickCount = 0;
         if (document.body.classList.contains("hacker")) {
-            // Exit hacker mode
             document.body.classList.remove("hacker", "dark");
+            document.documentElement.classList.remove("hacker", "dark");
             localStorage.setItem("theme", "light");
             applyThemeLabel();
         } else {
-            // Enter hacker mode via Matrix rain
-            runMatrixRain(() => {
-                document.body.classList.remove("dark");
-                document.body.classList.add("hacker", "dark");
-                localStorage.setItem("theme", "hacker");
-                applyThemeLabel();
-            });
+            openFallout();
         }
     } else {
         toggleTheme();
     }
 }
 
-// ── Matrix rain animation ──
-function runMatrixRain(onComplete) {
-    const canvas = document.getElementById("matrix-canvas");
-    canvas.style.display = "block";
-    const ctx = canvas.getContext("2d");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+// ── Fallout Terminal Hacking Minigame ──
+const FT_WORDS = [
+    "PIERSON","BOXLIGHT","TRACKER","REPAIRS","PANELS",
+    "INTAKE","STATUS","DRIVER","PORTAL","TECHIE",
+    "MONITOR","SERVICE","NETWORK","FIRMWARE","REBOOT",
+    "SHIPPED","ARCHIVE","DISPLAY","RECEIPT","MCPSNET"
+];
+const FT_GARBAGE = "!@#$%^&*(){}[]|<>~-_=+;:?,./\";
+const FT_ROWS = 17, FT_LINE_LEN = 24, FT_MAX_ATTEMPTS = 4;
 
-    const chars = "PIERSON01アイウエオカキクケコサシスセソPIERSONREPAIRS0110MCPSBOXLIGHT";
-    const fontSize = 14;
-    const cols = Math.floor(canvas.width / fontSize);
-    const drops = Array(cols).fill(1);
-    let frame = 0;
-    const maxFrames = 120;
+let ftPassword="", ftWords=[], ftAttempts=0, ftLines=[], ftWordPositions=[], ftEliminated=[];
 
-    const interval = setInterval(() => {
-        frame++;
-        const alpha = Math.min(frame / 20, 1);
-        ctx.fillStyle = `rgba(0,0,0,${0.05 + alpha * 0.1})`;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+function openFallout() {
+    document.getElementById("fallout-terminal").style.display = "flex";
+    initFallout();
+}
 
-        ctx.fillStyle = frame > 80 ? "#00ff41" : "#0f0";
-        ctx.font = fontSize + "px monospace";
+function closeFallout() {
+    document.getElementById("fallout-terminal").style.display = "none";
+}
 
-        for (let i = 0; i < drops.length; i++) {
-            const char = chars[Math.floor(Math.random() * chars.length)];
-            ctx.fillStyle = drops[i] * fontSize < 60 ? "#afffbe" : "#00ff41";
-            ctx.fillText(char, i * fontSize, drops[i] * fontSize);
-            if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
-            drops[i]++;
+function initFallout() {
+    ftAttempts = FT_MAX_ATTEMPTS;
+    ftEliminated = [];
+
+    // Pick 8 words all same length
+    const shuffled = [...FT_WORDS].sort(() => Math.random() - 0.5);
+    const len = shuffled[0].length;
+    ftWords = shuffled.filter(w => w.length === len).slice(0, 8);
+    if (ftWords.length < 4) ftWords = shuffled.slice(0, 8); // fallback
+    ftPassword = ftWords[Math.floor(Math.random() * ftWords.length)];
+
+    // Build garbage grid
+    const totalChars = 2 * FT_ROWS * FT_LINE_LEN;
+    let grid = Array.from({length: totalChars}, () =>
+        FT_GARBAGE[Math.floor(Math.random() * FT_GARBAGE.length)]
+    );
+
+    // Place words
+    ftWordPositions = [];
+    const used = new Set();
+    ftWords.forEach(word => {
+        for (let tries = 0; tries < 300; tries++) {
+            const pos = Math.floor(Math.random() * (totalChars - word.length - 1));
+            const lineStart = Math.floor(pos / FT_LINE_LEN) * FT_LINE_LEN;
+            if (pos + word.length > lineStart + FT_LINE_LEN) continue;
+            let overlap = false;
+            for (let i = pos; i < pos + word.length; i++) { if (used.has(i)) { overlap = true; break; } }
+            if (overlap) continue;
+            for (let i = 0; i < word.length; i++) { grid[pos + i] = word[i]; used.add(pos + i); }
+            ftWordPositions.push({ word, start: pos, end: pos + word.length });
+            break;
         }
+    });
 
-        if (frame >= maxFrames) {
-            clearInterval(interval);
-            // Flash white then reveal hacker mode
-            ctx.fillStyle = "rgba(0,255,65,0.15)";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            onComplete();
-            setTimeout(() => {
-                canvas.style.display = "none";
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-            }, 400);
+    ftLines = [];
+    for (let i = 0; i < 2 * FT_ROWS; i++) {
+        ftLines.push(grid.slice(i * FT_LINE_LEN, (i+1) * FT_LINE_LEN).join(""));
+    }
+    renderFallout();
+}
+
+function getAddr(i) {
+    return "0x" + (0xF000 + i * 12).toString(16).toUpperCase().padStart(4,"0");
+}
+
+function renderFallout() {
+    document.getElementById("ft-header").innerHTML =
+        "ROBCO INDUSTRIES (TM) TERMLINK PROTOCOL\n" +
+        "PIERSON REPAIRS SYSTEM - AUTHORIZED USERS ONLY\n\n" +
+        "ENTER PASSWORD NOW";
+
+    const pips = Array(FT_MAX_ATTEMPTS).fill(0).map((_,i) =>
+        `<span class="ft-attempt-pip ${i >= ftAttempts ? "used" : ""}"></span>`
+    ).join(" ");
+    document.getElementById("ft-attempts").innerHTML = `ATTEMPT(S) LEFT: ${pips}`;
+
+    const grid = document.getElementById("ft-grid");
+    grid.innerHTML = "";
+
+    for (let col = 0; col < 2; col++) {
+        const colDiv = document.createElement("div");
+        for (let row = 0; row < FT_ROWS; row++) {
+            const lineIdx = col * FT_ROWS + row;
+            const lineDiv = document.createElement("div");
+            lineDiv.className = "ft-line";
+            const addr = document.createElement("span");
+            addr.className = "ft-addr";
+            addr.textContent = getAddr(lineIdx) + " ";
+            lineDiv.appendChild(addr);
+
+            const lineText = ftLines[lineIdx] || "";
+            const lineStart = lineIdx * FT_LINE_LEN;
+            let ci = 0;
+            while (ci < lineText.length) {
+                const hit = ftWordPositions.find(wp =>
+                    wp.start >= lineStart && wp.start < lineStart + FT_LINE_LEN &&
+                    wp.start - lineStart === ci
+                );
+                if (hit) {
+                    const span = document.createElement("span");
+                    span.className = "ft-word" + (ftEliminated.includes(hit.word) ? " eliminated" : "");
+                    span.textContent = hit.word;
+                    span.dataset.word = hit.word;
+                    if (!ftEliminated.includes(hit.word)) {
+                        span.onclick = () => guessWord(hit.word);
+                        span.onmouseenter = () => {
+                            document.getElementById("ft-output").innerHTML =
+                                "> " + hit.word + "<span class='ft-cursor'></span>";
+                        };
+                        span.onmouseleave = () => {
+                            document.getElementById("ft-output").innerHTML =
+                                "<span class='ft-cursor'></span>";
+                        };
+                    }
+                    lineDiv.appendChild(span);
+                    ci += hit.word.length;
+                } else {
+                    const t = document.createTextNode(lineText[ci]);
+                    lineDiv.appendChild(t);
+                    ci++;
+                }
+            }
+            colDiv.appendChild(lineDiv);
         }
-    }, 16);
+        grid.appendChild(colDiv);
+    }
+    document.getElementById("ft-output").innerHTML = "<span class='ft-cursor'></span>";
+}
+
+function getLikeness(a, b) {
+    let m = 0;
+    for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] === b[i]) m++;
+    return m;
+}
+
+function guessWord(word) {
+    if (word === ftPassword) {
+        document.getElementById("ft-output").innerHTML =
+            "> " + word + "\n\nEXACT MATCH!\nACCESS GRANTED.\n\nWELCOME, PIERSON TECH...";
+        document.querySelectorAll(".ft-word").forEach(el => { el.onclick = null; });
+        setTimeout(() => {
+            closeFallout();
+            document.body.classList.remove("dark");
+            document.body.classList.add("hacker","dark");
+            document.documentElement.classList.add("hacker","dark");
+            localStorage.setItem("theme","hacker");
+            applyThemeLabel();
+        }, 2000);
+        return;
+    }
+
+    ftAttempts--;
+    const lik = getLikeness(word, ftPassword);
+    ftEliminated.push(word);
+
+    if (ftAttempts <= 0) {
+        document.getElementById("ft-output").innerHTML =
+            "> " + word + "\n\nLIKENESS=" + lik + "/" + ftPassword.length +
+            "\n\n!!!! TERMINAL LOCKED !!!!\nCONTACT SYSTEM ADMIN";
+        document.querySelectorAll(".ft-word").forEach(el => {
+            el.classList.add("eliminated"); el.onclick = null;
+        });
+        document.getElementById("ft-attempts").innerHTML =
+            "<span style='color:#ff0000'>!!!! TERMINAL LOCKED !!!!</span>";
+        setTimeout(closeFallout, 3500);
+        return;
+    }
+
+    document.getElementById("ft-output").innerHTML =
+        "> " + word + "\n\nLIKENESS=" + lik + "/" + ftPassword.length + "\n\nENTRY DENIED.";
+
+    const pips = Array(FT_MAX_ATTEMPTS).fill(0).map((_,i) =>
+        `<span class="ft-attempt-pip ${i >= ftAttempts ? "used" : ""}"></span>`
+    ).join(" ");
+    document.getElementById("ft-attempts").innerHTML = `ATTEMPT(S) LEFT: ${pips}`;
+
+    document.querySelectorAll(".ft-word").forEach(el => {
+        if (el.dataset.word === word) { el.classList.add("eliminated"); el.onclick = null; }
+    });
 }
 
 // ── Init ──
 const savedTheme = localStorage.getItem("theme");
 if (savedTheme === "hacker") {
-    document.body.classList.add("hacker", "dark");
-    document.documentElement.classList.add("hacker", "dark");
+    document.body.classList.add("hacker","dark");
+    document.documentElement.classList.add("hacker","dark");
 } else if (savedTheme === "dark") {
     document.body.classList.add("dark");
     document.documentElement.classList.add("dark");
 }
 applyThemeLabel();
 </script>
-<canvas id="matrix-canvas"></canvas>
+<div id="fallout-terminal"><div id="fallout-screen"><span class="ft-close" onclick="closeFallout()">[CLOSE]</span><div class="ft-header" id="ft-header"></div><div class="ft-attempts" id="ft-attempts"></div><div class="ft-grid" id="ft-grid"></div><div class="ft-output" id="ft-output"></div></div></div>
 </body>
 </html>
