@@ -256,6 +256,9 @@ def admin_login_required(view_func):
     @wraps(view_func)
     def wrapped(*args, **kwargs):
         if not session.get("user_id"):
+            # Clear any customer/driver sessions so they don't hijack the redirect
+            session.pop("customer_portal_logged_in", None)
+            session.pop("driver_portal_logged_in", None)
             return redirect(url_for("login", next=request.path))
         return view_func(*args, **kwargs)
     return wrapped
@@ -282,7 +285,16 @@ def driver_login_required(view_func):
 def generate_next_intake_id() -> str:
     year = datetime.now().year
     prefix = f"BX-{year}-"
-    last = Unit.query.filter(Unit.intake_id.like(f"{prefix}%")).order_by(Unit.id.desc()).first()
+    # Only look at units matching the BX-YEAR- prefix for sequencing
+    last = (Unit.query
+            .filter(Unit.intake_id.like(f"{prefix}%"))
+            .order_by(
+                db.func.cast(
+                    db.func.substr(Unit.intake_id, len(prefix) + 1),
+                    db.Integer
+                ).desc()
+            )
+            .first())
     if last and last.intake_id:
         try:
             next_number = int(last.intake_id.split("-")[-1]) + 1
@@ -882,6 +894,20 @@ def arcade_submit():
     db.session.add(entry)
     db.session.commit()
     return {"ok": True}
+
+
+@app.route("/unit/<int:unit_id>/quick-status", methods=["POST"])
+@admin_login_required
+def quick_status_update(unit_id: int):
+    unit = get_active_unit(unit_id)
+    if unit is None:
+        return {"ok": False, "error": "Unit not found"}, 404
+    new_status = request.form.get("status", "").strip()
+    if new_status not in STATUSES:
+        return {"ok": False, "error": "Invalid status"}, 400
+    apply_status_side_effects(unit, new_status)
+    db.session.commit()
+    return {"ok": True, "status": unit.status}
 
 
 def send_report_email(settings, units):
