@@ -1,0 +1,93 @@
+{% extends "portal/cp_base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="cp-stat-grid">
+    <div class="cp-stat">
+        <div class="cp-stat-val">{{ upcoming|length }}</div>
+        <div class="cp-stat-lbl">Upcoming Installs</div>
+    </div>
+    <div class="cp-stat">
+        <div class="cp-stat-val">{{ recent_eod|length }}</div>
+        <div class="cp-stat-lbl">Recent EOD Reports</div>
+    </div>
+    <div class="cp-stat">
+        <div class="cp-stat-val">{{ files|length }}</div>
+        <div class="cp-stat-lbl">Shared Files</div>
+    </div>
+</div>
+
+<!-- Upcoming Schedule -->
+<div class="cp-card">
+    <div class="cp-card-title">&#128197; Upcoming Schedule</div>
+    {% if upcoming %}
+        <table class="cp-table">
+            <thead><tr>
+                <th>Date</th><th>Time</th><th>Title</th><th>Location</th><th>Tech</th><th>Status</th>
+            </tr></thead>
+            <tbody>
+            {% for s in upcoming %}
+            <tr>
+                <td><strong>{{ s["date"] }}</strong></td>
+                <td>{{ s["time"] or "—" }}</td>
+                <td>{{ s["title"] }}</td>
+                <td>{{ s["location"] or "—" }}</td>
+                <td>{{ s["technician"] or "—" }}</td>
+                <td><span class="status-pill status-{{ s['status']|lower }}">{{ s["status"] }}</span></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <div style="margin-top:12px;">
+            <a href="{{ url_for('cp_schedule') }}" style="font-size:13px;color:#2563eb;">View full schedule &rarr;</a>
+        </div>
+    {% else %}
+        <div class="cp-empty">No upcoming schedule entries.</div>
+    {% endif %}
+</div>
+
+<!-- Recent EOD Reports -->
+<div class="cp-card">
+    <div class="cp-card-title">&#128203; Recent EOD Reports</div>
+    {% if recent_eod %}
+        <table class="cp-table">
+            <thead><tr><th>Date</th><th>Technician</th><th>Hours</th><th></th></tr></thead>
+            <tbody>
+            {% for r in recent_eod %}
+            <tr>
+                <td><strong>{{ r["report_date"] }}</strong></td>
+                <td>{{ r["technician"] or "—" }}</td>
+                <td>{{ r["hours"] or "—" }}</td>
+                <td><a href="{{ url_for('cp_report_detail', report_id=r['id']) }}" style="font-size:12px;color:#2563eb;">View</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <div style="margin-top:12px;">
+            <a href="{{ url_for('cp_reports') }}" style="font-size:13px;color:#2563eb;">View all reports &rarr;</a>
+        </div>
+    {% else %}
+        <div class="cp-empty">No EOD reports yet.</div>
+    {% endif %}
+</div>
+
+<!-- Files -->
+{% if files %}
+<div class="cp-card">
+    <div class="cp-card-title">&#128196; Shared Files</div>
+    <table class="cp-table">
+        <thead><tr><th>File</th><th>Uploaded</th><th></th></tr></thead>
+        <tbody>
+        {% for f in files %}
+        <tr>
+            <td>{{ f["label"] or f["filename"] }}</td>
+            <td style="color:var(--muted);font-size:12px;">{{ f["uploaded_at"].strftime("%Y-%m-%d") if f["uploaded_at"] else "" }}</td>
+            <td><a href="{{ url_for('cp_download_file', file_id=f['id']) }}" style="font-size:12px;color:#2563eb;">Download</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

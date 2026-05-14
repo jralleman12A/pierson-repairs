@@ -1,0 +1,31 @@
+{% extends "portal/cp_base.html" %}
+{% block title %}Schedule{% endblock %}
+{% block page_title %}Install Schedule{% endblock %}
+
+{% block content %}
+<div class="cp-card">
+    <div class="cp-card-title">&#128197; All Schedule Entries</div>
+    {% if schedules %}
+        <table class="cp-table">
+            <thead><tr>
+                <th>Date</th><th>Time</th><th>Title</th><th>Location</th><th>Technician</th><th>Status</th><th>Notes</th>
+            </tr></thead>
+            <tbody>
+            {% for s in schedules %}
+            <tr>
+                <td><strong>{{ s["date"] }}</strong></td>
+                <td>{{ s["time"] or "—" }}</td>
+                <td>{{ s["title"] }}</td>
+                <td>{{ s["location"] or "—" }}</td>
+                <td>{{ s["technician"] or "—" }}</td>
+                <td><span class="status-pill status-{{ s['status']|lower }}">{{ s["status"] }}</span></td>
+                <td style="color:var(--muted);font-size:12px;max-width:200px;">{{ s["notes"] or "—" }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="cp-empty">No schedule entries yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

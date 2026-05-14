@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.cp-admin-wrap{max-width:1100px;margin:0 auto}
+.client-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.client-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.client-card-top{display:flex;justify-content:space-between;align-items:flex-start}
+.client-company{font-size:15px;font-weight:700;color:var(--text)}
+.client-meta{font-size:12px;color:var(--muted);line-height:1.6}
+.badge-active{background:#dcfce7;color:#15803d;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600}
+.badge-inactive{background:#fee2e2;color:#dc2626;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600}
+</style>
+
+<div class="cp-admin-wrap">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div class="section-title mb-0">Client Portal — All Clients</div>
+        <a href="{{ url_for('cp_admin_new_client') }}" class="btn btn-primary">+ New Client</a>
+    </div>
+
+    {% if clients %}
+    <div class="client-grid">
+        {% for c in clients %}
+        <div class="client-card">
+            <div class="client-card-top">
+                <div class="client-company">{{ c["company"] }}</div>
+                <span class="badge-{{ 'active' if c['active'] else 'inactive' }}">
+                    {{ 'Active' if c['active'] else 'Inactive' }}
+                </span>
+            </div>
+            <div class="client-meta">
+                <div>&#128100; {{ c["contact_name"] or "—" }}</div>
+                <div>&#128140; {{ c["username"] }}</div>
+                <div>&#128231; {{ c["email"] or "—" }}</div>
+            </div>
+            <a href="{{ url_for('cp_admin_client', client_id=c['id']) }}" class="btn btn-sm btn-outline-primary">Manage</a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+        <div class="card card-clean"><div class="card-body text-center" style="padding:48px;color:var(--muted)">
+            No clients yet. <a href="{{ url_for('cp_admin_new_client') }}">Add your first client</a>.
+        </div></div>
+    {% endif %}
+</div>
+{% endblock %}

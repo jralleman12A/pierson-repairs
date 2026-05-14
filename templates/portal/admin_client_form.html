@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:700px;margin:0 auto">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="section-title mb-0">{{ 'Edit Client' if client else 'New Client' }}</div>
+        <a href="{{ url_for('cp_admin_client', client_id=client['id']) if client else url_for('cp_admin') }}" class="btn btn-soft btn-sm">Cancel</a>
+    </div>
+
+    <div class="card card-clean">
+        <div class="card-body">
+            <form method="post">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="small-label">Company Name *</label>
+                        <input type="text" class="form-control" name="company" value="{{ client['company'] if client else '' }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small-label">Contact Name</label>
+                        <input type="text" class="form-control" name="contact_name" value="{{ client['contact_name'] if client else '' }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small-label">Username *</label>
+                        <input type="text" class="form-control" name="username" value="{{ client['username'] if client else '' }}" {% if client %}readonly{% else %}required{% endif %}>
+                        {% if client %}<div class="form-text">Username cannot be changed.</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small-label">Password {{ '' if client else '*' }}</label>
+                        <input type="password" class="form-control" name="password" {% if not client %}required{% endif %} placeholder="{{ 'Leave blank to keep current' if client else '' }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small-label">Email</label>
+                        <input type="email" class="form-control" name="email" value="{{ client['email'] if client else '' }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small-label">Phone</label>
+                        <input type="text" class="form-control" name="phone" value="{{ client['phone'] if client else '' }}">
+                    </div>
+                    {% if client %}
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="active" id="active" {% if client['active'] %}checked{% endif %}>
+                            <label class="form-check-label" for="active">Account Active</label>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="col-12">
+                        <label class="small-label">Internal Notes</label>
+                        <textarea class="form-control" name="notes" rows="3">{{ client['notes'] if client else '' }}</textarea>
+                    </div>
+                </div>
+                <div class="mt-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">{{ 'Save Changes' if client else 'Create Client' }}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

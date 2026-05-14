@@ -1,0 +1,25 @@
+{% extends "portal/cp_base.html" %}
+{% block title %}Files{% endblock %}
+{% block page_title %}Shared Files{% endblock %}
+
+{% block content %}
+<div class="cp-card">
+    <div class="cp-card-title">&#128196; Files Shared With You</div>
+    {% if files %}
+        <table class="cp-table">
+            <thead><tr><th>File Name</th><th>Uploaded</th><th></th></tr></thead>
+            <tbody>
+            {% for f in files %}
+            <tr>
+                <td><strong>{{ f["label"] or f["filename"] }}</strong></td>
+                <td style="color:var(--muted);font-size:12px;">{{ f["uploaded_at"].strftime("%Y-%m-%d %H:%M") if f["uploaded_at"] else "" }}</td>
+                <td><a href="{{ url_for('cp_download_file', file_id=f['id']) }}" class="btn btn-sm btn-outline-primary">Download</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="cp-empty">No files have been shared yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

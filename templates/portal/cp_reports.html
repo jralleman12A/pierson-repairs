@@ -1,0 +1,42 @@
+{% extends "portal/cp_base.html" %}
+{% block title %}EOD Reports{% endblock %}
+{% block page_title %}EOD Reports{% endblock %}
+
+{% block content %}
+<div class="cp-card">
+    <div class="cp-card-title">&#128203; End of Day Reports</div>
+    {% if reports.items %}
+        <table class="cp-table">
+            <thead><tr><th>Date</th><th>Technician</th><th>Hours</th><th>Summary</th><th></th></tr></thead>
+            <tbody>
+            {% for r in reports.items %}
+            <tr>
+                <td><strong>{{ r["report_date"] }}</strong></td>
+                <td>{{ r["technician"] or "—" }}</td>
+                <td>{{ r["hours"] or "—" }}</td>
+                <td style="max-width:260px;font-size:12px;color:var(--muted);">
+                    {{ (r["work_completed"] or "")[:100] }}{% if (r["work_completed"] or "")|length > 100 %}...{% endif %}
+                </td>
+                <td><a href="{{ url_for('cp_report_detail', report_id=r['id']) }}" class="btn btn-sm btn-outline-primary">View</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Pagination -->
+        {% if reports.pages > 1 %}
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:center;">
+            {% for p in reports.iter_pages() %}
+                {% if p %}
+                    <a href="?page={{ p }}" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);font-size:12px;{% if p == reports.page %}background:#1a2744;color:#fff;{% endif %}">{{ p }}</a>
+                {% else %}
+                    <span style="padding:4px 6px;font-size:12px;">…</span>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% else %}
+        <div class="cp-empty">No EOD reports have been posted yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

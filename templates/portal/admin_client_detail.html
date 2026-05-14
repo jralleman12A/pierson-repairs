@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.admin-client-wrap{max-width:1100px;margin:0 auto}
+.section-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:20px;overflow:hidden}
+.section-card-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;background:var(--surface-2)}
+.section-card-head .sc-title{font-size:14px;font-weight:700;color:var(--text)}
+.section-card-body{padding:20px}
+.add-form{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px}
+.add-form-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:12px}
+table.at{width:100%;border-collapse:collapse}
+table.at th{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+table.at td{padding:10px;border-bottom:1px solid #f1f5f9;font-size:13px;vertical-align:middle;color:var(--text)}
+table.at tr:last-child td{border-bottom:none}
+.badge-scheduled{background:#dbeafe;color:#1d4ed8}
+.badge-completed{background:#dcfce7;color:#15803d}
+.badge-cancelled{background:#fee2e2;color:#dc2626}
+.spill{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+</style>
+
+<div class="admin-client-wrap">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div>
+            <a href="{{ url_for('cp_admin') }}" style="font-size:13px;color:var(--muted);">&larr; All Clients</a>
+            <div class="section-title mb-0 mt-1">{{ client["company"] }}</div>
+            <div style="font-size:13px;color:var(--muted);">@{{ client["username"] }} &bull; {{ client["email"] or "no email" }}</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('cp_admin_edit_client', client_id=client['id']) }}" class="btn btn-soft btn-sm">Edit Client</a>
+            <a href="/portal/dashboard" target="_blank" class="btn btn-outline-primary btn-sm">View as Client &rarr;</a>
+        </div>
+    </div>
+
+    <!-- Add Schedule -->
+    <div class="section-card">
+        <div class="section-card-head">
+            <div class="sc-title">&#128197; Schedule</div>
+        </div>
+        <div class="section-card-body">
+            <div class="add-form">
+                <div class="add-form-title">Add Schedule Entry</div>
+                <form method="post" action="{{ url_for('cp_admin_add_schedule', client_id=client['id']) }}">
+                    <div class="row g-2">
+                        <div class="col-md-4"><input class="form-control form-control-sm" name="title" placeholder="Title *" required></div>
+                        <div class="col-md-2"><input type="date" class="form-control form-control-sm" name="date" required></div>
+                        <div class="col-md-2"><input type="time" class="form-control form-control-sm" name="time"></div>
+                        <div class="col-md-4"><input class="form-control form-control-sm" name="location" placeholder="Location"></div>
+                        <div class="col-md-3"><input class="form-control form-control-sm" name="technician" placeholder="Technician"></div>
+                        <div class="col-md-3">
+                            <select class="form-select form-select-sm" name="status">
+                                <option>Scheduled</option>
+                                <option>Completed</option>
+                                <option>Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4"><input class="form-control form-control-sm" name="notes" placeholder="Notes"></div>
+                        <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100">Add</button></div>
+                    </div>
+                </form>
+            </div>
+
+            {% if schedules %}
+            <table class="at">
+                <thead><tr><th>Date</th><th>Time</th><th>Title</th><th>Location</th><th>Tech</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                {% for s in schedules %}
+                <tr>
+                    <td>{{ s["date"] }}</td>
+                    <td>{{ s["time"] or "—" }}</td>
+                    <td>{{ s["title"] }}</td>
+                    <td>{{ s["location"] or "—" }}</td>
+                    <td>{{ s["technician"] or "—" }}</td>
+                    <td><span class="spill badge-{{ s['status']|lower }}">{{ s["status"] }}</span></td>
+                    <td>
+                        <form method="post" action="{{ url_for('cp_admin_delete_schedule', schedule_id=s['id']) }}" onsubmit="return confirm('Delete this schedule entry?')">
+                            <button class="btn btn-sm btn-outline-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+                <div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">No schedule entries yet.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Add EOD -->
+    <div class="section-card">
+        <div class="section-card-head">
+            <div class="sc-title">&#128203; EOD Reports</div>
+        </div>
+        <div class="section-card-body">
+            <div class="add-form">
+                <div class="add-form-title">Add EOD Report</div>
+                <form method="post" action="{{ url_for('cp_admin_add_eod', client_id=client['id']) }}">
+                    <div class="row g-2">
+                        <div class="col-md-3"><input type="date" class="form-control form-control-sm" name="report_date" required></div>
+                        <div class="col-md-3"><input class="form-control form-control-sm" name="technician" placeholder="Technician"></div>
+                        <div class="col-md-2"><input class="form-control form-control-sm" name="hours" placeholder="Hours"></div>
+                        <div class="col-md-4"><input class="form-control form-control-sm" name="sharepoint_url" placeholder="SharePoint URL (optional)"></div>
+                        <div class="col-md-4"><textarea class="form-control form-control-sm" name="work_completed" rows="2" placeholder="Work Completed *" required></textarea></div>
+                        <div class="col-md-4"><textarea class="form-control form-control-sm" name="issues" rows="2" placeholder="Issues Encountered"></textarea></div>
+                        <div class="col-md-4"><textarea class="form-control form-control-sm" name="next_steps" rows="2" placeholder="Next Steps"></textarea></div>
+                        <div class="col-12"><button type="submit" class="btn btn-sm btn-primary">Add EOD Report</button></div>
+                    </div>
+                </form>
+            </div>
+
+            {% if eods %}
+            <table class="at">
+                <thead><tr><th>Date</th><th>Tech</th><th>Hours</th><th>Work Completed</th><th>SharePoint</th><th></th></tr></thead>
+                <tbody>
+                {% for e in eods %}
+                <tr>
+                    <td>{{ e["report_date"] }}</td>
+                    <td>{{ e["technician"] or "—" }}</td>
+                    <td>{{ e["hours"] or "—" }}</td>
+                    <td style="max-width:220px;font-size:12px;color:var(--muted)">{{ (e["work_completed"] or "")[:80] }}{% if (e["work_completed"]|length) > 80 %}...{% endif %}</td>
+                    <td>{% if e["sharepoint_url"] %}<a href="{{ e['sharepoint_url'] }}" target="_blank" style="font-size:12px">Link</a>{% else %}—{% endif %}</td>
+                    <td>
+                        <form method="post" action="{{ url_for('cp_admin_delete_eod', eod_id=e['id']) }}" onsubmit="return confirm('Delete this EOD report?')">
+                            <button class="btn btn-sm btn-outline-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+                <div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">No EOD reports yet.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Files -->
+    <div class="section-card">
+        <div class="section-card-head">
+            <div class="sc-title">&#128196; Shared Files</div>
+        </div>
+        <div class="section-card-body">
+            <div class="add-form">
+                <div class="add-form-title">Upload File</div>
+                <form method="post" action="{{ url_for('cp_admin_upload_file', client_id=client['id']) }}" enctype="multipart/form-data">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-4"><input type="file" class="form-control form-control-sm" name="file" required></div>
+                        <div class="col-md-4"><input class="form-control form-control-sm" name="label" placeholder="Label (shown to client)"></div>
+                        <div class="col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100">Upload</button></div>
+                    </div>
+                </form>
+            </div>
+
+            {% if files %}
+            <table class="at">
+                <thead><tr><th>Label</th><th>Uploaded</th><th></th></tr></thead>
+                <tbody>
+                {% for f in files %}
+                <tr>
+                    <td>{{ f["label"] or f["filename"] }}</td>
+                    <td style="font-size:12px;color:var(--muted)">{{ f["uploaded_at"].strftime("%Y-%m-%d %H:%M") if f["uploaded_at"] else "" }}</td>
+                    <td>
+                        <form method="post" action="{{ url_for('cp_admin_delete_file', file_id=f['id']) }}" onsubmit="return confirm('Delete this file?')">
+                            <button class="btn btn-sm btn-outline-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+                <div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">No files uploaded yet.</div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}
