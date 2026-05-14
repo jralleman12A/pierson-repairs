@@ -571,7 +571,8 @@ let themeClickCount = 0, themeClickTimer = null;
 function handleThemeClick() {
     themeClickCount++;
     if (themeClickTimer) clearTimeout(themeClickTimer);
-    themeClickTimer = setTimeout(() => { themeClickCount = 0; }, 600);
+    themeClickTimer = setTimeout(() => { themeClickCount = 0; }, 500);
+
     if (themeClickCount >= 3) {
         themeClickCount = 0;
         if (document.body.classList.contains("hacker")) {
@@ -582,9 +583,11 @@ function handleThemeClick() {
         } else {
             openFallout();
         }
-    } else {
-        toggleTheme();
+        return;
     }
+
+    // Toggle immediately on every click
+    toggleTheme();
 }
 
 // ── Fallout Terminal Hacking Minigame ──
