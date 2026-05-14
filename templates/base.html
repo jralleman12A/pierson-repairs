@@ -902,7 +902,7 @@ function ftGuess(word) {
     if (ftAtt <= 0) {
         ftSetOut("> " + word + "\n\nLIKENESS\n= " + ftLik(word,ftPass) + "/" + ftPass.length + "\n\n!TERMINAL\nLOCKED!\n\nCONTACT\nADMIN.");
         document.getElementById("ft-atts").innerHTML =
-            '<span style="color:#ff2222;animation:ftbl .5s step-end infinite;font-family:'Courier New',monospace;font-size:11px">!!! LOCKED !!!</span>';
+            "<span style=\"color:#ff2222;animation:ftbl .5s step-end infinite;font-family:monospace;font-size:11px\">!!! LOCKED !!!</span>";
         ftLockAll();
         setTimeout(closeFallout, 4000);
         return;
