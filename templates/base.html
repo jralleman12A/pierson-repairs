@@ -494,6 +494,54 @@
                 -webkit-overflow-scrolling: touch;
             }
         }
+
+        /* ── Fallout Terminal ── */
+        #fallout-terminal {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.96);
+            font-family: monospace;
+        }
+        #fallout-screen {
+            width: 660px;
+            max-width: 96vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            background: #000;
+            border: 2px solid #00ff41;
+            border-radius: 4px;
+            padding: 28px;
+            box-shadow: 0 0 40px rgba(0,255,65,0.3), inset 0 0 60px rgba(0,255,65,0.03);
+            position: relative;
+        }
+        #fallout-screen::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,65,0.015) 2px, rgba(0,255,65,0.015) 4px);
+            pointer-events: none;
+            z-index: 1;
+        }
+        .ft-header { color: #00ff41; font-size: 13px; line-height: 1.6; margin-bottom: 16px; white-space: pre; }
+        .ft-attempts { color: #00ff41; font-size: 13px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .ft-attempt-pip { display: inline-block; width: 10px; height: 10px; background: #00ff41; border-radius: 1px; }
+        .ft-attempt-pip.used { background: #003d10; }
+        .ft-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; margin-bottom: 16px; }
+        .ft-line { font-size: 12px; color: #00cc33; line-height: 1.9; letter-spacing: 1px; white-space: pre; }
+        .ft-addr { color: #006618; margin-right: 4px; user-select: none; }
+        .ft-word { color: #00ff41; cursor: pointer; font-weight: 700; }
+        .ft-word:hover { background: #00ff41; color: #000; }
+        .ft-word.eliminated { color: #003d10; cursor: default; pointer-events: none; }
+        .ft-output { border-top: 1px solid #003d10; padding-top: 12px; min-height: 56px; font-size: 12px; color: #00ff41; line-height: 1.8; white-space: pre; }
+        .ft-cursor { display: inline-block; width: 8px; height: 14px; background: #00ff41; animation: ftblink 0.7s infinite; vertical-align: middle; margin-left: 2px; }
+        @keyframes ftblink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+        .ft-close { position: absolute; top: 12px; right: 14px; color: #006618; cursor: pointer; font-size: 12px; z-index: 2; font-family: monospace; }
+        .ft-close:hover { color: #00ff41; }
+
     </style>
 </head>
 <body>
@@ -571,31 +619,36 @@ let themeClickCount = 0, themeClickTimer = null;
 function handleThemeClick() {
     themeClickCount++;
     if (themeClickTimer) clearTimeout(themeClickTimer);
-    themeClickTimer = setTimeout(() => { themeClickCount = 0; }, 500);
 
     if (themeClickCount >= 3) {
         themeClickCount = 0;
         if (document.body.classList.contains("hacker")) {
+            // Exit hacker mode on triple click
             document.body.classList.remove("hacker", "dark");
             document.documentElement.classList.remove("hacker", "dark");
             localStorage.setItem("theme", "light");
             applyThemeLabel();
         } else {
+            // Launch Fallout terminal
             openFallout();
         }
         return;
     }
 
-    // Toggle immediately on every click
-    toggleTheme();
+    // Reset counter after 600ms of no clicks
+    themeClickTimer = setTimeout(() => {
+        // Only toggle if it was a single click (not part of triple)
+        if (themeClickCount === 1) toggleTheme();
+        themeClickCount = 0;
+    }, 300);
 }
 
 // ── Fallout Terminal Hacking Minigame ──
 const FT_WORDS = [
-    "PIERSON","BOXLIGHT","TRACKER","REPAIRS","PANELS",
-    "INTAKE","STATUS","DRIVER","PORTAL","TECHIE",
-    "MONITOR","SERVICE","NETWORK","FIRMWARE","REBOOT",
-    "SHIPPED","ARCHIVE","DISPLAY","RECEIPT","MCPSNET"
+    "PIERSON","TRACKER","REPAIRS","MONITOR","SERVICE",
+    "NETWORK","SHIPPED","ARCHIVE","DISPLAY","RECEIPT",
+    "RECHECK","BOXTECH","DRIVERS","PORTALS","TECHOPS",
+    "SYSCORE","INTAKES","UPGRADE","PATCHES","SUPPORT"
 ];
 const FT_GARBAGE = '!@#$%^&*(){}[]|<>~-_=+;:?,./';
 const FT_ROWS = 17, FT_LINE_LEN = 24, FT_MAX_ATTEMPTS = 4;
