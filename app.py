@@ -15,6 +15,7 @@ from typing import Any
 
 from flask import (
     Flask,
+    send_from_directory,
     flash,
     redirect,
     render_template,
@@ -189,6 +190,73 @@ class ArcadeScore(db.Model, RowLikeMixin):
     score = db.Column(db.Integer, nullable=False)
     wave = db.Column(db.Integer, default=1)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# ── Client Portal Models ──
+
+class ClientAccount(db.Model, RowLikeMixin):
+    __tablename__ = "client_accounts"
+
+    id           = db.Column(db.Integer, primary_key=True)
+    company      = db.Column(db.String(120), nullable=False)
+    username     = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash= db.Column(db.String(255), nullable=False)
+    contact_name = db.Column(db.String(120), default="")
+    email        = db.Column(db.String(120), default="")
+    phone        = db.Column(db.String(40), default="")
+    notes        = db.Column(db.Text, default="")
+    active       = db.Column(db.Boolean, default=True)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+    schedules    = db.relationship("ClientSchedule", backref="client", lazy=True, cascade="all,delete-orphan")
+    eod_reports  = db.relationship("ClientEOD", backref="client", lazy=True, cascade="all,delete-orphan")
+    files        = db.relationship("ClientFile", backref="client", lazy=True, cascade="all,delete-orphan")
+
+    def set_password(self, pw):
+        self.password_hash = generate_password_hash(pw)
+
+    def check_password(self, pw):
+        return check_password_hash(self.password_hash, pw)
+
+
+class ClientSchedule(db.Model, RowLikeMixin):
+    __tablename__ = "client_schedules"
+
+    id          = db.Column(db.Integer, primary_key=True)
+    client_id   = db.Column(db.Integer, db.ForeignKey("client_accounts.id"), nullable=False)
+    title       = db.Column(db.String(200), nullable=False)
+    date        = db.Column(db.String(20), nullable=False)
+    time        = db.Column(db.String(20), default="")
+    location    = db.Column(db.String(200), default="")
+    technician  = db.Column(db.String(100), default="")
+    notes       = db.Column(db.Text, default="")
+    status      = db.Column(db.String(40), default="Scheduled")  # Scheduled, Completed, Cancelled
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ClientEOD(db.Model, RowLikeMixin):
+    __tablename__ = "client_eod_reports"
+
+    id              = db.Column(db.Integer, primary_key=True)
+    client_id       = db.Column(db.Integer, db.ForeignKey("client_accounts.id"), nullable=False)
+    report_date     = db.Column(db.String(20), nullable=False)
+    technician      = db.Column(db.String(100), default="")
+    work_completed  = db.Column(db.Text, default="")
+    issues          = db.Column(db.Text, default="")
+    next_steps      = db.Column(db.Text, default="")
+    hours           = db.Column(db.String(10), default="")
+    sharepoint_url  = db.Column(db.String(500), default="")  # link to original SP report
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ClientFile(db.Model, RowLikeMixin):
+    __tablename__ = "client_files"
+
+    id          = db.Column(db.Integer, primary_key=True)
+    client_id   = db.Column(db.Integer, db.ForeignKey("client_accounts.id"), nullable=False)
+    filename    = db.Column(db.String(255), nullable=False)
+    label       = db.Column(db.String(200), default="")
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 @app.template_filter("dt")
@@ -1011,6 +1079,268 @@ def email_settings():
 
     return render_template("email_settings.html", settings=settings,
                            gmail_configured=bool(GMAIL_USER and GMAIL_APP_PASSWORD))
+
+
+
+# ═══════════════════════════════════════════
+# CLIENT PORTAL ROUTES
+# ═══════════════════════════════════════════
+
+CLIENT_FOLDER = UPLOAD_ROOT / "client_files"
+CLIENT_FOLDER.mkdir(parents=True, exist_ok=True)
+
+def client_login_required_portal(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if not session.get("client_portal_id"):
+            return redirect(url_for("cp_login"))
+        return view_func(*args, **kwargs)
+    return wrapped
+
+def portal_admin_required(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if not session.get("user_id"):
+            session.pop("customer_portal_logged_in", None)
+            session.pop("driver_portal_logged_in", None)
+            return redirect(url_for("login", next=request.path))
+        return view_func(*args, **kwargs)
+    return wrapped
+
+# ── Client login/logout ──
+@app.route("/portal/login", methods=["GET","POST"])
+def cp_login():
+    if session.get("client_portal_id"):
+        return redirect(url_for("cp_dashboard"))
+    if request.method == "POST":
+        username = request.form.get("username","").strip()
+        password = request.form.get("password","")
+        client = ClientAccount.query.filter_by(username=username, active=True).first()
+        if client and client.check_password(password):
+            session.clear()
+            session["client_portal_id"] = client.id
+            session["client_portal_company"] = client.company
+            return redirect(url_for("cp_dashboard"))
+        flash("Invalid username or password.", "danger")
+    return render_template("portal/cp_login.html")
+
+@app.route("/portal/logout")
+def cp_logout():
+    session.pop("client_portal_id", None)
+    session.pop("client_portal_company", None)
+    flash("You have been logged out.", "success")
+    return redirect(url_for("cp_login"))
+
+# ── Client dashboard ──
+@app.route("/portal")
+@app.route("/portal/dashboard")
+@client_login_required_portal
+def cp_dashboard():
+    client = db.session.get(ClientAccount, session["client_portal_id"])
+    if not client:
+        session.clear()
+        return redirect(url_for("cp_login"))
+    upcoming = ClientSchedule.query.filter_by(client_id=client.id, status="Scheduled")        .order_by(ClientSchedule.date.asc()).limit(10).all()
+    recent_eod = ClientEOD.query.filter_by(client_id=client.id)        .order_by(ClientEOD.report_date.desc()).limit(5).all()
+    files = ClientFile.query.filter_by(client_id=client.id)        .order_by(ClientFile.uploaded_at.desc()).all()
+    return render_template("portal/cp_dashboard.html",
+        client=client, upcoming=upcoming, recent_eod=recent_eod, files=files)
+
+@app.route("/portal/schedule")
+@client_login_required_portal
+def cp_schedule():
+    client = db.session.get(ClientAccount, session["client_portal_id"])
+    schedules = ClientSchedule.query.filter_by(client_id=client.id)        .order_by(ClientSchedule.date.desc()).all()
+    return render_template("portal/cp_schedule.html", client=client, schedules=schedules)
+
+@app.route("/portal/reports")
+@client_login_required_portal
+def cp_reports():
+    client = db.session.get(ClientAccount, session["client_portal_id"])
+    page = request.args.get("page", 1, type=int)
+    reports = ClientEOD.query.filter_by(client_id=client.id)        .order_by(ClientEOD.report_date.desc()).paginate(page=page, per_page=10)
+    return render_template("portal/cp_reports.html", client=client, reports=reports)
+
+@app.route("/portal/report/<int:report_id>")
+@client_login_required_portal
+def cp_report_detail(report_id):
+    client = db.session.get(ClientAccount, session["client_portal_id"])
+    report = ClientEOD.query.filter_by(id=report_id, client_id=client.id).first_or_404()
+    return render_template("portal/cp_report_detail.html", client=client, report=report)
+
+@app.route("/portal/files")
+@client_login_required_portal
+def cp_files():
+    client = db.session.get(ClientAccount, session["client_portal_id"])
+    files = ClientFile.query.filter_by(client_id=client.id)        .order_by(ClientFile.uploaded_at.desc()).all()
+    return render_template("portal/cp_files.html", client=client, files=files)
+
+@app.route("/portal/files/download/<int:file_id>")
+@client_login_required_portal
+def cp_download_file(file_id):
+    client = db.session.get(ClientAccount, session["client_portal_id"])
+    cf = ClientFile.query.filter_by(id=file_id, client_id=client.id).first_or_404()
+    folder = CLIENT_FOLDER / str(client.id)
+    return send_from_directory(folder, cf.filename, as_attachment=True, download_name=cf.label or cf.filename)
+
+# ── Admin: client management ──
+@app.route("/portal/admin")
+@portal_admin_required
+def cp_admin():
+    clients = ClientAccount.query.order_by(ClientAccount.company.asc()).all()
+    return render_template("portal/admin_clients.html", clients=clients)
+
+@app.route("/portal/admin/client/new", methods=["GET","POST"])
+@portal_admin_required
+def cp_admin_new_client():
+    if request.method == "POST":
+        username = request.form.get("username","").strip()
+        if ClientAccount.query.filter_by(username=username).first():
+            flash("Username already exists.", "danger")
+            return redirect(url_for("cp_admin_new_client"))
+        client = ClientAccount(
+            company=request.form.get("company","").strip(),
+            username=username,
+            contact_name=request.form.get("contact_name","").strip(),
+            email=request.form.get("email","").strip(),
+            phone=request.form.get("phone","").strip(),
+            notes=request.form.get("notes","").strip(),
+        )
+        client.set_password(request.form.get("password",""))
+        db.session.add(client)
+        db.session.commit()
+        flash(f"Client {client.company} created.", "success")
+        return redirect(url_for("cp_admin_client", client_id=client.id))
+    return render_template("portal/admin_client_form.html", client=None)
+
+@app.route("/portal/admin/client/<int:client_id>", methods=["GET","POST"])
+@portal_admin_required
+def cp_admin_client(client_id):
+    client = db.session.get(ClientAccount, client_id)
+    if not client:
+        flash("Client not found.", "danger")
+        return redirect(url_for("cp_admin"))
+    schedules = ClientSchedule.query.filter_by(client_id=client_id)        .order_by(ClientSchedule.date.desc()).all()
+    eods = ClientEOD.query.filter_by(client_id=client_id)        .order_by(ClientEOD.report_date.desc()).limit(20).all()
+    files = ClientFile.query.filter_by(client_id=client_id)        .order_by(ClientFile.uploaded_at.desc()).all()
+    return render_template("portal/admin_client_detail.html",
+        client=client, schedules=schedules, eods=eods, files=files)
+
+@app.route("/portal/admin/client/<int:client_id>/edit", methods=["GET","POST"])
+@portal_admin_required
+def cp_admin_edit_client(client_id):
+    client = db.session.get(ClientAccount, client_id)
+    if not client:
+        return redirect(url_for("cp_admin"))
+    if request.method == "POST":
+        client.company      = request.form.get("company","").strip()
+        client.contact_name = request.form.get("contact_name","").strip()
+        client.email        = request.form.get("email","").strip()
+        client.phone        = request.form.get("phone","").strip()
+        client.notes        = request.form.get("notes","").strip()
+        client.active       = "active" in request.form
+        new_pw = request.form.get("password","").strip()
+        if new_pw:
+            client.set_password(new_pw)
+        db.session.commit()
+        flash("Client updated.", "success")
+        return redirect(url_for("cp_admin_client", client_id=client.id))
+    return render_template("portal/admin_client_form.html", client=client)
+
+@app.route("/portal/admin/client/<int:client_id>/schedule/add", methods=["POST"])
+@portal_admin_required
+def cp_admin_add_schedule(client_id):
+    s = ClientSchedule(
+        client_id=client_id,
+        title=request.form.get("title","").strip(),
+        date=request.form.get("date","").strip(),
+        time=request.form.get("time","").strip(),
+        location=request.form.get("location","").strip(),
+        technician=request.form.get("technician","").strip(),
+        notes=request.form.get("notes","").strip(),
+        status=request.form.get("status","Scheduled"),
+    )
+    db.session.add(s)
+    db.session.commit()
+    flash("Schedule entry added.", "success")
+    return redirect(url_for("cp_admin_client", client_id=client_id))
+
+@app.route("/portal/admin/schedule/<int:schedule_id>/delete", methods=["POST"])
+@portal_admin_required
+def cp_admin_delete_schedule(schedule_id):
+    s = db.session.get(ClientSchedule, schedule_id)
+    if s:
+        cid = s.client_id
+        db.session.delete(s)
+        db.session.commit()
+        flash("Schedule entry deleted.", "success")
+        return redirect(url_for("cp_admin_client", client_id=cid))
+    return redirect(url_for("cp_admin"))
+
+@app.route("/portal/admin/client/<int:client_id>/eod/add", methods=["POST"])
+@portal_admin_required
+def cp_admin_add_eod(client_id):
+    e = ClientEOD(
+        client_id=client_id,
+        report_date=request.form.get("report_date","").strip(),
+        technician=request.form.get("technician","").strip(),
+        work_completed=request.form.get("work_completed","").strip(),
+        issues=request.form.get("issues","").strip(),
+        next_steps=request.form.get("next_steps","").strip(),
+        hours=request.form.get("hours","").strip(),
+        sharepoint_url=request.form.get("sharepoint_url","").strip(),
+    )
+    db.session.add(e)
+    db.session.commit()
+    flash("EOD report added.", "success")
+    return redirect(url_for("cp_admin_client", client_id=client_id))
+
+@app.route("/portal/admin/eod/<int:eod_id>/delete", methods=["POST"])
+@portal_admin_required
+def cp_admin_delete_eod(eod_id):
+    e = db.session.get(ClientEOD, eod_id)
+    if e:
+        cid = e.client_id
+        db.session.delete(e)
+        db.session.commit()
+        flash("EOD report deleted.", "success")
+        return redirect(url_for("cp_admin_client", client_id=cid))
+    return redirect(url_for("cp_admin"))
+
+@app.route("/portal/admin/client/<int:client_id>/file/upload", methods=["POST"])
+@portal_admin_required
+def cp_admin_upload_file(client_id):
+    client = db.session.get(ClientAccount, client_id)
+    f = request.files.get("file")
+    if not f or not f.filename:
+        flash("No file selected.", "danger")
+        return redirect(url_for("cp_admin_client", client_id=client_id))
+    folder = CLIENT_FOLDER / str(client_id)
+    folder.mkdir(parents=True, exist_ok=True)
+    safe_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{f.filename}"
+    f.save(folder / safe_name)
+    label = request.form.get("label","").strip() or f.filename
+    cf = ClientFile(client_id=client_id, filename=safe_name, label=label)
+    db.session.add(cf)
+    db.session.commit()
+    flash("File uploaded.", "success")
+    return redirect(url_for("cp_admin_client", client_id=client_id))
+
+@app.route("/portal/admin/file/<int:file_id>/delete", methods=["POST"])
+@portal_admin_required
+def cp_admin_delete_file(file_id):
+    cf = db.session.get(ClientFile, file_id)
+    if cf:
+        cid = cf.client_id
+        try:
+            (CLIENT_FOLDER / str(cid) / cf.filename).unlink(missing_ok=True)
+        except Exception:
+            pass
+        db.session.delete(cf)
+        db.session.commit()
+        flash("File deleted.", "success")
+        return redirect(url_for("cp_admin_client", client_id=cid))
+    return redirect(url_for("cp_admin"))
 
 
 init_database()
