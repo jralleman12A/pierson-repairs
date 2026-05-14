@@ -40,6 +40,34 @@
     display: inline-block;
 }
 
+.quick-status-select {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    min-width: 155px;
+    transition: border-color 0.15s ease;
+}
+
+.quick-status-select:focus {
+    outline: none;
+    border-color: #2563eb;
+}
+
+.quick-status-select.updating {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.quick-status-select.saved {
+    border-color: #16a34a;
+}
+
 .shipped-yes {
     color: #198754;
     font-weight: bold;
@@ -317,29 +345,13 @@
                                 <td>
 
                                     {% set status = unit["status"] or "" %}
-
-                                    {% if status == "Awaiting Diagnosis" %}
-                                        <span class="status-badge status-awaiting">{{ status }}</span>
-
-                                    {% elif status == "In Repair" %}
-                                        <span class="status-badge status-repair">{{ status }}</span>
-
-                                    {% elif status == "Waiting on Parts" %}
-                                        <span class="status-badge status-parts">{{ status }}</span>
-
-                                    {% elif status == "Completed" %}
-                                        <span class="status-badge status-complete">{{ status }}</span>
-
-                                    {% elif status == "Shipped Back to MCPS" %}
-                                        <span class="status-badge status-complete">{{ status }}</span>
-
-                                    {% elif status == "Scrapped" %}
-                                        <span class="status-badge status-scrapped">{{ status }}</span>
-
-                                    {% else %}
-                                        <span class="status-badge">{{ status }}</span>
-
-                                    {% endif %}
+                                    <form class="quick-status-form" data-unit-id="{{ unit['id'] }}" onsubmit="return false;">
+                                        <select class="quick-status-select" onchange="quickStatusUpdate(this, {{ unit['id'] }})">
+                                            {% for s in STATUSES %}
+                                                <option value="{{ s }}" {% if s == status %}selected{% endif %}>{{ s }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </form>
                                 </td>
 
                                 <td>
@@ -372,8 +384,62 @@
 </div>
 
 
+<script>
+async function quickStatusUpdate(select, unitId) {
+    const status = select.value;
+    select.classList.add('updating');
+    try {
+        const formData = new FormData();
+        formData.append('status', status);
+        const res = await fetch(`/unit/${unitId}/quick-status`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        if (data.ok) {
+            select.classList.remove('updating');
+            select.classList.add('saved');
+            setTimeout(() => select.classList.remove('saved'), 1500);
+        } else {
+            alert('Failed to update status: ' + (data.error || 'Unknown error'));
+            select.classList.remove('updating');
+        }
+    } catch(e) {
+        alert('Error updating status.');
+        select.classList.remove('updating');
+    }
+}
+</script>
+
 <!-- ═══════════════════════════════════════════════════ -->
 <!-- PIERSON INVADERS + SCOREBOARD                       -->
+<script>
+async function quickStatusUpdate(select, unitId) {
+    const status = select.value;
+    select.classList.add('updating');
+    try {
+        const formData = new FormData();
+        formData.append('status', status);
+        const res = await fetch(`/unit/${unitId}/quick-status`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        if (data.ok) {
+            select.classList.remove('updating');
+            select.classList.add('saved');
+            setTimeout(() => select.classList.remove('saved'), 1500);
+        } else {
+            alert('Failed to update status: ' + (data.error || 'Unknown error'));
+            select.classList.remove('updating');
+        }
+    } catch(e) {
+        alert('Error updating status.');
+        select.classList.remove('updating');
+    }
+}
+</script>
+
 <!-- ═══════════════════════════════════════════════════ -->
 
 <!-- Scoreboard Modal -->
