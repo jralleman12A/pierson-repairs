@@ -496,51 +496,205 @@
         }
 
         /* ── Fallout Terminal ── */
-        #fallout-terminal {
+        #fallout-overlay {
             position: fixed;
             inset: 0;
             z-index: 99999;
             display: none;
             align-items: center;
             justify-content: center;
-            background: rgba(0,0,0,0.96);
-            font-family: monospace;
+            background: #0a0a08;
+            font-family: 'Courier New', monospace;
         }
-        #fallout-screen {
-            width: 660px;
-            max-width: 96vw;
-            max-height: 90vh;
-            overflow-y: auto;
-            background: #000;
-            border: 2px solid #00ff41;
-            border-radius: 4px;
-            padding: 28px;
-            box-shadow: 0 0 40px rgba(0,255,65,0.3), inset 0 0 60px rgba(0,255,65,0.03);
+        .ft-monitor {
             position: relative;
+            width: 780px;
+            max-width: 98vw;
         }
-        #fallout-screen::before {
-            content: '';
+        .ft-monitor-body {
+            background: #1a1a10;
+            border: 3px solid #2a2a1a;
+            border-radius: 12px;
+            padding: 16px 16px 24px;
+            box-shadow: 0 0 0 6px #111108, 0 0 0 10px #222215, 0 20px 60px rgba(0,0,0,0.9);
+        }
+        .ft-monitor-top {
+            height: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .ft-monitor-brand {
+            color: #2a2a18;
+            font-size: 10px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+        .ft-screen-wrap {
+            position: relative;
+            background: #010d01;
+            border-radius: 6px;
+            border: 2px solid #0a1a0a;
+            overflow: hidden;
+            padding: 24px 28px 20px;
+            min-height: 480px;
+        }
+        .ft-scanlines {
             position: absolute;
             inset: 0;
-            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,65,0.015) 2px, rgba(0,255,65,0.015) 4px);
+            background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 4px);
             pointer-events: none;
-            z-index: 1;
+            z-index: 10;
         }
-        .ft-header { color: #00ff41; font-size: 13px; line-height: 1.6; margin-bottom: 16px; white-space: pre; }
-        .ft-attempts { color: #00ff41; font-size: 13px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .ft-attempt-pip { display: inline-block; width: 10px; height: 10px; background: #00ff41; border-radius: 1px; }
-        .ft-attempt-pip.used { background: #003d10; }
-        .ft-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; margin-bottom: 16px; }
-        .ft-line { font-size: 12px; color: #00cc33; line-height: 1.9; letter-spacing: 1px; white-space: pre; }
-        .ft-addr { color: #006618; margin-right: 4px; user-select: none; }
-        .ft-word { color: #00ff41; cursor: pointer; font-weight: 700; }
-        .ft-word:hover { background: #00ff41; color: #000; }
-        .ft-word.eliminated { color: #003d10; cursor: default; pointer-events: none; }
-        .ft-output { border-top: 1px solid #003d10; padding-top: 12px; min-height: 56px; font-size: 12px; color: #00ff41; line-height: 1.8; white-space: pre; }
-        .ft-cursor { display: inline-block; width: 8px; height: 14px; background: #00ff41; animation: ftblink 0.7s infinite; vertical-align: middle; margin-left: 2px; }
+        .ft-glow {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at 50% 40%, rgba(0,255,65,0.04) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 9;
+        }
+        .ft-vignette {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.6) 100%);
+            pointer-events: none;
+            z-index: 11;
+        }
+        .ft-content {
+            position: relative;
+            z-index: 5;
+        }
+        .ft-header {
+            color: #33ff57;
+            font-size: 12px;
+            line-height: 1.7;
+            margin-bottom: 12px;
+            text-shadow: 0 0 8px rgba(0,255,65,0.5);
+        }
+        .ft-attempts-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 14px;
+            color: #33ff57;
+            font-size: 12px;
+        }
+        .ft-pip {
+            width: 12px;
+            height: 12px;
+            background: #33ff57;
+            box-shadow: 0 0 4px rgba(0,255,65,0.6);
+            display: inline-block;
+        }
+        .ft-pip.used {
+            background: #0a2a0a;
+            box-shadow: none;
+        }
+        .ft-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0 20px;
+            margin-bottom: 14px;
+            height: 306px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #003d10 #000;
+        }
+        .ft-columns::-webkit-scrollbar { width: 4px; }
+        .ft-columns::-webkit-scrollbar-track { background: #000; }
+        .ft-columns::-webkit-scrollbar-thumb { background: #003d10; }
+        .ft-col { display: flex; flex-direction: column; }
+        .ft-row {
+            display: flex;
+            align-items: center;
+            line-height: 1.65;
+            white-space: pre;
+        }
+        .ft-addr {
+            color: #1a6620;
+            font-size: 11px;
+            margin-right: 6px;
+            user-select: none;
+            flex-shrink: 0;
+            text-shadow: none;
+        }
+        .ft-chars {
+            font-size: 12px;
+            color: #22bb33;
+            letter-spacing: 1px;
+            text-shadow: 0 0 4px rgba(0,200,50,0.3);
+            cursor: default;
+        }
+        .ft-word {
+            color: #33ff57;
+            cursor: pointer;
+            font-weight: bold;
+            text-shadow: 0 0 6px rgba(0,255,65,0.6);
+            text-decoration: none;
+        }
+        .ft-word:hover, .ft-word.hovered {
+            background: #33ff57;
+            color: #000;
+            text-shadow: none;
+        }
+        .ft-bracket {
+            color: #22bb33;
+            cursor: pointer;
+            text-shadow: 0 0 4px rgba(0,200,50,0.3);
+        }
+        .ft-bracket:hover, .ft-bracket.hovered {
+            background: #22bb33;
+            color: #000;
+            text-shadow: none;
+        }
+        .ft-word.gone { color: #0a2a0a; cursor: default; pointer-events: none; text-shadow: none; }
+        .ft-output-area {
+            border-top: 1px solid #0a2a0a;
+            padding-top: 10px;
+            font-size: 12px;
+            color: #33ff57;
+            min-height: 52px;
+            white-space: pre-wrap;
+            line-height: 1.7;
+            text-shadow: 0 0 4px rgba(0,255,65,0.4);
+        }
+        .ft-cursor-blink {
+            display: inline-block;
+            width: 8px;
+            height: 13px;
+            background: #33ff57;
+            vertical-align: middle;
+            margin-left: 1px;
+            animation: ftblink 0.65s step-end infinite;
+            box-shadow: 0 0 4px rgba(0,255,65,0.6);
+        }
         @keyframes ftblink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
-        .ft-close { position: absolute; top: 12px; right: 14px; color: #006618; cursor: pointer; font-size: 12px; z-index: 2; font-family: monospace; }
-        .ft-close:hover { color: #00ff41; }
+        .ft-monitor-stand {
+            width: 120px;
+            height: 18px;
+            background: #1a1a10;
+            margin: 0 auto;
+            border-radius: 0 0 6px 6px;
+            border: 3px solid #2a2a1a;
+            border-top: none;
+        }
+        .ft-monitor-base {
+            width: 200px;
+            height: 10px;
+            background: #1a1a10;
+            margin: 0 auto;
+            border-radius: 0 0 8px 8px;
+            border: 3px solid #2a2a1a;
+            border-top: none;
+        }
+        .ft-esc-hint {
+            text-align: center;
+            color: #0a3a0a;
+            font-size: 11px;
+            margin-top: 8px;
+            font-family: monospace;
+        }
 
     </style>
 </head>
@@ -589,7 +743,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// ── Theme management ──
 function applyThemeLabel() {
     const btn = document.getElementById("themeToggle");
     if (!btn) return;
@@ -602,9 +755,9 @@ function applyThemeLabel() {
 
 function toggleTheme() {
     if (document.body.classList.contains("hacker")) {
-        document.body.classList.remove("hacker", "dark");
-        document.documentElement.classList.remove("hacker", "dark");
-        localStorage.setItem("theme", "light");
+        document.body.classList.remove("hacker","dark");
+        document.documentElement.classList.remove("hacker","dark");
+        localStorage.setItem("theme","light");
     } else {
         document.body.classList.toggle("dark");
         document.documentElement.classList.toggle("dark");
@@ -613,164 +766,292 @@ function toggleTheme() {
     applyThemeLabel();
 }
 
-// ── Triple-click → Fallout terminal ──
 let themeClickCount = 0, themeClickTimer = null;
-
 function handleThemeClick() {
     themeClickCount++;
     if (themeClickTimer) clearTimeout(themeClickTimer);
-
     if (themeClickCount >= 3) {
         themeClickCount = 0;
         if (document.body.classList.contains("hacker")) {
-            // Exit hacker mode on triple click
-            document.body.classList.remove("hacker", "dark");
-            document.documentElement.classList.remove("hacker", "dark");
-            localStorage.setItem("theme", "light");
+            document.body.classList.remove("hacker","dark");
+            document.documentElement.classList.remove("hacker","dark");
+            localStorage.setItem("theme","light");
             applyThemeLabel();
         } else {
-            // Launch Fallout terminal
             openFallout();
         }
         return;
     }
-
-    // Reset counter after 600ms of no clicks
     themeClickTimer = setTimeout(() => {
-        // Only toggle if it was a single click (not part of triple)
         if (themeClickCount === 1) toggleTheme();
         themeClickCount = 0;
     }, 300);
 }
 
-// ── Fallout Terminal Hacking Minigame ──
 const FT_WORDS = [
     "PIERSON","TRACKER","REPAIRS","MONITOR","SERVICE",
     "NETWORK","SHIPPED","ARCHIVE","DISPLAY","RECEIPT",
     "RECHECK","BOXTECH","DRIVERS","PORTALS","TECHOPS",
     "SYSCORE","INTAKES","UPGRADE","PATCHES","SUPPORT"
 ];
-const FT_GARBAGE = '!@#$%^&*(){}[]|<>~-_=+;:?,./';
-const FT_ROWS = 17, FT_LINE_LEN = 24, FT_MAX_ATTEMPTS = 4;
 
-let ftPassword="", ftWords=[], ftAttempts=0, ftLines=[], ftWordPositions=[], ftEliminated=[];
+const GARBAGE = "!@#$%^&*-+=|?/.,;:~<>{}";
+const BRACKETS = [["(",")"],["[","]"],["{","}"],["<",">"]];
+const ROWS = 17, LINE = 12, COLS = 2, MAX_ATT = 4;
+
+let ftPass="", ftWords=[], ftAttempts=0, ftLines=[], ftWordPos=[], ftBracketPos=[], ftElim=[], ftDudsLeft=0;
 
 function openFallout() {
-    document.getElementById("fallout-terminal").style.display = "flex";
+    document.getElementById("fallout-overlay").style.display = "flex";
+    document.addEventListener("keydown", ftKeyDown);
     initFallout();
 }
 
 function closeFallout() {
-    document.getElementById("fallout-terminal").style.display = "none";
+    document.getElementById("fallout-overlay").style.display = "none";
+    document.removeEventListener("keydown", ftKeyDown);
 }
 
+function ftKeyDown(e) { if (e.key === "Escape") closeFallout(); }
+
 function initFallout() {
-    ftAttempts = FT_MAX_ATTEMPTS;
-    ftEliminated = [];
+    ftAttempts = MAX_ATT;
+    ftElim = [];
 
-    // Pick 8 words all same length
     const shuffled = [...FT_WORDS].sort(() => Math.random() - 0.5);
-    const len = shuffled[0].length;
-    ftWords = shuffled.filter(w => w.length === len).slice(0, 8);
-    if (ftWords.length < 4) ftWords = shuffled.slice(0, 8); // fallback
-    ftPassword = ftWords[Math.floor(Math.random() * ftWords.length)];
+    const wlen = 7;
+    ftWords = shuffled.filter(w => w.length === wlen).slice(0, 8);
+    if (ftWords.length < 4) ftWords = shuffled.slice(0, 8);
+    ftPass = ftWords[Math.floor(Math.random() * ftWords.length)];
+    ftDudsLeft = ftWords.length - 1;
 
-    // Build garbage grid
-    const totalChars = 2 * FT_ROWS * FT_LINE_LEN;
-    let grid = Array.from({length: totalChars}, () =>
-        FT_GARBAGE[Math.floor(Math.random() * FT_GARBAGE.length)]
+    const total = COLS * ROWS * LINE;
+    let grid = Array.from({length: total}, () =>
+        GARBAGE[Math.floor(Math.random() * GARBAGE.length)]
     );
 
-    // Place words
-    ftWordPositions = [];
+    ftWordPos = [];
     const used = new Set();
+
     ftWords.forEach(word => {
-        for (let tries = 0; tries < 300; tries++) {
-            const pos = Math.floor(Math.random() * (totalChars - word.length - 1));
-            const lineStart = Math.floor(pos / FT_LINE_LEN) * FT_LINE_LEN;
-            if (pos + word.length > lineStart + FT_LINE_LEN) continue;
-            let overlap = false;
-            for (let i = pos; i < pos + word.length; i++) { if (used.has(i)) { overlap = true; break; } }
-            if (overlap) continue;
-            for (let i = 0; i < word.length; i++) { grid[pos + i] = word[i]; used.add(pos + i); }
-            ftWordPositions.push({ word, start: pos, end: pos + word.length });
+        for (let t = 0; t < 500; t++) {
+            const pos = Math.floor(Math.random() * (total - word.length - 1));
+            const ls = Math.floor(pos / LINE) * LINE;
+            if (pos + word.length > ls + LINE) continue;
+            let ok = true;
+            for (let i = pos - 1; i < pos + word.length + 1; i++) {
+                if (used.has(i)) { ok = false; break; }
+            }
+            if (!ok) continue;
+            for (let i = 0; i < word.length; i++) {
+                grid[pos + i] = word[i];
+                used.add(pos + i);
+            }
+            ftWordPos.push({ word, start: pos, end: pos + word.length });
             break;
         }
     });
 
-    ftLines = [];
-    for (let i = 0; i < 2 * FT_ROWS; i++) {
-        ftLines.push(grid.slice(i * FT_LINE_LEN, (i+1) * FT_LINE_LEN).join(""));
+    ftBracketPos = [];
+    const bracketUsed = new Set([...used]);
+    const garbageOnlyIdx = [];
+    for (let i = 0; i < total; i++) {
+        if (!bracketUsed.has(i)) garbageOnlyIdx.push(i);
     }
+    garbageOnlyIdx.sort(() => Math.random() - 0.5);
+
+    let placed = 0;
+    for (let bi = 0; bi < garbageOnlyIdx.length - 4 && placed < 6; bi++) {
+        const pos = garbageOnlyIdx[bi];
+        const ls = Math.floor(pos / LINE) * LINE;
+        const br = BRACKETS[Math.floor(Math.random() * BRACKETS.length)];
+        const len = 2 + Math.floor(Math.random() * 3);
+        if (pos + len + 1 > ls + LINE) continue;
+        let ok = true;
+        for (let i = pos; i <= pos + len + 1; i++) {
+            if (bracketUsed.has(i)) { ok = false; break; }
+        }
+        if (!ok) continue;
+        grid[pos] = br[0];
+        for (let i = 1; i <= len; i++) grid[pos + i] = GARBAGE[Math.floor(Math.random() * GARBAGE.length)];
+        grid[pos + len + 1] = br[1];
+        const idxs = [];
+        for (let i = pos; i <= pos + len + 1; i++) { bracketUsed.add(i); idxs.push(i); }
+        ftBracketPos.push({ start: pos, end: pos + len + 2, indices: idxs, open: br[0], close: br[1], used: false });
+        placed++;
+    }
+
+    ftLines = [];
+    for (let i = 0; i < COLS * ROWS; i++) {
+        ftLines.push(grid.slice(i * LINE, (i+1) * LINE).join(""));
+    }
+
     renderFallout();
 }
 
-function getAddr(i) {
-    return "0x" + (0xF000 + i * 12).toString(16).toUpperCase().padStart(4,"0");
+function addr(i) {
+    return "0xF" + (0xA00 + i * 12).toString(16).toUpperCase().padStart(3,"0");
 }
 
 function renderFallout() {
-    document.getElementById("ft-header").innerHTML =
+    document.getElementById("ft-header").textContent =
         "ROBCO INDUSTRIES (TM) TERMLINK PROTOCOL\n" +
-        "PIERSON REPAIRS SYSTEM - AUTHORIZED USERS ONLY\n\n" +
-        "ENTER PASSWORD NOW";
+        "PIERSON REPAIRS NETWORK - AUTHORIZED USERS ONLY\n\n" +
+        "ENTER PASSWORD NOW\n";
 
-    const pips = Array(FT_MAX_ATTEMPTS).fill(0).map((_,i) =>
-        `<span class="ft-attempt-pip ${i >= ftAttempts ? "used" : ""}"></span>`
+    const pips = Array(MAX_ATT).fill(0).map((_,i) =>
+        `<span class="ft-pip${i >= ftAttempts ? " used" : ""}"></span>`
     ).join(" ");
-    document.getElementById("ft-attempts").innerHTML = `ATTEMPT(S) LEFT: ${pips}`;
+    document.getElementById("ft-attempts").innerHTML =
+        `ATTEMPT(S) LEFT: ${pips}`;
 
-    const grid = document.getElementById("ft-grid");
-    grid.innerHTML = "";
+    const cols = document.getElementById("ft-columns");
+    cols.innerHTML = "";
 
-    for (let col = 0; col < 2; col++) {
+    for (let col = 0; col < COLS; col++) {
         const colDiv = document.createElement("div");
-        for (let row = 0; row < FT_ROWS; row++) {
-            const lineIdx = col * FT_ROWS + row;
-            const lineDiv = document.createElement("div");
-            lineDiv.className = "ft-line";
-            const addr = document.createElement("span");
-            addr.className = "ft-addr";
-            addr.textContent = getAddr(lineIdx) + " ";
-            lineDiv.appendChild(addr);
+        colDiv.className = "ft-col";
 
+        for (let row = 0; row < ROWS; row++) {
+            const lineIdx = col * ROWS + row;
+            const lineStart = lineIdx * LINE;
             const lineText = ftLines[lineIdx] || "";
-            const lineStart = lineIdx * FT_LINE_LEN;
+
+            const rowDiv = document.createElement("div");
+            rowDiv.className = "ft-row";
+
+            const addrSpan = document.createElement("span");
+            addrSpan.className = "ft-addr";
+            addrSpan.textContent = addr(lineIdx);
+            rowDiv.appendChild(addrSpan);
+
+            const charsDiv = document.createElement("span");
+            charsDiv.className = "ft-chars";
+
             let ci = 0;
             while (ci < lineText.length) {
-                const hit = ftWordPositions.find(wp =>
-                    wp.start >= lineStart && wp.start < lineStart + FT_LINE_LEN &&
+                const absPos = lineStart + ci;
+
+                const wordHit = ftWordPos.find(wp =>
+                    !ftElim.includes(wp.word) &&
+                    absPos >= wp.start && absPos < wp.end &&
+                    wp.start >= lineStart && wp.start < lineStart + LINE &&
                     wp.start - lineStart === ci
                 );
-                if (hit) {
+
+                const elimHit = ftWordPos.find(wp =>
+                    ftElim.includes(wp.word) &&
+                    absPos >= wp.start && absPos < wp.end &&
+                    wp.start >= lineStart && wp.start < lineStart + LINE &&
+                    wp.start - lineStart === ci
+                );
+
+                const bracketHit = ftBracketPos.find(bp =>
+                    !bp.used &&
+                    absPos === bp.start &&
+                    bp.start >= lineStart && bp.start < lineStart + LINE
+                );
+
+                if (wordHit) {
                     const span = document.createElement("span");
-                    span.className = "ft-word" + (ftEliminated.includes(hit.word) ? " eliminated" : "");
-                    span.textContent = hit.word;
-                    span.dataset.word = hit.word;
-                    if (!ftEliminated.includes(hit.word)) {
-                        span.onclick = () => guessWord(hit.word);
-                        span.onmouseenter = () => {
-                            document.getElementById("ft-output").innerHTML =
-                                "> " + hit.word + "<span class='ft-cursor'></span>";
-                        };
-                        span.onmouseleave = () => {
-                            document.getElementById("ft-output").innerHTML =
-                                "<span class='ft-cursor'></span>";
-                        };
-                    }
-                    lineDiv.appendChild(span);
-                    ci += hit.word.length;
+                    span.className = "ft-word";
+                    span.textContent = wordHit.word;
+                    span.dataset.word = wordHit.word;
+                    span.onclick = () => guessWord(wordHit.word);
+                    span.onmouseenter = () => {
+                        span.classList.add("hovered");
+                        setOutput("> " + wordHit.word);
+                    };
+                    span.onmouseleave = () => {
+                        span.classList.remove("hovered");
+                        setOutput("");
+                    };
+                    charsDiv.appendChild(span);
+                    ci += wordHit.word.length;
+                } else if (elimHit) {
+                    const span = document.createElement("span");
+                    span.className = "ft-word gone";
+                    span.textContent = elimHit.word.split("").map(() =>
+                        GARBAGE[Math.floor(Math.random() * GARBAGE.length)]
+                    ).join("");
+                    charsDiv.appendChild(span);
+                    ci += elimHit.word.length;
+                } else if (bracketHit) {
+                    const len = bracketHit.end - bracketHit.start;
+                    const span = document.createElement("span");
+                    span.className = "ft-bracket";
+                    span.textContent = lineText.slice(ci, ci + len);
+                    span.onmouseenter = () => {
+                        span.classList.add("hovered");
+                        setOutput("> " + span.textContent);
+                    };
+                    span.onmouseleave = () => {
+                        span.classList.remove("hovered");
+                        setOutput("");
+                    };
+                    span.onclick = () => useBracket(bracketHit, span);
+                    charsDiv.appendChild(span);
+                    ci += len;
                 } else {
-                    const t = document.createTextNode(lineText[ci]);
-                    lineDiv.appendChild(t);
+                    charsDiv.appendChild(document.createTextNode(lineText[ci]));
                     ci++;
                 }
             }
-            colDiv.appendChild(lineDiv);
+
+            rowDiv.appendChild(charsDiv);
+            colDiv.appendChild(rowDiv);
         }
-        grid.appendChild(colDiv);
+        cols.appendChild(colDiv);
     }
-    document.getElementById("ft-output").innerHTML = "<span class='ft-cursor'></span>";
+
+    setOutput("");
+}
+
+function setOutput(text) {
+    document.getElementById("ft-output").innerHTML =
+        (text ? text + "\n\n" : "") + `<span class="ft-cursor-blink"></span>`;
+}
+
+function useBracket(bp, span) {
+    bp.used = true;
+    const dudsAvail = ftWords.filter(w => w !== ftPass && !ftElim.includes(w));
+    const rand = Math.random();
+
+    if (rand < 0.5 && ftAttempts < MAX_ATT) {
+        ftAttempts = Math.min(MAX_ATT, ftAttempts + 1);
+        const pips = Array(MAX_ATT).fill(0).map((_,i) =>
+            `<span class="ft-pip${i >= ftAttempts ? " used" : ""}"></span>`
+        ).join(" ");
+        document.getElementById("ft-attempts").innerHTML = `ATTEMPT(S) LEFT: ${pips}`;
+        span.className = "ft-word gone";
+        span.textContent = span.textContent.split("").map(() => ".").join("");
+        span.onclick = null;
+        document.getElementById("ft-output").innerHTML =
+            "> " + bp.open + "..." + bp.close + "\n\nALLOWANCE REPLENISHED.\n\n" +
+            `<span class="ft-cursor-blink"></span>`;
+    } else if (dudsAvail.length > 0) {
+        const dud = dudsAvail[Math.floor(Math.random() * dudsAvail.length)];
+        ftElim.push(dud);
+        span.className = "ft-word gone";
+        span.textContent = span.textContent.split("").map(() => ".").join("");
+        span.onclick = null;
+        document.querySelectorAll(".ft-word").forEach(el => {
+            if (el.dataset.word === dud) {
+                el.className = "ft-word gone";
+                el.textContent = el.textContent.split("").map(() =>
+                    GARBAGE[Math.floor(Math.random() * GARBAGE.length)]
+                ).join("");
+                el.onclick = null;
+            }
+        });
+        document.getElementById("ft-output").innerHTML =
+            "> " + bp.open + "..." + bp.close + "\n\nDUD REMOVED.\n\n" +
+            `<span class="ft-cursor-blink"></span>`;
+    } else {
+        span.className = "ft-word gone";
+        span.onclick = null;
+        setOutput("> " + bp.open + "..." + bp.close + "\n\nNO EFFECT.");
+    }
 }
 
 function getLikeness(a, b) {
@@ -780,10 +1061,10 @@ function getLikeness(a, b) {
 }
 
 function guessWord(word) {
-    if (word === ftPassword) {
+    if (word === ftPass) {
         document.getElementById("ft-output").innerHTML =
-            "> " + word + "\n\nEXACT MATCH!\nACCESS GRANTED.\n\nWELCOME, PIERSON TECH...";
-        document.querySelectorAll(".ft-word").forEach(el => { el.onclick = null; });
+            "> " + word + "\n\nEXACT MATCH!\nACCESS GRANTED.\n\nWELCOME, PIERSON TECH.";
+        document.querySelectorAll(".ft-word").forEach(el => { el.onclick = null; el.style.pointerEvents = "none"; });
         setTimeout(() => {
             closeFallout();
             document.body.classList.remove("dark");
@@ -791,41 +1072,45 @@ function guessWord(word) {
             document.documentElement.classList.add("hacker","dark");
             localStorage.setItem("theme","hacker");
             applyThemeLabel();
-        }, 2000);
+        }, 2200);
         return;
     }
 
     ftAttempts--;
-    const lik = getLikeness(word, ftPassword);
-    ftEliminated.push(word);
+    const lik = getLikeness(word, ftPass);
+    ftElim.push(word);
+
+    document.querySelectorAll(".ft-word").forEach(el => {
+        if (el.dataset.word === word) {
+            el.className = "ft-word gone";
+            el.textContent = el.textContent.split("").map(() =>
+                GARBAGE[Math.floor(Math.random() * GARBAGE.length)]
+            ).join("");
+            el.onclick = null;
+        }
+    });
 
     if (ftAttempts <= 0) {
         document.getElementById("ft-output").innerHTML =
-            "> " + word + "\n\nLIKENESS=" + lik + "/" + ftPassword.length +
-            "\n\n!!!! TERMINAL LOCKED !!!!\nCONTACT SYSTEM ADMIN";
-        document.querySelectorAll(".ft-word").forEach(el => {
-            el.classList.add("eliminated"); el.onclick = null;
-        });
+            "> " + word + "\n\nLIKENESS = " + lik + "/" + ftPass.length +
+            "\n\n!!!! TERMINAL LOCKED !!!!\nPLEASE CONTACT YOUR\nSYSTEM ADMINISTRATOR";
         document.getElementById("ft-attempts").innerHTML =
-            "<span style='color:#ff0000'>!!!! TERMINAL LOCKED !!!!</span>";
-        setTimeout(closeFallout, 3500);
+            `<span style="color:#ff3333;animation:ftblink 0.5s step-end infinite">!!!! TERMINAL LOCKED !!!!</span>`;
+        document.querySelectorAll(".ft-word,.ft-bracket").forEach(el => { el.onclick = null; el.style.pointerEvents = "none"; });
+        setTimeout(closeFallout, 4000);
         return;
     }
 
-    document.getElementById("ft-output").innerHTML =
-        "> " + word + "\n\nLIKENESS=" + lik + "/" + ftPassword.length + "\n\nENTRY DENIED.";
-
-    const pips = Array(FT_MAX_ATTEMPTS).fill(0).map((_,i) =>
-        `<span class="ft-attempt-pip ${i >= ftAttempts ? "used" : ""}"></span>`
+    const pips = Array(MAX_ATT).fill(0).map((_,i) =>
+        `<span class="ft-pip${i >= ftAttempts ? " used" : ""}"></span>`
     ).join(" ");
     document.getElementById("ft-attempts").innerHTML = `ATTEMPT(S) LEFT: ${pips}`;
 
-    document.querySelectorAll(".ft-word").forEach(el => {
-        if (el.dataset.word === word) { el.classList.add("eliminated"); el.onclick = null; }
-    });
+    document.getElementById("ft-output").innerHTML =
+        "> " + word + "\n\nLIKENESS = " + lik + "/" + ftPass.length +
+        "\n\nENTRY DENIED.\n\n" + `<span class="ft-cursor-blink"></span>`;
 }
 
-// ── Init ──
 const savedTheme = localStorage.getItem("theme");
 if (savedTheme === "hacker") {
     document.body.classList.add("hacker","dark");
@@ -836,6 +1121,26 @@ if (savedTheme === "hacker") {
 }
 applyThemeLabel();
 </script>
-<div id="fallout-terminal"><div id="fallout-screen"><span class="ft-close" onclick="closeFallout()">[CLOSE]</span><div class="ft-header" id="ft-header"></div><div class="ft-attempts" id="ft-attempts"></div><div class="ft-grid" id="ft-grid"></div><div class="ft-output" id="ft-output"></div></div></div>
+<div id="fallout-overlay">
+  <div class="ft-monitor">
+    <div class="ft-monitor-body">
+      <div class="ft-monitor-top"><span class="ft-monitor-brand">RobCo Industries</span></div>
+      <div class="ft-screen-wrap">
+        <div class="ft-scanlines"></div>
+        <div class="ft-glow"></div>
+        <div class="ft-vignette"></div>
+        <div class="ft-content">
+          <div class="ft-header" id="ft-header"></div>
+          <div class="ft-attempts-row" id="ft-attempts"></div>
+          <div class="ft-columns" id="ft-columns"></div>
+          <div class="ft-output-area" id="ft-output"></div>
+        </div>
+      </div>
+    </div>
+    <div class="ft-monitor-stand"></div>
+    <div class="ft-monitor-base"></div>
+    <div class="ft-esc-hint">[ PRESS ESC TO CLOSE TERMINAL ]</div>
+  </div>
+</div>
 </body>
 </html>
