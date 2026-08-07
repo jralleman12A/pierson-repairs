@@ -26,30 +26,49 @@
     {% endif %}
 </div>
 
-{% if stats.breakdown %}
+{% if stats.live or stats.scrapped %}
 <div class="cp-section" style="margin-top:34px;">
     <div class="cp-section-head">
-        <div class="cp-section-title">Where your panels are</div>
+        <div class="cp-section-title">Repair progress</div>
         {% if stats.fastest is not none %}
         <div class="cp-section-meta">Fastest turnaround {{ stats.fastest }} days</div>
         {% endif %}
     </div>
 
-    <div class="dist-bar">
-        {% for seg in stats.breakdown %}
-            <div class="dist-seg" style="width:{{ seg.pct }}%; background:{{ seg.color }};"
-                 title="{{ seg.label }} — {{ seg.count }}"></div>
-        {% endfor %}
+    <div class="tracker">
+        <div class="tk-rail">
+            <div class="tk-fill" style="width: {{ stats.progress }}%;"></div>
+        </div>
+
+        <div class="tk-stages">
+            {% for st in stats.pipeline %}
+            <div class="tk-stage {% if st.reached %}reached{% endif %} {% if st.count %}holding{% endif %}">
+                <span class="tk-node"></span>
+                <div class="tk-count">{{ st.count }}</div>
+                <div class="tk-label">{{ st.label }}</div>
+            </div>
+            {% endfor %}
+        </div>
     </div>
 
-    <div class="dist-legend">
-        {% for seg in stats.breakdown %}
-        <div class="dist-item">
-            <span class="dist-dot" style="background:{{ seg.color }};"></span>
-            <span class="dist-count">{{ seg.count }}</span>
-            <span class="dist-label">{{ seg.label }}</span>
-        </div>
-        {% endfor %}
+    <div class="tk-summary">
+        {% if stats.live %}
+            <strong>{{ stats.live }}</strong>
+            panel{{ '' if stats.live == 1 else 's' }} in the workflow &mdash;
+            <strong>{{ stats.progress }}%</strong> of the way through.
+            {% if stats.pipeline[3].count %}
+                {{ stats.pipeline[3].count }} back with you,
+            {% endif %}
+            {% if stats.pipeline[1].count %}
+                {{ stats.pipeline[1].count }} on the bench,
+            {% endif %}
+            {% if stats.pipeline[0].count %}
+                {{ stats.pipeline[0].count }} awaiting diagnosis.
+            {% endif %}
+        {% endif %}
+        {% if stats.scrapped %}
+            <span class="tk-scrapped">{{ stats.scrapped }} assessed as beyond economical repair.</span>
+        {% endif %}
     </div>
 </div>
 {% endif %}

@@ -474,6 +474,32 @@ def client_repair_stats(client_id: int) -> dict:
         key = stage_for_status(u.status)
         counts[key] = counts.get(key, 0) + 1
 
+    # Pipeline view: how far the batch has moved through the stages.
+    stage_names = [name for name, _ in REPAIR_STAGES]
+    last = len(stage_names) - 1
+    live = [u for u in units if u.status != "Scrapped"]
+
+    pipeline = [
+        {
+            "label": name,
+            "count": sum(1 for u in live if stage_for_status(u.status) == name),
+            "reached": sum(1 for u in live if stage_index(u.status) >= i),
+            "color": STAGE_COLORS[name],
+        }
+        for i, name in enumerate(stage_names)
+    ]
+
+    # Weighted progress: a panel at the final stage counts fully, one at the
+    # start counts nothing, and the batch average drives the fill.
+    if live and last:
+        progress = round(
+            100 * sum(max(stage_index(u.status), 0) for u in live) / (len(live) * last)
+        )
+    else:
+        progress = 100 if live else 0
+
+    scrapped = sum(1 for u in units if u.status == "Scrapped")
+
     order = [name for name, _ in REPAIR_STAGES] + ["Scrapped"]
     breakdown = [
         {
@@ -511,6 +537,10 @@ def client_repair_stats(client_id: int) -> dict:
     return {
         "total": total,
         "breakdown": breakdown,
+        "pipeline": pipeline,
+        "progress": progress,
+        "scrapped": scrapped,
+        "live": len(live),
         "returned": counts.get("Returned", 0),
         "active": counts.get("Received", 0) + counts.get("In repair", 0),
         "avg_turnaround": round(sum(spans) / len(spans)) if spans else None,
