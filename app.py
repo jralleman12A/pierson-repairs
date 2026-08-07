@@ -806,12 +806,6 @@ def parse_client_id(raw: str) -> int | None:
 # PUBLIC / ERRORS
 # ═══════════════════════════════════════════════════════════
 
-@app.route("/")
-def landing():
-    """Public front door — sends clients and staff to the right sign-in."""
-    return render_template("landing.html")
-
-
 @app.route("/health")
 def health():
     return {"status": "ok", "app": "pierson-repairs"}, 200
@@ -1447,8 +1441,11 @@ def email_settings():
 # CLIENT PORTAL — the single customer-facing surface
 # ═══════════════════════════════════════════════════════════
 
+@app.route("/", methods=["GET", "POST"])
 @app.route("/portal/login", methods=["GET", "POST"])
 def cp_login():
+    """The public front door. Clients are the overwhelming majority of
+    visitors, so the root URL is their sign-in rather than a chooser."""
     if request.method == "GET" and current_client():
         return redirect(safe_next(request.args.get("next"), "cp_dashboard"))
 
