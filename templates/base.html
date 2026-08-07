@@ -249,6 +249,16 @@
             word-break: break-word;
         }
 
+        /* Header cells should hug their label, not stretch the row. */
+        .table thead th {
+            white-space: nowrap;
+            word-break: normal;
+            vertical-align: middle;
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
         .status-badge {
             padding: 6px 10px;
             border-radius: 999px;
@@ -330,14 +340,6 @@
             border-radius: 14px;
         }
 
-        .units-table th:nth-child(1) { width: 6%; }
-        .units-table th:nth-child(2) { width: 14%; }
-        .units-table th:nth-child(3) { width: 12%; }
-        .units-table th:nth-child(4) { width: 14%; }
-        .units-table th:nth-child(5) { width: 16%; }
-        .units-table th:nth-child(6) { width: 12%; }
-        .units-table th:nth-child(7) { width: 14%; }
-        .units-table th:nth-child(8) { width: 12%; }
 
         @media (max-width: 1200px) {
             .table {

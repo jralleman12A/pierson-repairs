@@ -78,21 +78,17 @@
     font-weight: bold;
 }
 
-.units-table th:nth-child(6),
-.units-table td:nth-child(6) {
-    min-width: 185px;
-}
-
-.units-table th:nth-child(7),
-.units-table td:nth-child(7) {
-    min-width: 80px;
-    text-align: center;
-}
-
-.units-table th:nth-child(8),
-.units-table td:nth-child(8) {
-    min-width: 110px;
-}
+/* Column sizing by name, not position — adding or moving a column
+   no longer shifts every rule after it. */
+.units-table .col-id      { width: 48px;  text-align: center; }
+.units-table .col-intake  { min-width: 130px; }
+.units-table .col-actions { min-width: 118px; }
+.units-table .col-panel   { min-width: 150px; white-space: normal; }
+.units-table .col-serial  { min-width: 140px; font-variant-numeric: tabular-nums; }
+.units-table .col-client  { min-width: 150px; max-width: 200px; white-space: normal; }
+.units-table .col-status  { min-width: 175px; }
+.units-table .col-shipped { min-width: 80px;  text-align: center; }
+.units-table .col-date    { min-width: 105px; }
 </style>
 
 <div class="row g-3 mb-4">
@@ -104,7 +100,7 @@
     </div>
 
     <div class="col-md-6 col-xl-2">
-        <div class="stat-card stat-awaiting" id="easter-egg-trigger" onclick="eggClick()" style="cursor:pointer;" title="">
+        <div class="stat-card stat-awaiting">
             <div class="stat-label">Awaiting</div>
             <div class="stat-value">{{ counts["Awaiting Diagnosis"] }}</div>
         </div>
@@ -311,15 +307,15 @@
 
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>Intake</th>
-                                <th>Actions</th>
-                                <th>Panel Info</th>
-                                <th>Serial Number</th>
-                                <th>Client</th>
-                                <th>Status</th>
-                                <th>Shipped</th>
-                                <th>Ship Date</th>
+                                <th class="col-id">ID</th>
+                                <th class="col-intake">Intake</th>
+                                <th class="col-actions">Actions</th>
+                                <th class="col-panel">Panel Info</th>
+                                <th class="col-serial">Serial Number</th>
+                                <th class="col-client">Client</th>
+                                <th class="col-status">Status</th>
+                                <th class="col-shipped">Shipped</th>
+                                <th class="col-date">Ship Date</th>
                             </tr>
                         </thead>
 
@@ -328,13 +324,13 @@
                             {% for unit in units %}
                             <tr>
 
-                                <td>{{ unit["id"] }}</td>
+                                <td class="col-id">{{ unit["id"] }}</td>
 
-                                <td>
+                                <td class="col-intake">
                                     <strong>{{ unit["intake_id"] }}</strong>
                                 </td>
 
-                                <td>
+                                <td class="col-actions">
                                     <div class="panel-actions">
 
                                         <a href="{{ url_for('unit_detail', unit_id=unit['id']) }}"
@@ -350,13 +346,13 @@
                                     </div>
                                 </td>
 
-                                <td>
-                                    <strong>{{ unit["brand"] or "" }}</strong><br>
+                                <td class="col-panel">
+                                    <strong>{{ unit["brand"] or "—" }}</strong><br>
                                     <small>{{ unit["model"] or "" }}</small>
                                 </td>
 
-                                <td>{{ unit["serial_number"] or "" }}</td>
-                                <td>
+                                <td class="col-serial">{{ unit["serial_number"] or "" }}</td>
+                                <td class="col-client">
                                     {% if unit.client %}{{ unit.client.company }}
                                     {% else %}<span style="color:var(--muted);">Unassigned</span>{% endif %}
                                 </td>
@@ -381,7 +377,7 @@
                                     {% endif %}
                                 </td>
 
-                                <td>{{ unit["shipped_back_date"] or "" }}</td>
+                                <td class="col-date">{{ unit["shipped_back_date"] or "—" }}</td>
 
                             </tr>
                             {% endfor %}
