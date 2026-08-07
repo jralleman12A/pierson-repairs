@@ -692,14 +692,14 @@ def init_database() -> None:
         run_migrations()
 
         if BOOTSTRAP_ADMIN_USERNAME and BOOTSTRAP_ADMIN_PASSWORD:
-            if not User.query.filter_by(username=BOOTSTRAP_ADMIN_USERNAME).first():
+            if not find_user_by_username(BOOTSTRAP_ADMIN_USERNAME):
                 user = User(username=BOOTSTRAP_ADMIN_USERNAME, role="admin")
                 user.set_password(BOOTSTRAP_ADMIN_PASSWORD)
                 db.session.add(user)
                 db.session.commit()
 
         if BOOTSTRAP_CLIENT_USERNAME and BOOTSTRAP_CLIENT_PASSWORD:
-            if not ClientAccount.query.filter_by(username=BOOTSTRAP_CLIENT_USERNAME).first():
+            if not find_client_by_username(BOOTSTRAP_CLIENT_USERNAME, active_only=False):
                 client = ClientAccount(
                     company=BOOTSTRAP_CLIENT_COMPANY or BOOTSTRAP_CLIENT_USERNAME,
                     username=BOOTSTRAP_CLIENT_USERNAME,
@@ -770,6 +770,27 @@ def get_client_unit(client_id: int, unit_id: int) -> Unit | None:
     return Unit.query.filter_by(id=unit_id, client_id=client_id, is_deleted=False).first()
 
 
+def find_client_by_username(username: str, active_only: bool = True):
+    """Usernames are stored with the capitalisation you choose, but matched
+    case-insensitively — so MCPS, mcps and Mcps all reach the same account."""
+    if not username:
+        return None
+    query = ClientAccount.query.filter(
+        db.func.lower(ClientAccount.username) == username.strip().lower()
+    )
+    if active_only:
+        query = query.filter(ClientAccount.active.is_(True))
+    return query.first()
+
+
+def find_user_by_username(username: str):
+    if not username:
+        return None
+    return User.query.filter(
+        db.func.lower(User.username) == username.strip().lower()
+    ).first()
+
+
 def parse_client_id(raw: str) -> int | None:
     raw = (raw or "").strip()
     if not raw:
@@ -831,7 +852,7 @@ def login():
 
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        user = User.query.filter_by(username=username).first()
+        user = find_user_by_username(username)
 
         if user and user.check_password(password):
             clear_failures("admin")
@@ -845,7 +866,7 @@ def login():
         # A client typing their credentials into the staff form is the most
         # common failure here — point them at the right door instead of
         # leaving them stuck on "invalid password".
-        if ClientAccount.query.filter_by(username=username, active=True).first():
+        if find_client_by_username(username):
             flash("That looks like a client account. Please use the client portal "
                   "sign-in instead.", "warning")
             return redirect(url_for("cp_login"))
@@ -1438,7 +1459,7 @@ def cp_login():
 
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        client = ClientAccount.query.filter_by(username=username, active=True).first()
+        client = find_client_by_username(username)
 
         if client and client.check_password(password):
             clear_failures("client")
@@ -1449,7 +1470,7 @@ def cp_login():
 
         record_failure("client")
 
-        if User.query.filter_by(username=username).first():
+        if find_user_by_username(username):
             flash("That looks like a Pierson staff account. Please use the staff "
                   "sign-in instead.", "warning")
             return redirect(url_for("login"))
@@ -1689,8 +1710,9 @@ def cp_admin_new_client():
         if len(password) < 10:
             flash("Password must be at least 10 characters.", "danger")
             return redirect(url_for("cp_admin_new_client"))
-        if ClientAccount.query.filter_by(username=username).first():
-            flash("That username already exists.", "danger")
+        if find_client_by_username(username, active_only=False):
+            flash("A client with that username already exists. Usernames are "
+                  "matched without regard to capitalisation.", "danger")
             return redirect(url_for("cp_admin_new_client"))
 
         client = ClientAccount(
