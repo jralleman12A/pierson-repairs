@@ -18,20 +18,17 @@
         <div class="hero-num">{{ stats.returned }}</div>
         <div class="hero-lbl">Repaired and returned</div>
     </div>
-    {% if stats.avg_turnaround is not none %}
-    <div class="hero-stat">
-        <div class="hero-num">{{ stats.avg_turnaround }}<span class="hero-unit">days</span></div>
-        <div class="hero-lbl">Average turnaround</div>
-    </div>
-    {% endif %}
 </div>
 
 {% if stats.live or stats.scrapped %}
 <div class="cp-section" style="margin-top:34px;">
     <div class="cp-section-head">
         <div class="cp-section-title">Repair progress</div>
-        {% if stats.fastest is not none %}
-        <div class="cp-section-meta">Fastest turnaround {{ stats.fastest }} days</div>
+        {% if stats.repair_rate is not none and stats.total %}
+        <div class="cp-section-meta">
+            {{ stats.repaired }} of {{ stats.total }} repaired rather than replaced
+            &middot; {{ stats.repair_rate }}%
+        </div>
         {% endif %}
     </div>
 

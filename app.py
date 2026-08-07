@@ -544,6 +544,8 @@ def client_repair_stats(client_id: int) -> dict:
         "returned": counts.get("Returned", 0),
         "active": counts.get("Received", 0) + counts.get("In repair", 0),
         "avg_turnaround": round(sum(spans) / len(spans)) if spans else None,
+        "repaired": total - scrapped,
+        "repair_rate": round(100 * (total - scrapped) / total) if total else None,
         "fastest": min(spans) if spans else None,
         "measured": len(spans),
     }
@@ -851,6 +853,38 @@ def login():
         flash("Invalid username or password.", "danger")
 
     return render_template("login.html")
+
+
+@app.route("/account", methods=["GET", "POST"])
+@admin_login_required
+def admin_account():
+    user = current_user()
+
+    if request.method == "POST":
+        current = request.form.get("current_password", "")
+        new = request.form.get("new_password", "")
+        confirm = request.form.get("confirm_password", "")
+
+        if not user.check_password(current):
+            record_failure("admin")
+            flash("Your current password is not correct.", "danger")
+            return redirect(url_for("admin_account"))
+
+        error = validate_new_password(new, confirm)
+        if error:
+            flash(error, "danger")
+            return redirect(url_for("admin_account"))
+
+        if user.check_password(new):
+            flash("That is already your current password.", "danger")
+            return redirect(url_for("admin_account"))
+
+        user.set_password(new)
+        db.session.commit()
+        flash("Your password has been changed.", "success")
+        return redirect(url_for("admin_account"))
+
+    return render_template("account.html", user=user, min_length=MIN_PASSWORD_LENGTH)
 
 
 @app.route("/logout")
@@ -1423,6 +1457,53 @@ def cp_login():
         flash("Invalid username or password.", "danger")
 
     return render_template("portal/cp_login.html")
+
+
+MIN_PASSWORD_LENGTH = 10
+
+
+def validate_new_password(new: str, confirm: str) -> str | None:
+    """Returns an error message, or None when the password is acceptable."""
+    if not new:
+        return "Please enter a new password."
+    if len(new) < MIN_PASSWORD_LENGTH:
+        return f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
+    if new != confirm:
+        return "The two new passwords do not match."
+    return None
+
+
+@app.route("/portal/account", methods=["GET", "POST"])
+@client_login_required
+def cp_account():
+    client = current_client()
+
+    if request.method == "POST":
+        current = request.form.get("current_password", "")
+        new = request.form.get("new_password", "")
+        confirm = request.form.get("confirm_password", "")
+
+        if not client.check_password(current):
+            record_failure("client")
+            flash("Your current password is not correct.", "danger")
+            return redirect(url_for("cp_account"))
+
+        error = validate_new_password(new, confirm)
+        if error:
+            flash(error, "danger")
+            return redirect(url_for("cp_account"))
+
+        if client.check_password(new):
+            flash("That is already your current password.", "danger")
+            return redirect(url_for("cp_account"))
+
+        client.set_password(new)
+        db.session.commit()
+        flash("Your password has been changed.", "success")
+        return redirect(url_for("cp_account"))
+
+    return render_template("portal/cp_account.html", client=client,
+                           min_length=MIN_PASSWORD_LENGTH)
 
 
 @app.route("/portal/logout")
