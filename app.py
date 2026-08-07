@@ -138,6 +138,11 @@ db = SQLAlchemy(app)
 # and a styled wordmark until then.
 LOGO_PATH = BASE_DIR / "static" / "pierson-logo.png"
 
+# EOD reports were built for the installer workflow, which is not in use.
+# The models, routes and admin forms are all still here — flip this to True
+# to bring the section back.
+ENABLE_EOD_REPORTS = os.getenv("ENABLE_EOD_REPORTS", "false").lower() in {"1", "true", "yes"}
+
 
 # ═══════════════════════════════════════════════════════════
 # LOGIN THROTTLE (in-process; adequate for a single web instance)
@@ -402,14 +407,37 @@ def current_client() -> ClientAccount | None:
     return client
 
 
+def upcoming_deliveries(client_id: int, limit: int | None = None):
+    """Panels heading back to the customer, newest delivery date first.
+
+    Derived from the repair records themselves — nothing to enter twice.
+    Covers units actively on the way out, plus any unit with a delivery
+    date recorded that has not been marked delivered yet.
+    """
+    query = Unit.query.filter(
+        Unit.client_id == client_id,
+        Unit.is_deleted.is_(False),
+        Unit.status.in_(["Delivering to MCPS", "Completed"]),
+    )
+    units = query.all()
+
+    # Sort by delivery date when present; undated entries fall to the end.
+    def sort_key(u):
+        return (u.delivery_date == "", u.delivery_date or "")
+
+    units.sort(key=sort_key)
+    return units[:limit] if limit else units
+
+
 def client_section_counts() -> dict[str, int]:
     """Empty portal sections are hidden rather than shown as dead links."""
     client = current_client()
     if client is None:
         return {"schedule": 0, "eod": 0, "files": 0, "repairs": 0}
     return {
-        "schedule": ClientSchedule.query.filter_by(client_id=client.id).count(),
-        "eod": ClientEOD.query.filter_by(client_id=client.id).count(),
+        "schedule": len(upcoming_deliveries(client.id)),
+        "eod": (ClientEOD.query.filter_by(client_id=client.id).count()
+                if ENABLE_EOD_REPORTS else 0),
         "files": ClientFile.query.filter_by(client_id=client.id).count(),
         "repairs": Unit.query.filter_by(client_id=client.id, is_deleted=False).count(),
     }
@@ -424,6 +452,7 @@ def inject_globals():
         "STATUS_BADGE_CLASSES": STATUS_BADGE_CLASSES,
         "logo_available": LOGO_PATH.exists(),
         "cp_counts": client_section_counts(),
+        "eod_enabled": ENABLE_EOD_REPORTS,
     }
 
 
@@ -1268,11 +1297,10 @@ def cp_logout():
 @client_login_required
 def cp_dashboard():
     client = current_client()
-    upcoming = (ClientSchedule.query
-                .filter_by(client_id=client.id, status="Scheduled")
-                .order_by(ClientSchedule.date.asc()).limit(10).all())
-    recent_eod = (ClientEOD.query.filter_by(client_id=client.id)
-                  .order_by(ClientEOD.report_date.desc()).limit(5).all())
+    upcoming = upcoming_deliveries(client.id, limit=5)
+    recent_eod = ((ClientEOD.query.filter_by(client_id=client.id)
+                   .order_by(ClientEOD.report_date.desc()).limit(5).all())
+                  if ENABLE_EOD_REPORTS else [])
     files = (ClientFile.query.filter_by(client_id=client.id)
              .order_by(ClientFile.uploaded_at.desc()).all())
 
@@ -1355,18 +1383,20 @@ def cp_repair_packing_slip(unit_id: int):
                            today=datetime.now().strftime("%Y-%m-%d"), portal="customer")
 
 
+@app.route("/portal/deliveries")
 @app.route("/portal/schedule")
 @client_login_required
 def cp_schedule():
     client = current_client()
-    schedules = (ClientSchedule.query.filter_by(client_id=client.id)
-                 .order_by(ClientSchedule.date.desc()).all())
-    return render_template("portal/cp_schedule.html", client=client, schedules=schedules)
+    return render_template("portal/cp_schedule.html", client=client,
+                           units=upcoming_deliveries(client.id))
 
 
 @app.route("/portal/reports")
 @client_login_required
 def cp_reports():
+    if not ENABLE_EOD_REPORTS:
+        abort(404)
     client = current_client()
     page = request.args.get("page", 1, type=int)
     reports = (ClientEOD.query.filter_by(client_id=client.id)
@@ -1378,6 +1408,8 @@ def cp_reports():
 @app.route("/portal/report/<int:report_id>")
 @client_login_required
 def cp_report_detail(report_id: int):
+    if not ENABLE_EOD_REPORTS:
+        abort(404)
     client = current_client()
     report = ClientEOD.query.filter_by(id=report_id, client_id=client.id).first_or_404()
     return render_template("portal/cp_report_detail.html", client=client, report=report)

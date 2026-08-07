@@ -1,55 +1,56 @@
 {% extends "portal/cp_base.html" %}
 {% block title %}{{ unit.intake_id }}{% endblock %}
-{% block page_title %}Repair {{ unit.intake_id }}{% endblock %}
+{% block page_title %}{{ unit.intake_id }}{% endblock %}
 
 {% block content %}
-<div style="margin-bottom:16px;">
-    <a href="{{ url_for('cp_repairs') }}" style="font-size:13px; color:#0A2540;">&larr; Back to all repairs</a>
+
+<div style="margin-top:18px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+    <a href="{{ url_for('cp_repairs') }}" style="font-size:14px;">&larr; All repairs</a>
+    <span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span>
 </div>
 
-<div class="cp-card">
-    <div class="cp-card-title">
-        Panel Details
-        <span style="float:right;">
-            <span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span>
-        </span>
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Panel details</div>
     </div>
 
     <div class="cp-detail-grid">
-        <div><span class="cp-dl">Intake ID</span><span class="cp-dv">{{ unit.intake_id }}</span></div>
         <div><span class="cp-dl">Brand</span><span class="cp-dv">{{ unit.brand|dash }}</span></div>
         <div><span class="cp-dl">Model</span><span class="cp-dv">{{ unit.model|dash }}</span></div>
-        <div><span class="cp-dl">Screen Size</span><span class="cp-dv">{{ unit.screen_size|screensize|dash }}</span></div>
-        <div>
-            <span class="cp-dl">Serial Number</span>
-            <span class="cp-dv" style="font-family:ui-monospace,monospace;">{{ unit.serial_number|dash }}</span>
-        </div>
-        <div><span class="cp-dl">Location / Source</span><span class="cp-dv">{{ unit.source|dash }}</span></div>
-        <div><span class="cp-dl">Date Received</span><span class="cp-dv">{{ unit.date_received|nicedate }}</span></div>
+        <div><span class="cp-dl">Screen size</span><span class="cp-dv">{{ unit.screen_size|screensize|dash }}</span></div>
+        <div><span class="cp-dl">Serial number</span><span class="cp-dv mono">{{ unit.serial_number|dash }}</span></div>
+        <div><span class="cp-dl">Location</span><span class="cp-dv">{{ unit.source|dash }}</span></div>
+        <div><span class="cp-dl">Received</span><span class="cp-dv">{{ unit.date_received|nicedate }}</span></div>
         <div><span class="cp-dl">Repaired</span><span class="cp-dv">{{ unit.repaired_date|nicedate }}</span></div>
         <div><span class="cp-dl">Returned</span><span class="cp-dv">{{ unit.shipped_back_date|nicedate }}</span></div>
     </div>
 </div>
 
-<div class="cp-card">
-    <div class="cp-card-title">Reported Issue</div>
-    <div style="font-size:14px; white-space:pre-wrap;">{{ unit.reported_issue|dash }}</div>
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Reported issue</div>
+    </div>
+    <div style="margin-top:16px; white-space:pre-wrap;">{{ unit.reported_issue|dash }}</div>
 </div>
 
 {% if unit.final_outcome %}
-<div class="cp-card">
-    <div class="cp-card-title">Outcome</div>
-    <div style="font-size:14px; white-space:pre-wrap;">{{ unit.final_outcome }}</div>
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Outcome</div>
+    </div>
+    <div style="margin-top:16px; white-space:pre-wrap;">{{ unit.final_outcome }}</div>
 </div>
 {% endif %}
 
 {% if notes %}
-<div class="cp-card">
-    <div class="cp-card-title">Repair Updates</div>
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Repair updates</div>
+    </div>
     {% for note in notes %}
-        <div style="padding:12px 0; border-bottom:1px solid #f1f5f9;">
-            <div style="font-size:14px; white-space:pre-wrap;">{{ note.note_text }}</div>
-            <div style="font-size:12px; color:var(--muted); margin-top:6px;">
+        <div style="padding:16px 0; border-bottom:1px solid var(--rule-soft);">
+            <div style="white-space:pre-wrap;">{{ note.note_text }}</div>
+            <div style="font-size:13px; color:var(--muted); margin-top:6px;">
                 {{ note.technician|dash }} &middot; {{ note.created_at|dt }}
             </div>
         </div>
@@ -57,45 +58,31 @@
 </div>
 {% endif %}
 
-<div class="cp-card">
-    <div class="cp-card-title">
-        Tech Check-Off Slip
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Tech check-off slip</div>
         {% if unit.checkoff_file %}
-            <span style="float:right;">
-                <button type="button" onclick="rotateSlip()" class="btn btn-outline-secondary btn-sm"
-                        style="font-size:12px; padding:3px 10px;" title="Rotate the view 90&deg;">
-                    &#8635; Rotate
-                </button>
-                <a href="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}" target="_blank"
-                   class="btn btn-outline-secondary btn-sm"
-                   style="font-size:12px; padding:3px 10px;">Open in new tab</a>
-            </span>
+            <a href="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}" target="_blank"
+               class="cp-section-meta">Open in new tab</a>
         {% endif %}
     </div>
 
     {% if unit.checkoff_file %}
-        <div id="slip-frame" style="transition:transform .2s ease; transform-origin:center center;">
+        <div style="margin-top:16px;">
             {% if unit.checkoff_is_pdf %}
-                <object data="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}"
+                <object data="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}?v={{ unit.checkoff_uploaded_at }}"
                         type="application/pdf"
-                        style="width:100%; height:640px; border:1px solid var(--border); border-radius:8px;">
-                    <div style="padding:20px; font-size:14px;">
-                        Your browser can&rsquo;t display PDFs inline.
-                        <a href="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}" target="_blank">
-                            Open the slip in a new tab
-                        </a>.
+                        style="width:100%; height:620px; border:1px solid var(--rule); border-radius:6px;">
+                    <div style="padding:18px;">
+                        <a href="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}" target="_blank">Open the slip</a>
                     </div>
                 </object>
             {% elif unit.checkoff_is_image %}
-                <img src="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}"
-                     alt="Tech check-off slip for {{ unit.intake_id }}"
-                     style="max-width:100%; border:1px solid var(--border); border-radius:8px;">
+                <img src="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}?v={{ unit.checkoff_uploaded_at }}"
+                     alt="Check-off slip for {{ unit.intake_id }}"
+                     style="max-width:100%; border:1px solid var(--rule); border-radius:6px;">
             {% else %}
-                <div style="font-size:14px;">
-                    <a href="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}" target="_blank">
-                        Download the check-off slip
-                    </a>
-                </div>
+                <a href="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}" target="_blank">Download the slip</a>
             {% endif %}
         </div>
     {% else %}
@@ -103,21 +90,14 @@
     {% endif %}
 </div>
 
-<div class="cp-card">
-    <div class="cp-card-title">Other Documents</div>
-    <a href="{{ url_for('cp_repair_packing_slip', unit_id=unit.id) }}" target="_blank"
-       class="btn btn-outline-secondary btn-sm">Packing Slip</a>
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Documents</div>
+    </div>
+    <div style="margin-top:16px;">
+        <a href="{{ url_for('cp_repair_packing_slip', unit_id=unit.id) }}" target="_blank"
+           class="cp-btn ghost">Packing slip</a>
+    </div>
 </div>
 
-<script>
-// Rotates the on-screen view only — the stored file is never modified.
-let slipRotation = 0;
-function rotateSlip() {
-    const el = document.getElementById("slip-frame");
-    if (!el) return;
-    slipRotation = (slipRotation + 90) % 360;
-    el.style.transform = "rotate(" + slipRotation + "deg)";
-    el.style.margin = (slipRotation === 90 || slipRotation === 270) ? "80px 0" : "0";
-}
-</script>
 {% endblock %}

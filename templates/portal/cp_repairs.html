@@ -1,28 +1,28 @@
 {% extends "portal/cp_base.html" %}
 {% block title %}Repairs{% endblock %}
-{% block page_title %}Panel Repairs{% endblock %}
+{% block page_title %}Repairs{% endblock %}
 
 {% block content %}
-<div class="cp-card">
-    <form method="get" action="{{ url_for('cp_repairs') }}"
-          style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:4px;">
-        <input type="text" name="search" value="{{ search }}" class="form-control"
-               placeholder="Search by intake ID, serial, model, or status"
-               style="flex:1; min-width:220px; font-size:14px;">
-        <button type="submit" class="btn btn-primary btn-sm" style="padding:6px 18px;">Search</button>
-        {% if search %}
-            <a href="{{ url_for('cp_repairs') }}" class="btn btn-outline-secondary btn-sm"
-               style="padding:6px 18px;">Clear</a>
-        {% endif %}
-    </form>
-</div>
 
-<div class="cp-card">
-    <div class="cp-card-title">
-        {% if search %}Results for &ldquo;{{ search }}&rdquo;{% else %}All Repairs{% endif %}
-        <span style="float:right; font-weight:400; color:var(--muted); font-size:12px;">
-            {{ units|length }} unit{{ '' if units|length == 1 else 's' }}
-        </span>
+<form method="get" action="{{ url_for('cp_repairs') }}"
+      style="display:flex; gap:8px; margin-top:22px; flex-wrap:wrap;">
+    <input type="search" name="search" value="{{ search }}"
+           placeholder="Search intake ID, serial, model, or status"
+           style="flex:1; min-width:240px; max-width:420px;">
+    <button type="submit" class="cp-btn">Search</button>
+    {% if search %}
+        <a href="{{ url_for('cp_repairs') }}" class="cp-btn ghost">Clear</a>
+    {% endif %}
+</form>
+
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">
+            {% if search %}Results for &ldquo;{{ search }}&rdquo;{% else %}All repairs{% endif %}
+        </div>
+        <div class="cp-section-meta">
+            {{ units|length }} panel{{ '' if units|length == 1 else 's' }}
+        </div>
     </div>
 
     {% if units %}
@@ -31,7 +31,7 @@
                 <tr>
                     <th>Intake ID</th>
                     <th>Panel</th>
-                    <th>Serial Number</th>
+                    <th>Serial number</th>
                     <th>Received</th>
                     <th>Status</th>
                     <th>Returned</th>
@@ -45,31 +45,23 @@
                     <td>
                         {{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}
                         {% if unit.screen_size %}
-                            <div style="color:var(--muted); font-size:12px;">{{ unit.screen_size|screensize }}</div>
+                            <div style="color:var(--muted); font-size:13px;">{{ unit.screen_size|screensize }}</div>
                         {% endif %}
                     </td>
-                    <td style="font-family:ui-monospace,monospace; font-size:12px;">
-                        {{ unit.serial_number|dash }}
-                    </td>
+                    <td class="mono">{{ unit.serial_number|dash }}</td>
                     <td>{{ unit.date_received|nicedate }}</td>
                     <td><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></td>
                     <td>{{ unit.shipped_back_date|nicedate }}</td>
-                    <td>
-                        <a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}"
-                           style="font-size:12px; color:#0A2540;">View</a>
-                    </td>
+                    <td><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></td>
                 </tr>
             {% endfor %}
             </tbody>
         </table>
     {% else %}
         <div class="cp-empty">
-            {% if search %}
-                No repairs match that search.
-            {% else %}
-                No repair records yet.
-            {% endif %}
+            {% if search %}No repairs match that search.{% else %}No repair records yet.{% endif %}
         </div>
     {% endif %}
 </div>
+
 {% endblock %}

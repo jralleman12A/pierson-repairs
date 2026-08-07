@@ -1,31 +1,49 @@
 {% extends "portal/cp_base.html" %}
-{% block title %}Schedule{% endblock %}
-{% block page_title %}Install Schedule{% endblock %}
+{% block title %}Deliveries{% endblock %}
+{% block page_title %}Deliveries{% endblock %}
 
 {% block content %}
-<div class="cp-card">
-    <div class="cp-card-title">&#128197; All Schedule Entries</div>
-    {% if schedules %}
-        <table class="cp-table">
-            <thead><tr>
-                <th>Date</th><th>Time</th><th>Title</th><th>Location</th><th>Technician</th><th>Status</th><th>Notes</th>
-            </tr></thead>
-            <tbody>
-            {% for s in schedules %}
-            <tr>
-                <td><strong>{{ s["date"] }}</strong></td>
-                <td>{{ s["time"] or "—" }}</td>
-                <td>{{ s["title"] }}</td>
-                <td>{{ s["location"] or "—" }}</td>
-                <td>{{ s["technician"] or "—" }}</td>
-                <td><span class="status-pill status-{{ s['status']|lower }}">{{ s["status"] }}</span></td>
-                <td style="color:var(--muted);font-size:12px;max-width:200px;">{{ s["notes"] or "—" }}</td>
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
+
+<div class="cp-summary">
+    {% if units %}
+        <strong>{{ units|length }}</strong>
+        panel{{ '' if units|length == 1 else 's' }} completed or on the way back to you.
     {% else %}
-        <div class="cp-empty">No schedule entries yet.</div>
+        No panels are currently scheduled for delivery.
     {% endif %}
 </div>
+
+{% if units %}
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Scheduled deliveries</div>
+    </div>
+
+    <table class="cp-table">
+        <thead>
+            <tr>
+                <th>Delivery date</th>
+                <th>Intake ID</th>
+                <th>Panel</th>
+                <th>Serial number</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for unit in units %}
+            <tr>
+                <td>{{ unit.delivery_date|nicedate }}</td>
+                <td><strong>{{ unit.intake_id }}</strong></td>
+                <td>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</td>
+                <td class="mono">{{ unit.serial_number|dash }}</td>
+                <td><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></td>
+                <td><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
 {% endblock %}
