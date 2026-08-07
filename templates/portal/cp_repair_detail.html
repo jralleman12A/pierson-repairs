@@ -9,6 +9,25 @@
     <span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span>
 </div>
 
+{% set idx = stage_index(unit.status) %}
+<div class="pipeline">
+    {% for name, statuses in REPAIR_STAGES %}
+        <div class="pl-step
+            {%- if idx < 0 %} scrapped
+            {%- elif loop.index0 < idx %} done
+            {%- elif loop.index0 == idx %} current
+            {%- endif %}">
+            <span class="pl-dot"></span>
+            <span class="pl-label">{{ name }}</span>
+        </div>
+    {% endfor %}
+</div>
+{% if idx < 0 %}
+<div style="margin-top:12px; font-size:13.5px; color:#991B1B;">
+    This panel was assessed as beyond economical repair.
+</div>
+{% endif %}
+
 <div class="cp-section">
     <div class="cp-section-head">
         <div class="cp-section-title">Panel details</div>

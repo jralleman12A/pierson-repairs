@@ -4,19 +4,58 @@
 
 {% block content %}
 
-<div class="cp-summary">
-    {% if total_repairs %}
-        <strong>{{ open_repairs }}</strong>
-        panel{{ '' if open_repairs == 1 else 's' }} currently in progress,
-        out of <strong>{{ total_repairs }}</strong> on record.
-        {% if upcoming %}
-            <strong>{{ upcoming|length }}</strong>
-            heading back to you.
-        {% endif %}
-    {% else %}
-        No panels on record yet.
+{% if stats.total %}
+<div class="hero-stats">
+    <div class="hero-stat">
+        <div class="hero-num">{{ stats.total }}</div>
+        <div class="hero-lbl">Panels on record</div>
+    </div>
+    <div class="hero-stat">
+        <div class="hero-num">{{ stats.active }}</div>
+        <div class="hero-lbl">Currently in progress</div>
+    </div>
+    <div class="hero-stat">
+        <div class="hero-num">{{ stats.returned }}</div>
+        <div class="hero-lbl">Repaired and returned</div>
+    </div>
+    {% if stats.avg_turnaround is not none %}
+    <div class="hero-stat">
+        <div class="hero-num">{{ stats.avg_turnaround }}<span class="hero-unit">days</span></div>
+        <div class="hero-lbl">Average turnaround</div>
+    </div>
     {% endif %}
 </div>
+
+{% if stats.breakdown %}
+<div class="cp-section" style="margin-top:34px;">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Where your panels are</div>
+        {% if stats.fastest is not none %}
+        <div class="cp-section-meta">Fastest turnaround {{ stats.fastest }} days</div>
+        {% endif %}
+    </div>
+
+    <div class="dist-bar">
+        {% for seg in stats.breakdown %}
+            <div class="dist-seg" style="width:{{ seg.pct }}%; background:{{ seg.color }};"
+                 title="{{ seg.label }} — {{ seg.count }}"></div>
+        {% endfor %}
+    </div>
+
+    <div class="dist-legend">
+        {% for seg in stats.breakdown %}
+        <div class="dist-item">
+            <span class="dist-dot" style="background:{{ seg.color }};"></span>
+            <span class="dist-count">{{ seg.count }}</span>
+            <span class="dist-label">{{ seg.label }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% else %}
+<div class="cp-summary">No panels on record yet.</div>
+{% endif %}
 
 {% if upcoming %}
 <div class="cp-section">
@@ -26,16 +65,9 @@
             <a href="{{ url_for('cp_schedule') }}" class="cp-section-meta">View all {{ cp_counts.schedule }}</a>
         {% endif %}
     </div>
-
     <table class="cp-table">
         <thead>
-            <tr>
-                <th>Intake ID</th>
-                <th>Panel</th>
-                <th>Delivery date</th>
-                <th>Status</th>
-                <th></th>
-            </tr>
+            <tr><th>Intake ID</th><th>Panel</th><th>Delivery date</th><th>Status</th><th></th></tr>
         </thead>
         <tbody>
         {% for unit in upcoming %}
@@ -64,11 +96,8 @@
         <table class="cp-table">
             <thead>
                 <tr>
-                    <th>Intake ID</th>
-                    <th>Panel</th>
-                    <th>Serial number</th>
-                    <th>Status</th>
-                    <th></th>
+                    <th>Intake ID</th><th>Panel</th><th>Serial number</th>
+                    <th>Received</th><th>Status</th><th></th>
                 </tr>
             </thead>
             <tbody>
@@ -77,6 +106,7 @@
                     <td><strong>{{ unit.intake_id }}</strong></td>
                     <td>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</td>
                     <td class="mono">{{ unit.serial_number|dash }}</td>
+                    <td>{{ unit.date_received|nicedate }}</td>
                     <td><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></td>
                     <td><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></td>
                 </tr>
@@ -90,9 +120,7 @@
 
 {% if files %}
 <div class="cp-section">
-    <div class="cp-section-head">
-        <div class="cp-section-title">Shared files</div>
-    </div>
+    <div class="cp-section-head"><div class="cp-section-title">Shared files</div></div>
     <table class="cp-table">
         <tbody>
         {% for f in files %}

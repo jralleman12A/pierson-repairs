@@ -429,6 +429,96 @@ def upcoming_deliveries(client_id: int, limit: int | None = None):
     return units[:limit] if limit else units
 
 
+# Where each status sits in the repair journey, used for the progress
+# indicator on a repair and for grouping the overview breakdown.
+REPAIR_STAGES = [
+    ("Received",  ["Awaiting Diagnosis", "Picking up from MCPS"]),
+    ("In repair", ["In Repair", "Waiting on Parts"]),
+    ("Completed", ["Completed"]),
+    ("Returned",  ["Delivering to MCPS", "Delivered to MCPS", "Shipped Back to MCPS"]),
+]
+
+STAGE_COLORS = {
+    "Received":  "#EF9F27",
+    "In repair": "#378ADD",
+    "Completed": "#639922",
+    "Returned":  "#1D9E75",
+    "Scrapped":  "#E24B4A",
+}
+
+
+def stage_for_status(status: str) -> str:
+    for name, statuses in REPAIR_STAGES:
+        if status in statuses:
+            return name
+    return "Scrapped" if status == "Scrapped" else "Received"
+
+
+def stage_index(status: str) -> int:
+    """0-based position in REPAIR_STAGES, or -1 for scrapped units."""
+    if status == "Scrapped":
+        return -1
+    for i, (_, statuses) in enumerate(REPAIR_STAGES):
+        if status in statuses:
+            return i
+    return 0
+
+
+def client_repair_stats(client_id: int) -> dict:
+    """Status mix and turnaround, computed from the client's own records."""
+    units = Unit.query.filter_by(client_id=client_id, is_deleted=False).all()
+    total = len(units)
+
+    counts: dict[str, int] = {}
+    for u in units:
+        key = stage_for_status(u.status)
+        counts[key] = counts.get(key, 0) + 1
+
+    order = [name for name, _ in REPAIR_STAGES] + ["Scrapped"]
+    breakdown = [
+        {
+            "label": name,
+            "count": counts.get(name, 0),
+            "pct": round(100 * counts.get(name, 0) / total, 1) if total else 0,
+            "color": STAGE_COLORS[name],
+        }
+        for name in order if counts.get(name, 0)
+    ]
+
+    # Turnaround: days from received to returned, for units where both are known.
+    spans = []
+    for u in units:
+        if not u.date_received or not u.shipped_back_date:
+            continue
+        for fmt_a in ("%Y-%m-%d", "%m/%d/%Y"):
+            try:
+                a = datetime.strptime(u.date_received.strip(), fmt_a)
+                break
+            except ValueError:
+                a = None
+        if a is None:
+            continue
+        for fmt_b in ("%Y-%m-%d", "%m/%d/%Y"):
+            try:
+                b = datetime.strptime(u.shipped_back_date.strip(), fmt_b)
+                break
+            except ValueError:
+                b = None
+        if b is None or b < a:
+            continue
+        spans.append((b - a).days)
+
+    return {
+        "total": total,
+        "breakdown": breakdown,
+        "returned": counts.get("Returned", 0),
+        "active": counts.get("Received", 0) + counts.get("In repair", 0),
+        "avg_turnaround": round(sum(spans) / len(spans)) if spans else None,
+        "fastest": min(spans) if spans else None,
+        "measured": len(spans),
+    }
+
+
 def client_section_counts() -> dict[str, int]:
     """Empty portal sections are hidden rather than shown as dead links."""
     client = current_client()
@@ -453,6 +543,8 @@ def inject_globals():
         "logo_available": LOGO_PATH.exists(),
         "cp_counts": client_section_counts(),
         "eod_enabled": ENABLE_EOD_REPORTS,
+        "REPAIR_STAGES": REPAIR_STAGES,
+        "stage_index": stage_index,
     }
 
 
@@ -1319,7 +1411,7 @@ def cp_dashboard():
         "portal/cp_dashboard.html",
         client=client, upcoming=upcoming, recent_eod=recent_eod, files=files,
         open_repairs=open_repairs, total_repairs=total_repairs,
-        recent_repairs=recent_repairs,
+        recent_repairs=recent_repairs, stats=client_repair_stats(client.id),
     )
 
 
