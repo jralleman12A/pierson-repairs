@@ -36,14 +36,18 @@
     </div>
 
     <div class="tracker">
-        <div class="tk-rail">
+        <div class="tk-railwrap">
+            <div class="tk-rail"></div>
             <div class="tk-fill" style="width: {{ stats.progress }}%;"></div>
+            {% for st in stats.pipeline %}
+                <span class="tk-node {% if st.reached %}reached{% endif %} {% if st.count %}holding{% endif %}"
+                      style="left: {{ (loop.index0 / (stats.pipeline|length - 1) * 100)|round(2) }}%;"></span>
+            {% endfor %}
         </div>
 
         <div class="tk-stages">
             {% for st in stats.pipeline %}
             <div class="tk-stage {% if st.reached %}reached{% endif %} {% if st.count %}holding{% endif %}">
-                <span class="tk-node"></span>
                 <div class="tk-count">{{ st.count }}</div>
                 <div class="tk-label">{{ st.label }}</div>
             </div>
@@ -76,6 +80,7 @@
 <div class="cp-summary">No panels on record yet.</div>
 {% endif %}
 
+<div class="logistics">
 <div class="cp-section">
     <div class="cp-section-head">
         <div class="cp-section-title">Scheduled for pickup</div>
@@ -141,6 +146,7 @@
             run is booked, the panel appears here with its date and destination.
         </div>
     {% endif %}
+</div>
 </div>
 
 <div class="cp-section">

@@ -61,7 +61,7 @@
         .cp-topbar-meta { font-size: 13px; color: var(--muted); }
         .cp-content { padding: 0 40px 64px; max-width: 1180px; }
 
-        .cp-section { margin-top: 40px; }
+        .cp-section { margin-top: 34px; }
         .cp-section-head {
             display: flex; align-items: baseline; justify-content: space-between;
             padding-bottom: 10px; border-bottom: 1px solid var(--rule); margin-bottom: 4px;
@@ -72,7 +72,7 @@
         }
         .cp-section-meta { font-size: 13px; color: var(--muted); }
 
-        .cp-summary { margin-top: 22px; font-size: 17px; line-height: 1.65; }
+        .cp-summary { margin-top: 20px; font-size: 16px; line-height: 1.6; }
         .cp-summary strong { font-weight: 600; }
 
         .cp-table { width: 100%; border-collapse: collapse; }
@@ -116,7 +116,8 @@
         }
         .cp-dv { display:block; font-size:15px; }
 
-        .cp-empty { padding: 26px 0; color: var(--muted); font-size: 14px; }
+        .cp-empty { padding: 16px 0 4px; color: var(--muted); font-size: 13.5px;
+                    line-height: 1.55; max-width: 62ch; }
 
         .cp-flash {
             margin-top: 20px; padding: 11px 14px; border-radius: 6px;
@@ -145,12 +146,12 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 0;
-            margin-top: 26px;
+            margin-top: 22px;
             border-top: 1px solid var(--rule);
             border-bottom: 1px solid var(--rule);
         }
         .hero-stat {
-            padding: 20px 24px 20px 0;
+            padding: 17px 22px 17px 0;
             border-right: 1px solid var(--rule-soft);
         }
         .hero-stat:last-child { border-right: none; }
@@ -169,45 +170,62 @@
 
 
 
-        /* ── Repair tracker ──────────────────────────── */
-        .tracker { margin-top: 26px; position: relative; }
 
+        /* ── Repair tracker ──────────────────────────── */
+        .tracker { margin-top: 22px; }
+
+        .tk-railwrap {
+            position: relative; height: 12px;
+            /* Rail spans first node centre to last node centre (half a column
+               inset each side), so the fill and the nodes always agree. */
+            margin: 0 12.5%;
+        }
         .tk-rail {
-            height: 6px; border-radius: 3px; background: var(--rule);
-            overflow: hidden; margin: 0 0 0 0;
+            position: absolute; top: 4px; left: 0; right: 0;
+            height: 4px; border-radius: 2px; background: var(--rule);
         }
         .tk-fill {
-            height: 100%; border-radius: 3px;
-            background: linear-gradient(90deg, #378ADD 0%, #1D9E75 100%);
-            transition: width .6s ease;
+            position: absolute; top: 4px; left: 0;
+            height: 4px; border-radius: 2px;
+            background: #1D9E75; transition: width .5s ease;
         }
-
-        .tk-stages { display: flex; margin-top: -3px; }
-        .tk-stage { flex: 1; position: relative; padding-top: 14px; }
-
         .tk-node {
-            position: absolute; top: -3px; left: 0;
+            position: absolute; top: 0;
             width: 12px; height: 12px; border-radius: 50%;
-            background: #fff; border: 3px solid var(--rule);
+            background: #fff; border: 2px solid var(--rule);
+            transform: translateX(-50%);
         }
-        .tk-stage.reached .tk-node { border-color: #1D9E75; background: #1D9E75; }
-        .tk-stage.holding .tk-node { border-color: #378ADD; background: #378ADD; }
+        .tk-node.reached { border-color: #1D9E75; background: #1D9E75; }
+        .tk-node.holding { border-color: #378ADD; background: #378ADD;
+                           box-shadow: 0 0 0 4px rgba(55,138,221,.15); }
 
+        .tk-stages {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            margin-top: 10px;
+        }
+        .tk-stage { text-align: center; }
         .tk-count {
-            font-size: 22px; font-weight: 600; line-height: 1.1;
-            font-variant-numeric: tabular-nums; color: var(--muted);
+            font-size: 19px; font-weight: 600; line-height: 1.2;
+            font-variant-numeric: tabular-nums; color: #b3b8c0;
         }
-        .tk-stage.holding .tk-count { color: var(--navy); }
-        .tk-label { font-size: 12.5px; color: var(--muted); margin-top: 1px; }
-        .tk-stage.holding .tk-label { color: var(--text); }
+        .tk-stage.reached .tk-count { color: var(--text); }
+        .tk-stage.holding .tk-count { color: #1a63b8; }
+        .tk-label {
+            font-size: 12px; color: var(--muted); margin-top: 1px;
+            letter-spacing: .1px;
+        }
+        .tk-stage.holding .tk-label { color: var(--text); font-weight: 500; }
 
-        .tk-summary { margin-top: 22px; font-size: 15px; line-height: 1.6; }
+        .tk-summary {
+            margin-top: 18px; font-size: 14.5px; line-height: 1.55;
+            color: var(--text);
+        }
         .tk-summary strong { font-weight: 600; }
         .tk-scrapped { color: var(--muted); }
 
         @media (max-width: 560px) {
-            .tk-count { font-size: 18px; }
-            .tk-label { font-size: 11.5px; }
+            .tk-count { font-size: 16px; }
+            .tk-label { font-size: 11px; }
         }
 
         /* ── Repair progress pipeline ────────────────── */
@@ -238,6 +256,14 @@
             .hero-stat { border-right: none; border-bottom: 1px solid var(--rule-soft); }
             .hero-stat:last-child { border-bottom: none; }
             .hero-num { font-size: 32px; }
+        }
+
+        .logistics {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px;
+        }
+        .logistics .cp-section { margin-top: 34px; }
+        @media (max-width: 900px) {
+            .logistics { grid-template-columns: 1fr; gap: 0; }
         }
 
         .cp-menu-btn {
