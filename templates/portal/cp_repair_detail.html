@@ -58,18 +58,66 @@
 {% endif %}
 
 <div class="cp-card">
-    <div class="cp-card-title">Documents</div>
-    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <div class="cp-card-title">
+        Tech Check-Off Slip
         {% if unit.checkoff_file %}
-            <a href="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}" target="_blank"
-               class="btn btn-primary btn-sm">View Check-Off Slip</a>
-        {% else %}
-            <span style="font-size:13px; color:var(--muted);">
-                No check-off slip has been uploaded yet.
+            <span style="float:right;">
+                <button type="button" onclick="rotateSlip()" class="btn btn-outline-secondary btn-sm"
+                        style="font-size:12px; padding:3px 10px;" title="Rotate the view 90&deg;">
+                    &#8635; Rotate
+                </button>
+                <a href="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}" target="_blank"
+                   class="btn btn-outline-secondary btn-sm"
+                   style="font-size:12px; padding:3px 10px;">Open in new tab</a>
             </span>
         {% endif %}
-        <a href="{{ url_for('cp_repair_packing_slip', unit_id=unit.id) }}" target="_blank"
-           class="btn btn-outline-secondary btn-sm">Packing Slip</a>
     </div>
+
+    {% if unit.checkoff_file %}
+        <div id="slip-frame" style="transition:transform .2s ease; transform-origin:center center;">
+            {% if unit.checkoff_is_pdf %}
+                <object data="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}"
+                        type="application/pdf"
+                        style="width:100%; height:640px; border:1px solid var(--border); border-radius:8px;">
+                    <div style="padding:20px; font-size:14px;">
+                        Your browser can&rsquo;t display PDFs inline.
+                        <a href="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}" target="_blank">
+                            Open the slip in a new tab
+                        </a>.
+                    </div>
+                </object>
+            {% elif unit.checkoff_is_image %}
+                <img src="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}"
+                     alt="Tech check-off slip for {{ unit.intake_id }}"
+                     style="max-width:100%; border:1px solid var(--border); border-radius:8px;">
+            {% else %}
+                <div style="font-size:14px;">
+                    <a href="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}" target="_blank">
+                        Download the check-off slip
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="cp-empty">No check-off slip has been uploaded yet.</div>
+    {% endif %}
 </div>
+
+<div class="cp-card">
+    <div class="cp-card-title">Other Documents</div>
+    <a href="{{ url_for('cp_repair_packing_slip', unit_id=unit.id) }}" target="_blank"
+       class="btn btn-outline-secondary btn-sm">Packing Slip</a>
+</div>
+
+<script>
+// Rotates the on-screen view only — the stored file is never modified.
+let slipRotation = 0;
+function rotateSlip() {
+    const el = document.getElementById("slip-frame");
+    if (!el) return;
+    slipRotation = (slipRotation + 90) % 360;
+    el.style.transform = "rotate(" + slipRotation + "deg)";
+    el.style.margin = (slipRotation === 90 || slipRotation === 270) ? "80px 0" : "0";
+}
+</script>
 {% endblock %}

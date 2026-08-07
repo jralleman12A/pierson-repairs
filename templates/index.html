@@ -5,6 +5,7 @@
 <style>
 .table-wrap {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .units-table {
@@ -80,15 +81,28 @@
 
 /* Column sizing by name, not position — adding or moving a column
    no longer shifts every rule after it. */
-.units-table .col-id      { width: 48px;  text-align: center; }
-.units-table .col-intake  { min-width: 130px; }
-.units-table .col-actions { min-width: 118px; }
-.units-table .col-panel   { min-width: 150px; white-space: normal; }
-.units-table .col-serial  { min-width: 140px; font-variant-numeric: tabular-nums; }
-.units-table .col-client  { min-width: 150px; max-width: 200px; white-space: normal; }
-.units-table .col-status  { min-width: 175px; }
-.units-table .col-shipped { min-width: 80px;  text-align: center; }
-.units-table .col-date    { min-width: 105px; }
+.units-table .col-id      { width: 44px;  text-align: center; }
+.units-table .col-intake  { min-width: 120px; }
+.units-table .col-actions { min-width: 112px; }
+.units-table .col-panel   { min-width: 145px; white-space: normal; }
+.units-table .col-serial  { min-width: 135px; font-variant-numeric: tabular-nums; }
+.units-table .col-client  { min-width: 130px; max-width: 170px; white-space: normal; }
+.units-table .col-status  { min-width: 170px; }
+.units-table .col-shipped { min-width: 70px;  text-align: center; }
+.units-table .col-date    { min-width: 100px; }
+
+/* Break only where a word genuinely cannot fit — never mid-word
+   on ordinary text like "Montgomery County Public Schools". */
+.units-table td,
+.units-table th {
+    word-break: normal;
+    overflow-wrap: normal;
+}
+.units-table .col-serial { overflow-wrap: anywhere; }
+
+/* Wide enough for every column at full size; the wrapper scrolls
+   horizontally instead of squeezing cells into each other. */
+.units-table { min-width: 1080px; }
 </style>
 
 <div class="row g-3 mb-4">
@@ -312,7 +326,9 @@
                                 <th class="col-actions">Actions</th>
                                 <th class="col-panel">Panel Info</th>
                                 <th class="col-serial">Serial Number</th>
+                                {% if clients|length > 1 %}
                                 <th class="col-client">Client</th>
+                                {% endif %}
                                 <th class="col-status">Status</th>
                                 <th class="col-shipped">Shipped</th>
                                 <th class="col-date">Ship Date</th>
@@ -352,10 +368,12 @@
                                 </td>
 
                                 <td class="col-serial">{{ unit["serial_number"] or "" }}</td>
+                                {% if clients|length > 1 %}
                                 <td class="col-client">
                                     {% if unit.client %}{{ unit.client.company }}
                                     {% else %}<span style="color:var(--muted);">Unassigned</span>{% endif %}
                                 </td>
+                                {% endif %}
 
                                 <td>
 

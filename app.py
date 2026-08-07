@@ -247,6 +247,20 @@ class Unit(db.Model, RowLikeMixin):
     def checkoff_status(self) -> str:
         return "Uploaded" if self.checkoff_file else "Not Uploaded"
 
+    @property
+    def checkoff_ext(self) -> str:
+        if not self.checkoff_file or "." not in self.checkoff_file:
+            return ""
+        return self.checkoff_file.rsplit(".", 1)[1].lower()
+
+    @property
+    def checkoff_is_pdf(self) -> bool:
+        return self.checkoff_ext == "pdf"
+
+    @property
+    def checkoff_is_image(self) -> bool:
+        return self.checkoff_ext in {"png", "jpg", "jpeg", "webp", "gif"}
+
 
 class RepairNote(db.Model, RowLikeMixin):
     __tablename__ = "repair_notes"
@@ -1129,10 +1143,15 @@ def cp_dashboard():
     ).count()
     total_repairs = Unit.query.filter_by(client_id=client.id, is_deleted=False).count()
 
+    recent_repairs = (Unit.query
+                      .filter_by(client_id=client.id, is_deleted=False)
+                      .order_by(Unit.id.desc()).limit(5).all())
+
     return render_template(
         "portal/cp_dashboard.html",
         client=client, upcoming=upcoming, recent_eod=recent_eod, files=files,
         open_repairs=open_repairs, total_repairs=total_repairs,
+        recent_repairs=recent_repairs,
     )
 
 

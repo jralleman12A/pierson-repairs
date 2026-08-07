@@ -27,15 +27,51 @@
 </div>
 
 <div class="cp-card">
-    <div class="cp-card-title">&#128736; Panel Repairs</div>
-    {% if total_repairs %}
-        <div style="font-size:14px;">
-            {{ open_repairs }} unit{{ '' if open_repairs == 1 else 's' }} currently in progress
-            out of {{ total_repairs }} total.
-        </div>
-        <div style="margin-top:12px;">
-            <a href="{{ url_for('cp_repairs') }}" style="font-size:13px;color:#2563eb;">View all repairs &rarr;</a>
-        </div>
+    <div class="cp-card-title">
+        &#128736; Recent Repairs
+        {% if total_repairs %}
+            <span style="float:right; font-weight:400; color:var(--muted); font-size:12px;">
+                {{ open_repairs }} in progress &middot; {{ total_repairs }} total
+            </span>
+        {% endif %}
+    </div>
+
+    {% if recent_repairs %}
+        <table class="cp-table">
+            <thead>
+                <tr>
+                    <th>Intake ID</th>
+                    <th>Panel</th>
+                    <th>Serial Number</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for unit in recent_repairs %}
+                <tr>
+                    <td><strong>{{ unit.intake_id }}</strong></td>
+                    <td>{{ unit.brand }} {{ unit.model }}</td>
+                    <td style="font-family:ui-monospace,monospace; font-size:12px;">
+                        {{ unit.serial_number|dash }}
+                    </td>
+                    <td><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></td>
+                    <td>
+                        <a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}"
+                           style="font-size:12px; color:#2563eb;">View</a>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        {% if total_repairs > recent_repairs|length %}
+            <div style="margin-top:12px;">
+                <a href="{{ url_for('cp_repairs') }}" style="font-size:13px;color:#2563eb;">
+                    See all {{ total_repairs }} repairs &rarr;
+                </a>
+            </div>
+        {% endif %}
     {% else %}
         <div class="cp-empty">No repair records yet.</div>
     {% endif %}

@@ -246,7 +246,8 @@
 
         .table td {
             white-space: normal;
-            word-break: break-word;
+            word-break: normal;
+            overflow-wrap: break-word;
         }
 
         /* Header cells should hug their label, not stretch the row. */
@@ -343,7 +344,7 @@
 
         @media (max-width: 1200px) {
             .table {
-                min-width: 1050px;
+                min-width: 1080px;
             }
         }
 
