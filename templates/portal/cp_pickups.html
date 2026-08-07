@@ -1,21 +1,23 @@
 {% extends "portal/cp_base.html" %}
-{% block title %}Deliveries{% endblock %}
-{% block page_title %}Deliveries{% endblock %}
+{% block title %}Pickups{% endblock %}
+{% block page_title %}Pickups{% endblock %}
 
 {% block content %}
 
 <div class="cp-summary">
     {% if units %}
         <strong>{{ units|length }}</strong>
-        panel{{ '' if units|length == 1 else 's' }} repaired and heading back to you.
+        panel{{ '' if units|length == 1 else 's' }} scheduled for collection.
+        Please have {{ 'it' if units|length == 1 else 'them' }} disconnected and
+        accessible before our driver arrives.
     {% else %}
-        No panels are scheduled for delivery right now.
+        No panels are scheduled for collection right now.
     {% endif %}
 </div>
 
 <div class="cp-section">
     <div class="cp-section-head">
-        <div class="cp-section-title">Coming back to you</div>
+        <div class="cp-section-title">Scheduled for pickup</div>
         {% if units %}
         <div class="cp-section-meta">{{ units|length }} panel{{ '' if units|length == 1 else 's' }}</div>
         {% endif %}
@@ -25,24 +27,27 @@
         <table class="cp-table">
             <thead>
                 <tr>
-                    <th>Delivery date</th>
                     <th>Intake ID</th>
                     <th>Panel</th>
                     <th>Serial number</th>
-                    <th>Returning to</th>
-                    <th>Status</th>
+                    <th>Location</th>
+                    <th>Reported issue</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
             {% for unit in units %}
                 <tr>
-                    <td>{{ unit.delivery_date|nicedate }}</td>
                     <td><strong>{{ unit.intake_id }}</strong></td>
-                    <td>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</td>
+                    <td>
+                        {{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}
+                        {% if unit.screen_size %}
+                            <div style="color:var(--muted); font-size:13px;">{{ unit.screen_size|screensize }}</div>
+                        {% endif %}
+                    </td>
                     <td class="mono">{{ unit.serial_number|dash }}</td>
                     <td>{{ unit.source|dash }}</td>
-                    <td><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></td>
+                    <td style="max-width:280px;">{{ unit.reported_issue|dash }}</td>
                     <td><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></td>
                 </tr>
             {% endfor %}
@@ -50,8 +55,8 @@
         </table>
     {% else %}
         <div class="cp-empty">
-            Once a repair is finished and a return run is booked, the panel will appear
-            here with its delivery date and destination so your team can expect it.
+            When Pierson schedules a collection, the panels will be listed here with
+            their locations so your team can prepare them in advance.
         </div>
     {% endif %}
 </div>

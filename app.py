@@ -519,6 +519,24 @@ def client_repair_stats(client_id: int) -> dict:
     }
 
 
+def upcoming_pickups(client_id: int, limit: int | None = None):
+    """Panels booked for collection from the customer, so they can prepare.
+
+    Derived from repair status — no separate schedule to maintain.
+    """
+    units = Unit.query.filter(
+        Unit.client_id == client_id,
+        Unit.is_deleted.is_(False),
+        Unit.status == "Picking up from MCPS",
+    ).all()
+
+    def sort_key(u):
+        return (u.date_received == "", u.date_received or "")
+
+    units.sort(key=sort_key)
+    return units[:limit] if limit else units
+
+
 def client_section_counts() -> dict[str, int]:
     """Empty portal sections are hidden rather than shown as dead links."""
     client = current_client()
@@ -526,6 +544,7 @@ def client_section_counts() -> dict[str, int]:
         return {"schedule": 0, "eod": 0, "files": 0, "repairs": 0}
     return {
         "schedule": len(upcoming_deliveries(client.id)),
+        "pickups": len(upcoming_pickups(client.id)),
         "eod": (ClientEOD.query.filter_by(client_id=client.id).count()
                 if ENABLE_EOD_REPORTS else 0),
         "files": ClientFile.query.filter_by(client_id=client.id).count(),
@@ -1390,6 +1409,7 @@ def cp_logout():
 def cp_dashboard():
     client = current_client()
     upcoming = upcoming_deliveries(client.id, limit=5)
+    pickups = upcoming_pickups(client.id, limit=5)
     recent_eod = ((ClientEOD.query.filter_by(client_id=client.id)
                    .order_by(ClientEOD.report_date.desc()).limit(5).all())
                   if ENABLE_EOD_REPORTS else [])
@@ -1412,6 +1432,7 @@ def cp_dashboard():
         client=client, upcoming=upcoming, recent_eod=recent_eod, files=files,
         open_repairs=open_repairs, total_repairs=total_repairs,
         recent_repairs=recent_repairs, stats=client_repair_stats(client.id),
+        pickups=pickups,
     )
 
 
@@ -1473,6 +1494,14 @@ def cp_repair_packing_slip(unit_id: int):
         abort(404)
     return render_template("packing_slip.html", unit=unit,
                            today=datetime.now().strftime("%Y-%m-%d"), portal="customer")
+
+
+@app.route("/portal/pickups")
+@client_login_required
+def cp_pickups():
+    client = current_client()
+    return render_template("portal/cp_pickups.html", client=client,
+                           units=upcoming_pickups(client.id))
 
 
 @app.route("/portal/deliveries")

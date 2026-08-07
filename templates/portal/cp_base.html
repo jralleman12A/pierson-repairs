@@ -42,6 +42,12 @@
         .cp-nav-item.active {
             color: #fff; border-left-color: var(--orange); background: rgba(255,255,255,.05);
         }
+        .nav-count {
+            display: inline-block; margin-left: 5px; padding: 1px 7px;
+            border-radius: 9px; background: var(--orange); color: #fff;
+            font-size: 11px; font-weight: 600; vertical-align: 1px;
+        }
+
         .cp-sidebar-footer { padding: 18px 22px 22px; }
         .cp-logout { color: rgba(255,255,255,.5); font-size: 13px; text-decoration: none; }
         .cp-logout:hover { color: #fff; }
@@ -244,10 +250,15 @@
         <a href="{{ url_for('cp_repairs') }}"
            class="cp-nav-item {% if request.endpoint in ['cp_repairs','cp_repair_detail'] %}active{% endif %}">Repairs</a>
 
-        {% if cp_counts.schedule %}
+        <a href="{{ url_for('cp_pickups') }}"
+           class="cp-nav-item {% if request.endpoint == 'cp_pickups' %}active{% endif %}">
+            Pickups{% if cp_counts.pickups %} <span class="nav-count">{{ cp_counts.pickups }}</span>{% endif %}
+        </a>
+
         <a href="{{ url_for('cp_schedule') }}"
-           class="cp-nav-item {% if request.endpoint == 'cp_schedule' %}active{% endif %}">Deliveries</a>
-        {% endif %}
+           class="cp-nav-item {% if request.endpoint == 'cp_schedule' %}active{% endif %}">
+            Deliveries{% if cp_counts.schedule %} <span class="nav-count">{{ cp_counts.schedule }}</span>{% endif %}
+        </a>
 
         {% if eod_enabled and cp_counts.eod %}
         <a href="{{ url_for('cp_reports') }}"
