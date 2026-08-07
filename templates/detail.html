@@ -130,6 +130,45 @@
                     {% endif %}
                 </div>
 
+                {% if unit.checkoff_file %}
+                <div style="margin-bottom:16px;">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                        <span style="font-size:13px; color:var(--muted);">Current slip:</span>
+                        <form method="post" action="{{ url_for('rotate_checkoff', unit_id=unit['id']) }}"
+                              style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="degrees" value="90">
+                            <button type="submit" class="btn btn-sm btn-secondary"
+                                    title="Rotate 90&deg; clockwise and save">&#8635; 90&deg;</button>
+                        </form>
+                        <form method="post" action="{{ url_for('rotate_checkoff', unit_id=unit['id']) }}"
+                              style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="degrees" value="180">
+                            <button type="submit" class="btn btn-sm btn-secondary"
+                                    title="Flip 180&deg; and save">&#8635; 180&deg;</button>
+                        </form>
+                        <span style="font-size:12px; color:var(--muted);">
+                            Rotation is saved to the file &mdash; the client sees it corrected.
+                        </span>
+                    </div>
+                
+                    {% if unit.checkoff_is_pdf %}
+                        <object data="{{ url_for('view_checkoff', unit_id=unit['id']) }}?v={{ unit.checkoff_uploaded_at }}"
+                                type="application/pdf"
+                                style="width:100%; height:520px; border:1px solid var(--border); border-radius:10px;">
+                            <a href="{{ url_for('view_checkoff', unit_id=unit['id']) }}" target="_blank">Open the slip</a>
+                        </object>
+                    {% elif unit.checkoff_is_image %}
+                        <img src="{{ url_for('view_checkoff', unit_id=unit['id']) }}?v={{ unit.checkoff_uploaded_at }}"
+                             alt="Check-off slip for {{ unit['intake_id'] }}"
+                             style="max-width:100%; border:1px solid var(--border); border-radius:10px;">
+                    {% else %}
+                        <a href="{{ url_for('view_checkoff', unit_id=unit['id']) }}" target="_blank">Download the slip</a>
+                    {% endif %}
+                </div>
+                {% endif %}
+
                 <form method="post" action="{{ url_for('upload_checkoff', unit_id=unit['id']) }}" enctype="multipart/form-data">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">

@@ -36,6 +36,16 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
+try:
+    from PIL import Image
+except ImportError:  # pragma: no cover
+    Image = None
+
+try:
+    from pypdf import PdfReader, PdfWriter
+except ImportError:  # pragma: no cover
+    PdfReader = PdfWriter = None
+
 
 # ═══════════════════════════════════════════════════════════
 # CONFIG
@@ -123,6 +133,10 @@ BOOTSTRAP_CLIENT_USERNAME = os.getenv("BOOTSTRAP_CLIENT_USERNAME", "")
 BOOTSTRAP_CLIENT_PASSWORD = os.getenv("BOOTSTRAP_CLIENT_PASSWORD", "")
 
 db = SQLAlchemy(app)
+
+# The landing page shows the real logo once static/pierson-logo.png exists,
+# and a styled wordmark until then.
+LOGO_PATH = BASE_DIR / "static" / "pierson-logo.png"
 
 
 # ═══════════════════════════════════════════════════════════
@@ -368,6 +382,7 @@ def inject_globals():
         "current_client": current_client(),
         "STATUSES": STATUSES,
         "STATUS_BADGE_CLASSES": STATUS_BADGE_CLASSES,
+        "logo_available": LOGO_PATH.exists(),
     }
 
 
@@ -557,6 +572,12 @@ def parse_client_id(raw: str) -> int | None:
 # PUBLIC / ERRORS
 # ═══════════════════════════════════════════════════════════
 
+@app.route("/")
+def landing():
+    """Public front door — sends clients and staff to the right sign-in."""
+    return render_template("landing.html")
+
+
 @app.route("/health")
 def health():
     return {"status": "ok", "app": "pierson-repairs"}, 200
@@ -607,6 +628,15 @@ def login():
             return redirect(safe_next(request.args.get("next"), "index"))
 
         record_failure("admin")
+
+        # A client typing their credentials into the staff form is the most
+        # common failure here — point them at the right door instead of
+        # leaving them stuck on "invalid password".
+        if ClientAccount.query.filter_by(username=username, active=True).first():
+            flash("That looks like a client account. Please use the client portal "
+                  "sign-in instead.", "warning")
+            return redirect(url_for("cp_login"))
+
         flash("Invalid username or password.", "danger")
 
     return render_template("login.html")
@@ -624,7 +654,7 @@ def logout():
 # ADMIN — REPAIR TRACKER
 # ═══════════════════════════════════════════════════════════
 
-@app.route("/")
+@app.route("/dashboard")
 @admin_login_required
 def index():
     search = request.args.get("search", "").strip()
@@ -904,6 +934,69 @@ def view_checkoff(unit_id: int):
     return send_file(filepath, as_attachment=False)
 
 
+def rotate_checkoff_file(path: Path, degrees: int) -> tuple[bool, str]:
+    """Rewrite the stored slip rotated clockwise by `degrees`."""
+    ext = path.suffix.lower().lstrip(".")
+
+    if ext == "pdf":
+        if PdfReader is None:
+            return False, "PDF rotation needs the pypdf package."
+        try:
+            reader = PdfReader(str(path))
+            writer = PdfWriter()
+            for page in reader.pages:
+                page.rotate(degrees)
+                writer.add_page(page)
+            with open(path, "wb") as fh:
+                writer.write(fh)
+            return True, "Check-off slip rotated."
+        except Exception as e:
+            return False, f"Could not rotate that PDF: {e}"
+
+    if ext in {"png", "jpg", "jpeg", "webp", "gif"}:
+        if Image is None:
+            return False, "Image rotation needs the Pillow package."
+        try:
+            with Image.open(path) as img:
+                # PIL rotates counter-clockwise; negate for clockwise.
+                rotated = img.rotate(-degrees, expand=True)
+                rotated.save(path)
+            return True, "Check-off slip rotated."
+        except Exception as e:
+            return False, f"Could not rotate that image: {e}"
+
+    return False, "That file type cannot be rotated."
+
+
+@app.route("/unit/<int:unit_id>/rotate_checkoff", methods=["POST"])
+@admin_login_required
+def rotate_checkoff(unit_id: int):
+    unit = get_active_unit(unit_id)
+    if unit is None or not unit.checkoff_file:
+        flash("No check-off slip to rotate.", "danger")
+        return redirect(url_for("unit_detail", unit_id=unit_id))
+
+    try:
+        degrees = int(request.form.get("degrees", "90"))
+    except ValueError:
+        degrees = 90
+    if degrees not in {90, 180, 270}:
+        degrees = 90
+
+    filepath = CHECKOFF_FOLDER / unit.checkoff_file
+    if not filepath.exists():
+        flash("The uploaded check-off slip file could not be found.", "danger")
+        return redirect(url_for("unit_detail", unit_id=unit_id))
+
+    ok, message = rotate_checkoff_file(filepath, degrees)
+    if ok:
+        # Bust any cached copy in the client's browser.
+        unit.checkoff_uploaded_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        db.session.commit()
+    flash(message, "success" if ok else "danger")
+    return redirect(url_for("unit_detail", unit_id=unit_id))
+
+
 @app.route("/unit/<int:unit_id>/archive", methods=["POST"])
 @admin_login_required
 def archive_unit(unit_id: int):
@@ -1110,6 +1203,12 @@ def cp_login():
             return redirect(safe_next(request.args.get("next"), "cp_dashboard"))
 
         record_failure("client")
+
+        if User.query.filter_by(username=username).first():
+            flash("That looks like a Pierson staff account. Please use the staff "
+                  "sign-in instead.", "warning")
+            return redirect(url_for("login"))
+
         flash("Invalid username or password.", "danger")
 
     return render_template("portal/cp_login.html")
@@ -1265,14 +1364,14 @@ def cp_download_file(file_id: int):
 # ADMIN — CLIENT MANAGEMENT
 # ═══════════════════════════════════════════════════════════
 
-@app.route("/portal/admin")
+@app.route("/admin/clients")
 @admin_login_required
 def cp_admin():
     clients = ClientAccount.query.order_by(ClientAccount.company.asc()).all()
     return render_template("portal/admin_clients.html", clients=clients)
 
 
-@app.route("/portal/admin/client/new", methods=["GET", "POST"])
+@app.route("/admin/clients/new", methods=["GET", "POST"])
 @admin_login_required
 def cp_admin_new_client():
     if request.method == "POST":
@@ -1306,7 +1405,7 @@ def cp_admin_new_client():
     return render_template("portal/admin_client_form.html", client=None)
 
 
-@app.route("/portal/admin/client/<int:client_id>")
+@app.route("/admin/clients/<int:client_id>")
 @admin_login_required
 def cp_admin_client(client_id: int):
     client = db.session.get(ClientAccount, client_id)
@@ -1327,7 +1426,7 @@ def cp_admin_client(client_id: int):
                            unit_count=unit_count)
 
 
-@app.route("/portal/admin/client/<int:client_id>/edit", methods=["GET", "POST"])
+@app.route("/admin/clients/<int:client_id>/edit", methods=["GET", "POST"])
 @admin_login_required
 def cp_admin_edit_client(client_id: int):
     client = db.session.get(ClientAccount, client_id)
@@ -1357,7 +1456,7 @@ def cp_admin_edit_client(client_id: int):
     return render_template("portal/admin_client_form.html", client=client)
 
 
-@app.route("/portal/admin/client/<int:client_id>/schedule/add", methods=["POST"])
+@app.route("/admin/clients/<int:client_id>/schedule/add", methods=["POST"])
 @admin_login_required
 def cp_admin_add_schedule(client_id: int):
     if not db.session.get(ClientAccount, client_id):
@@ -1377,7 +1476,7 @@ def cp_admin_add_schedule(client_id: int):
     return redirect(url_for("cp_admin_client", client_id=client_id))
 
 
-@app.route("/portal/admin/schedule/<int:schedule_id>/delete", methods=["POST"])
+@app.route("/admin/schedule/<int:schedule_id>/delete", methods=["POST"])
 @admin_login_required
 def cp_admin_delete_schedule(schedule_id: int):
     s = db.session.get(ClientSchedule, schedule_id)
@@ -1390,7 +1489,7 @@ def cp_admin_delete_schedule(schedule_id: int):
     return redirect(url_for("cp_admin_client", client_id=cid))
 
 
-@app.route("/portal/admin/client/<int:client_id>/eod/add", methods=["POST"])
+@app.route("/admin/clients/<int:client_id>/eod/add", methods=["POST"])
 @admin_login_required
 def cp_admin_add_eod(client_id: int):
     if not db.session.get(ClientAccount, client_id):
@@ -1410,7 +1509,7 @@ def cp_admin_add_eod(client_id: int):
     return redirect(url_for("cp_admin_client", client_id=client_id))
 
 
-@app.route("/portal/admin/eod/<int:eod_id>/delete", methods=["POST"])
+@app.route("/admin/eod/<int:eod_id>/delete", methods=["POST"])
 @admin_login_required
 def cp_admin_delete_eod(eod_id: int):
     e = db.session.get(ClientEOD, eod_id)
@@ -1423,7 +1522,7 @@ def cp_admin_delete_eod(eod_id: int):
     return redirect(url_for("cp_admin_client", client_id=cid))
 
 
-@app.route("/portal/admin/client/<int:client_id>/file/upload", methods=["POST"])
+@app.route("/admin/clients/<int:client_id>/file/upload", methods=["POST"])
 @admin_login_required
 def cp_admin_upload_file(client_id: int):
     if not db.session.get(ClientAccount, client_id):
@@ -1459,7 +1558,7 @@ def cp_admin_upload_file(client_id: int):
     return redirect(url_for("cp_admin_client", client_id=client_id))
 
 
-@app.route("/portal/admin/file/<int:file_id>/delete", methods=["POST"])
+@app.route("/admin/files/<int:file_id>/delete", methods=["POST"])
 @admin_login_required
 def cp_admin_delete_file(file_id: int):
     cf = db.session.get(ClientFile, file_id)
@@ -1497,6 +1596,13 @@ def legacy_customer_logout():
 @app.route("/driver/<path:_rest>")
 def legacy_driver(_rest=None):
     return redirect(url_for("login"))
+
+
+@app.route("/portal/admin")
+@app.route("/portal/admin/<path:_rest>")
+def legacy_portal_admin(_rest=None):
+    """Client management moved out from under the client-facing /portal path."""
+    return redirect(url_for("cp_admin"))
 
 
 init_database()

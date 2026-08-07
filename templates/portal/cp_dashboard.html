@@ -58,7 +58,7 @@
                     <td><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></td>
                     <td>
                         <a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}"
-                           style="font-size:12px; color:#2563eb;">View</a>
+                           style="font-size:12px; color:#073845;">View</a>
                     </td>
                 </tr>
             {% endfor %}
@@ -67,7 +67,7 @@
 
         {% if total_repairs > recent_repairs|length %}
             <div style="margin-top:12px;">
-                <a href="{{ url_for('cp_repairs') }}" style="font-size:13px;color:#2563eb;">
+                <a href="{{ url_for('cp_repairs') }}" style="font-size:13px;color:#073845;">
                     See all {{ total_repairs }} repairs &rarr;
                 </a>
             </div>
@@ -99,7 +99,7 @@
             </tbody>
         </table>
         <div style="margin-top:12px;">
-            <a href="{{ url_for('cp_schedule') }}" style="font-size:13px;color:#2563eb;">View full schedule &rarr;</a>
+            <a href="{{ url_for('cp_schedule') }}" style="font-size:13px;color:#073845;">View full schedule &rarr;</a>
         </div>
     {% else %}
         <div class="cp-empty">No upcoming schedule entries.</div>
@@ -118,13 +118,13 @@
                 <td><strong>{{ r["report_date"] }}</strong></td>
                 <td>{{ r["technician"] or "—" }}</td>
                 <td>{{ r["hours"] or "—" }}</td>
-                <td><a href="{{ url_for('cp_report_detail', report_id=r['id']) }}" style="font-size:12px;color:#2563eb;">View</a></td>
+                <td><a href="{{ url_for('cp_report_detail', report_id=r['id']) }}" style="font-size:12px;color:#073845;">View</a></td>
             </tr>
             {% endfor %}
             </tbody>
         </table>
         <div style="margin-top:12px;">
-            <a href="{{ url_for('cp_reports') }}" style="font-size:13px;color:#2563eb;">View all reports &rarr;</a>
+            <a href="{{ url_for('cp_reports') }}" style="font-size:13px;color:#073845;">View all reports &rarr;</a>
         </div>
     {% else %}
         <div class="cp-empty">No EOD reports yet.</div>
@@ -142,7 +142,7 @@
         <tr>
             <td>{{ f["label"] or f["filename"] }}</td>
             <td style="color:var(--muted);font-size:12px;">{{ f["uploaded_at"].strftime("%Y-%m-%d") if f["uploaded_at"] else "" }}</td>
-            <td><a href="{{ url_for('cp_download_file', file_id=f['id']) }}" style="font-size:12px;color:#2563eb;">Download</a></td>
+            <td><a href="{{ url_for('cp_download_file', file_id=f['id']) }}" style="font-size:12px;color:#073845;">Download</a></td>
         </tr>
         {% endfor %}
         </tbody>
