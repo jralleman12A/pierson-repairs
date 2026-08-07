@@ -19,15 +19,15 @@
         <div><span class="cp-dl">Intake ID</span><span class="cp-dv">{{ unit.intake_id }}</span></div>
         <div><span class="cp-dl">Brand</span><span class="cp-dv">{{ unit.brand|dash }}</span></div>
         <div><span class="cp-dl">Model</span><span class="cp-dv">{{ unit.model|dash }}</span></div>
-        <div><span class="cp-dl">Screen Size</span><span class="cp-dv">{{ unit.screen_size|dash }}</span></div>
+        <div><span class="cp-dl">Screen Size</span><span class="cp-dv">{{ unit.screen_size|screensize|dash }}</span></div>
         <div>
             <span class="cp-dl">Serial Number</span>
             <span class="cp-dv" style="font-family:ui-monospace,monospace;">{{ unit.serial_number|dash }}</span>
         </div>
         <div><span class="cp-dl">Location / Source</span><span class="cp-dv">{{ unit.source|dash }}</span></div>
-        <div><span class="cp-dl">Date Received</span><span class="cp-dv">{{ unit.date_received|dash }}</span></div>
-        <div><span class="cp-dl">Repaired</span><span class="cp-dv">{{ unit.repaired_date|dash }}</span></div>
-        <div><span class="cp-dl">Returned</span><span class="cp-dv">{{ unit.shipped_back_date|dash }}</span></div>
+        <div><span class="cp-dl">Date Received</span><span class="cp-dv">{{ unit.date_received|nicedate }}</span></div>
+        <div><span class="cp-dl">Repaired</span><span class="cp-dv">{{ unit.repaired_date|nicedate }}</span></div>
+        <div><span class="cp-dl">Returned</span><span class="cp-dv">{{ unit.shipped_back_date|nicedate }}</span></div>
     </div>
 </div>
 

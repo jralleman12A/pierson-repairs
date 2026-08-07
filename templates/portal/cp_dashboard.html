@@ -51,7 +51,7 @@
             {% for unit in recent_repairs %}
                 <tr>
                     <td><strong>{{ unit.intake_id }}</strong></td>
-                    <td>{{ unit.brand }} {{ unit.model }}</td>
+                    <td>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</td>
                     <td style="font-family:ui-monospace,monospace; font-size:12px;">
                         {{ unit.serial_number|dash }}
                     </td>

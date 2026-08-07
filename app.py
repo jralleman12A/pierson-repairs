@@ -358,6 +358,33 @@ def dash(value):
     return value if value not in {None, ""} else "—"
 
 
+@app.template_filter("nicedate")
+def nicedate(value):
+    """Dates are stored as free text, so normalise common formats on display."""
+    if not value:
+        return "—"
+    raw = str(value).strip()
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%d/%m/%Y", "%Y/%m/%d"):
+        try:
+            d = datetime.strptime(raw, fmt)
+            # %-d is not portable to Windows, so strip the zero manually.
+            return f"{d.strftime('%b')} {d.day}, {d.year}"
+        except (ValueError, TypeError):
+            continue
+    return raw
+
+
+@app.template_filter("screensize")
+def screensize(value):
+    """A bare number means inches — show it that way."""
+    if not value:
+        return ""
+    raw = str(value).strip()
+    if raw.replace(".", "", 1).isdigit():
+        return f'{raw}"'
+    return raw
+
+
 def current_user() -> User | None:
     user_id = session.get("admin_user_id")
     if not user_id:
@@ -375,6 +402,19 @@ def current_client() -> ClientAccount | None:
     return client
 
 
+def client_section_counts() -> dict[str, int]:
+    """Empty portal sections are hidden rather than shown as dead links."""
+    client = current_client()
+    if client is None:
+        return {"schedule": 0, "eod": 0, "files": 0, "repairs": 0}
+    return {
+        "schedule": ClientSchedule.query.filter_by(client_id=client.id).count(),
+        "eod": ClientEOD.query.filter_by(client_id=client.id).count(),
+        "files": ClientFile.query.filter_by(client_id=client.id).count(),
+        "repairs": Unit.query.filter_by(client_id=client.id, is_deleted=False).count(),
+    }
+
+
 @app.context_processor
 def inject_globals():
     return {
@@ -383,6 +423,7 @@ def inject_globals():
         "STATUSES": STATUSES,
         "STATUS_BADGE_CLASSES": STATUS_BADGE_CLASSES,
         "logo_available": LOGO_PATH.exists(),
+        "cp_counts": client_section_counts(),
     }
 
 

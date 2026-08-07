@@ -43,17 +43,17 @@
                 <tr>
                     <td><strong>{{ unit.intake_id }}</strong></td>
                     <td>
-                        {{ unit.brand }} {{ unit.model }}
+                        {{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}
                         {% if unit.screen_size %}
-                            <div style="color:var(--muted); font-size:12px;">{{ unit.screen_size }}</div>
+                            <div style="color:var(--muted); font-size:12px;">{{ unit.screen_size|screensize }}</div>
                         {% endif %}
                     </td>
                     <td style="font-family:ui-monospace,monospace; font-size:12px;">
                         {{ unit.serial_number|dash }}
                     </td>
-                    <td>{{ unit.date_received|dash }}</td>
+                    <td>{{ unit.date_received|nicedate }}</td>
                     <td><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></td>
-                    <td>{{ unit.shipped_back_date|dash }}</td>
+                    <td>{{ unit.shipped_back_date|nicedate }}</td>
                     <td>
                         <a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}"
                            style="font-size:12px; color:#0A2540;">View</a>

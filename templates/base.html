@@ -138,34 +138,29 @@
             color: var(--text);
         }
 
+
         .stat-card {
-            border-radius: 18px;
-            padding: 18px;
-            color: white;
-            box-shadow: var(--shadow);
-            min-height: 96px;
+            border-radius: 12px;
+            padding: 16px 18px;
+            border: 1px solid var(--border);
         }
+        .stat-label { font-size: 12px; font-weight: 600; letter-spacing: .3px; opacity: .85; }
+        .stat-value { font-size: 30px; font-weight: 700; line-height: 1.15; margin-top: 2px; }
 
-        .stat-label {
-            font-size: .88rem;
-            opacity: 0.95;
-            color: #f8fafc;
-        }
+        .stat-total     { background:#0A2540; color:#ffffff; border-color:#0A2540; }
+        .stat-awaiting  { background:#FDEDE7; color:#9A3412; border-color:#F8D5C7; }
+        .stat-repair    { background:#E8EEF6; color:#1E3A5F; border-color:#CFDCEC; }
+        .stat-parts     { background:#EFEAF7; color:#5B21B6; border-color:#DCD2EF; }
+        .stat-complete  { background:#E6F4EA; color:#166534; border-color:#CCE7D4; }
+        .stat-scrapped  { background:#FCE9E9; color:#991B1B; border-color:#F5D0D0; }
 
-        .stat-value {
-            font-size: 1.7rem;
-            font-weight: 700;
-            margin-top: 4px;
-            color: #ffffff;
-        }
-
-        .stat-total { background: var(--stat-total); }
-        .stat-awaiting { background: var(--stat-awaiting); }
-        .stat-repair { background: var(--stat-repair); }
-        .stat-parts { background: var(--stat-parts); }
-        .stat-complete { background: var(--stat-complete); }
-        .stat-scrapped { background: var(--stat-scrapped); }
-        .stat-archived { background: var(--stat-archived); }
+        body.dark .stat-awaiting  { background:#3B1D0F; color:#FBBF9C; border-color:#5A2E18; }
+        body.dark .stat-repair    { background:#132539; color:#A9C8EE; border-color:#1E3A57; }
+        body.dark .stat-parts     { background:#241A3D; color:#C9B6F0; border-color:#372A57; }
+        body.dark .stat-complete  { background:#10291A; color:#A7DCB8; border-color:#1C4029; }
+        body.dark .stat-scrapped  { background:#341417; color:#F2AFAF; border-color:#4E2024; }
+        .stat-archived  { background:#EEF1F5; color:#334155; border-color:#DDE3EA; }
+        body.dark .stat-archived  { background:#1B2431; color:#C3CEDC; border-color:#2B3747; }
 
         .form-control,
         .form-select,

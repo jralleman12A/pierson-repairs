@@ -201,15 +201,21 @@
         <a href="{{ url_for('cp_repairs') }}" class="cp-nav-item {% if request.endpoint in ['cp_repairs','cp_repair_detail'] %}active{% endif %}">
             <span class="cp-nav-icon">&#128736;</span> Repairs
         </a>
+        {% if cp_counts.schedule %}
         <a href="{{ url_for('cp_schedule') }}" class="cp-nav-item {% if request.endpoint == 'cp_schedule' %}active{% endif %}">
             <span class="cp-nav-icon">&#128197;</span> Schedule
         </a>
+        {% endif %}
+        {% if cp_counts.eod %}
         <a href="{{ url_for('cp_reports') }}" class="cp-nav-item {% if request.endpoint in ['cp_reports','cp_report_detail'] %}active{% endif %}">
             <span class="cp-nav-icon">&#128203;</span> EOD Reports
         </a>
+        {% endif %}
+        {% if cp_counts.files %}
         <a href="{{ url_for('cp_files') }}" class="cp-nav-item {% if request.endpoint == 'cp_files' %}active{% endif %}">
             <span class="cp-nav-icon">&#128196;</span> Files
         </a>
+        {% endif %}
     </nav>
 
     <div class="cp-sidebar-footer">
