@@ -29,8 +29,14 @@
             background: var(--navy);
             padding: 56px 52px;
             display: flex; flex-direction: column; justify-content: space-between;
+            /* Without this, column flex stretches children across the full
+               width — which turns the logo into a 900px banner. */
+            align-items: flex-start;
         }
-        .brandside img { height: 34px; width: auto; display: block; }
+        .brandside img {
+            height: 32px; width: auto;
+            display: block; align-self: flex-start; flex: 0 0 auto;
+        }
         .brand-copy { max-width: 380px; }
         .brand-copy h1 {
             color: #fff; font-size: 30px; line-height: 1.25;
@@ -104,7 +110,7 @@
             .brandside { display: none; }
             .formside { padding: 40px 24px; min-height: 100vh; justify-content: flex-start; }
             .mobile-logo { display: block; margin-bottom: 32px; }
-            .mobile-logo img { height: 30px; width: auto; }
+            .mobile-logo img { height: 30px; width: auto; display: block; }
         }
     </style>
 </head>
@@ -170,9 +176,9 @@
             </form>
 
             <div class="helper">
-                Forgotten your password? Contact us at
-                <a href="mailto:hello@pierson.it">hello@pierson.it</a>
-                or call (717) 796-0493.
+                Forgotten your password? Email
+                <a href="mailto:Justin@pierson.it">Justin@pierson.it</a>
+                and we will reset it for you.
                 <div class="staff-link">
                     <a href="{{ url_for('login') }}">Pierson staff sign-in</a>
                 </div>
