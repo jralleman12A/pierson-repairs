@@ -6,10 +6,7 @@
     <title>Boxlight Tracker</title>
     <script>
     (function() {
-        var t = localStorage.getItem("theme");
-        if (t === "hacker") {
-            document.documentElement.classList.add("hacker", "dark");
-        } else if (t === "dark") {
+        if (localStorage.getItem("theme") === "dark") {
             document.documentElement.classList.add("dark");
         }
     })();
@@ -72,109 +69,12 @@
             --status-scrapped-text: #fecdd3;
         }
 
-        html.hacker body, body.hacker {
-            --bg: #000000;
-            --surface: #0a0a0a;
-            --surface-2: #0f0f0f;
-            --text: #00ff41;
-            --muted: #00cc33;
-            --border: #003d10;
-            --header-a: #000000;
-            --header-b: #001a05;
-            --shadow: 0 0 20px rgba(0,255,65,0.15);
-            --row-hover: #001a05;
-        }
-
-        body.hacker .topbar {
-            border: 1px solid #00ff41;
-            box-shadow: 0 0 20px rgba(0,255,65,0.2);
-        }
-
-        body.hacker .topbar-title {
-            color: #00ff41;
-            font-family: monospace;
-            letter-spacing: 3px;
-        }
-
-        body.hacker .topbar-subtitle {
-            color: #00cc33;
-            font-family: monospace;
-        }
-
-        body.hacker .card-clean {
-            border-color: #003d10;
-            box-shadow: 0 0 10px rgba(0,255,65,0.1);
-        }
-
-        body.hacker .btn-primary {
-            background: #00ff41 !important;
-            color: #000 !important;
-            border-color: #00ff41 !important;
-            font-family: monospace;
-            font-weight: 700;
-        }
-
-        body.hacker .btn-light {
-            background: transparent !important;
-            color: #00ff41 !important;
-            border: 1px solid #00ff41 !important;
-            font-family: monospace;
-        }
-
-        body.hacker .btn-outline-light {
-            color: #00ff41 !important;
-            border-color: #00ff41 !important;
-        }
-
-        body.hacker .form-control {
-            background: #0a0a0a !important;
-            color: #00ff41 !important;
-            border-color: #003d10 !important;
-            font-family: monospace;
-        }
-
-        body.hacker .table {
-            color: #00ff41 !important;
-        }
-
-        body.hacker .section-title {
-            color: #00ff41;
-            font-family: monospace;
-            letter-spacing: 2px;
-        }
-
-        body.hacker #themeToggle {
-            background: #000 !important;
-            color: #00ff41 !important;
-            border: 1px solid #00ff41 !important;
-            font-family: monospace;
-            animation: hackerPulse 2s infinite;
-        }
-
-        @keyframes hackerPulse {
-            0%, 100% { box-shadow: 0 0 5px rgba(0,255,65,0.5); }
-            50% { box-shadow: 0 0 15px rgba(0,255,65,0.9); }
-        }
-
-        /* Matrix rain canvas */
-        #matrix-canvas {
-            position: fixed;
-            inset: 0;
-            z-index: 99999;
-            pointer-events: none;
-            display: none;
-        }
-
         html {
             background: var(--bg);
         }
 
         html.dark {
             background: #07111f;
-        }
-
-        html.hacker {
-            background: #000000;
         }
 
         body {
@@ -495,59 +395,6 @@
             }
         }
 
-        /* ── Fallout Terminal Overlay ── */
-        #fallout-overlay { position:fixed; inset:0; z-index:99999; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.97); font-family:'Courier New',monospace; }
-        .ft-mon-wrap { display:flex; flex-direction:column; align-items:center; width:min(760px,96vw); }
-        .ft-bezel { width:100%; background:#1a1a0e; border-radius:14px; padding:16px 16px 22px; border:3px solid #2e2e18; box-shadow:0 0 0 1px #0a0a04,0 6px 0 #0e0e06,0 18px 50px rgba(0,0,0,.95); }
-        .ft-topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
-        .ft-brand { font-family:'Courier New',monospace; font-size:8px; color:#1e1e0a; letter-spacing:3px; }
-        .ft-leds { display:flex; gap:4px; }
-        .ft-led { width:5px; height:5px; border-radius:50%; background:#0a120a; }
-        .ft-led.on { background:#00ff41; box-shadow:0 0 6px #00ff41; animation:ftlp 2s ease-in-out infinite; }
-        @keyframes ftlp { 0%,100%{opacity:1} 50%{opacity:.55} }
-        .ft-housing { background:#000; border-radius:5px; border:3px solid #050503; overflow:hidden; position:relative; }
-        .ft-scanlines { position:absolute; inset:0; background:repeating-linear-gradient(0deg,transparent 0,transparent 3px,rgba(0,0,0,.14) 3px,rgba(0,0,0,.14) 4px); pointer-events:none; z-index:50; }
-        .ft-vignette { position:absolute; inset:0; background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.7) 100%); pointer-events:none; z-index:51; }
-        .ft-glow { position:absolute; inset:0; background:radial-gradient(ellipse 70% 50% at 50% 40%,rgba(0,255,65,.06) 0,transparent 100%); pointer-events:none; z-index:49; }
-        .ft-screen { position:relative; z-index:10; background:#010901; min-height:420px; display:flex; flex-direction:column; padding:18px 22px 14px; }
-        #ft-boot { display:flex; flex-direction:column; justify-content:center; align-items:center; flex:1; gap:18px; }
-        #ft-boot-text { color:#5ae86a; font-size:11px; text-align:center; line-height:1.8; white-space:pre; font-family:'Courier New',monospace; text-shadow:0 0 6px rgba(0,255,65,.3); }
-        #ft-begin-btn { background:transparent; border:1px solid #00ff41; color:#00ff41; font-family:'Courier New',monospace; font-size:12px; padding:10px 28px; cursor:pointer; letter-spacing:2px; animation:ftbtnp 1.5s ease-in-out infinite; }
-        #ft-begin-btn:hover { background:rgba(0,255,65,.08); }
-        @keyframes ftbtnp { 0%,100%{box-shadow:0 0 10px rgba(0,255,65,.2)} 50%{box-shadow:0 0 22px rgba(0,255,65,.5)} }
-        #ft-loading { display:none; flex:1; flex-direction:column; }
-        .ft-ll { font-family:'Courier New',monospace; font-size:11px; color:#7ae88a; line-height:1.7; min-height:1.7em; white-space:pre; }
-        #ft-hacking { display:none; flex:1; flex-direction:column; }
-        .ft-hdr { font-size:10px; color:#8effa0; line-height:1.65; margin-bottom:6px; white-space:pre; font-family:'Courier New',monospace; text-shadow:0 0 5px rgba(0,255,65,.2); }
-        .ft-atts { display:flex; align-items:center; gap:5px; font-size:11px; color:#60d070; margin-bottom:8px; font-family:'Courier New',monospace; }
-        .ft-pip { display:inline-block; width:10px; height:10px; background:#00ff41; box-shadow:0 0 5px rgba(0,255,65,.7); }
-        .ft-pip.dead { background:#0a1e0a; box-shadow:none; }
-        .ft-body { display:flex; gap:0; flex:1; }
-        .ft-hex { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:0 10px; height:270px; overflow-y:auto; overflow-x:hidden; align-content:start; scrollbar-width:thin; scrollbar-color:#002a08 #000; padding-right:6px; border-right:1px solid #091509; }
-        .ft-hex::-webkit-scrollbar { width:3px; }
-        .ft-hex::-webkit-scrollbar-thumb { background:#002a08; }
-        .ft-hcol { display:flex; flex-direction:column; }
-        .ft-hrow { display:flex; align-items:baseline; line-height:1.72; white-space:nowrap; }
-        .ft-hadr { font-family:'Courier New',monospace; color:#1a4820; font-size:9.5px; margin-right:4px; flex-shrink:0; user-select:none; }
-        .ftc { font-family:'Courier New',monospace; font-size:11.5px; color:#2ea040; letter-spacing:.3px; line-height:1.72; display:inline; cursor:default; }
-        .ftc.FW { color:#000 !important; background:#00ff41; cursor:pointer; }
-        .ftc.FK { color:#000 !important; background:#1a8030; cursor:pointer; }
-        .ftc.FD { color:#0c1c0c !important; cursor:default; }
-        .ft-out-panel { width:175px; flex-shrink:0; padding:0 0 0 10px; display:flex; flex-direction:column; }
-        .ft-out-lbl { font-family:'Courier New',monospace; color:#1a3a18; font-size:9px; letter-spacing:1px; margin-bottom:6px; }
-        .ft-out-txt { font-family:'Courier New',monospace; font-size:10px; color:#8effa0; line-height:1.75; white-space:pre-wrap; flex:1; text-shadow:0 0 4px rgba(0,255,65,.2); }
-        #ft-loggedin { display:none; flex:1; flex-direction:column; }
-        .ft-li-hdr { font-family:'Courier New',monospace; font-size:11px; color:#8effa0; line-height:1.7; white-space:pre; }
-        .ft-blink { display:inline-block; width:7px; height:11px; background:#00ff41; vertical-align:middle; margin-left:1px; box-shadow:0 0 4px rgba(0,255,65,.5); animation:ftbl .65s step-end infinite; }
-        @keyframes ftbl { 0%,49%{opacity:1} 50%{opacity:0} }
-        .ft-chin { display:flex; justify-content:space-between; align-items:center; margin-top:7px; padding:0 4px; }
-        .ft-vents { display:flex; gap:3px; }
-        .ft-vents s { display:inline-block; width:14px; height:3px; background:#0a0a06; border-radius:1px; text-decoration:none; }
-        .ft-chin-lbl { font-family:monospace; font-size:7px; color:#141404; letter-spacing:2px; }
-        .ft-stand { width:80px; height:13px; background:#121208; border:2px solid #222214; border-top:none; border-radius:0 0 4px 4px; margin:0 auto; }
-        .ft-base { width:160px; height:9px; background:#0e0e06; border:2px solid #1c1c0e; border-top:none; border-radius:0 0 6px 6px; margin:0 auto; }
-        .ft-tip { text-align:center; font-family:'Courier New',monospace; font-size:8px; color:#142014; margin-top:5px; letter-spacing:1px; }
-
     </style>
 </head>
 <body>
@@ -555,26 +402,21 @@
     <div class="topbar">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div>
-                <h1 class="topbar-title">Boxlight Tracke<span id="secret-r" onclick="secretRClick()" style="cursor:default; user-select:none;">r</span></h1>
+                <h1 class="topbar-title">Boxlight Tracker</h1>
                 <p class="topbar-subtitle">Repair intake, status tracking, notes, and exports</p>
             </div>
             <div class="toolbar">
                 {% if current_user %}
                     <a href="{{ url_for('index') }}" class="btn btn-light btn-sm">Home</a>
                     <a href="{{ url_for('archived_units') }}" class="btn btn-outline-light btn-sm">Archived</a>
+                    <a href="{{ url_for('cp_admin') }}" class="btn btn-outline-light btn-sm">Clients</a>
+                    <a href="{{ url_for('email_settings') }}" class="btn btn-outline-light btn-sm">Settings</a>
                     <a href="{{ url_for('export_csv') }}" class="btn btn-warning btn-sm">Download CSV</a>
                     <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
-                {% elif session.get('customer_portal_logged_in') %}
-                    <a href="{{ url_for('customer_portal') }}" class="btn btn-light btn-sm">Portal Home</a>
-                    <a href="{{ url_for('customer_logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
-                {% elif session.get('driver_portal_logged_in') %}
-                    <a href="{{ url_for('driver_portal') }}" class="btn btn-light btn-sm">Pickup List</a>
-                    <a href="{{ url_for('driver_pickup_slip') }}" class="btn btn-outline-light btn-sm">Print Slip</a>
-                    <a href="{{ url_for('driver_logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
                 {% else %}
                     <a href="{{ url_for('login') }}" class="btn btn-light btn-sm">Login</a>
                 {% endif %}
-                <button type="button" class="btn btn-dark btn-sm" onclick="handleThemeClick()" id="themeToggle">Dark Mode</button>
+                <button type="button" class="btn btn-dark btn-sm" onclick="toggleTheme()" id="themeToggle">Dark Mode</button>
             </div>
         </div>
     </div>
@@ -595,398 +437,27 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// ── Theme management ──
+// CSRF token for fetch() posts
+window.CSRF_TOKEN = "{{ csrf_token() }}";
+
 function applyThemeLabel() {
     const btn = document.getElementById("themeToggle");
     if (!btn) return;
-    const isHacker = document.body.classList.contains("hacker");
-    const isDark = document.body.classList.contains("dark");
-    if (isHacker) btn.textContent = "// HACKER.EXE";
-    else if (isDark) btn.textContent = "Light Mode";
-    else btn.textContent = "Dark Mode";
+    btn.textContent = document.body.classList.contains("dark") ? "Light Mode" : "Dark Mode";
 }
 
 function toggleTheme() {
-    if (document.body.classList.contains("hacker")) {
-        document.body.classList.remove("hacker","dark");
-        document.documentElement.classList.remove("hacker","dark");
-        localStorage.setItem("theme","light");
-    } else {
-        document.body.classList.toggle("dark");
-        document.documentElement.classList.toggle("dark");
-        localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
-    }
+    document.body.classList.toggle("dark");
+    document.documentElement.classList.toggle("dark");
+    localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
     applyThemeLabel();
 }
 
-let themeClickCount = 0, themeClickTimer = null;
-function handleThemeClick() {
-    themeClickCount++;
-    if (themeClickTimer) clearTimeout(themeClickTimer);
-    if (themeClickCount >= 3) {
-        themeClickCount = 0;
-        if (document.body.classList.contains("hacker")) {
-            document.body.classList.remove("hacker","dark");
-            document.documentElement.classList.remove("hacker","dark");
-            localStorage.setItem("theme","light");
-            applyThemeLabel();
-        } else {
-            openFallout();
-        }
-        return;
-    }
-    themeClickTimer = setTimeout(() => {
-        if (themeClickCount === 1) toggleTheme();
-        themeClickCount = 0;
-    }, 300);
-}
-
-// ── Fallout Terminal ──
-const FT_POOL=["PIERSON","TRACKER","REPAIRS","MONITOR","SERVICE","NETWORK","SHIPPED","ARCHIVE","DISPLAY","RECEIPT","RECHECK","BOXTECH","DRIVERS","PORTALS","TECHOPS","SYSCORE","INTAKES","UPGRADE","PATCHES","SUPPORT"];
-const FT_GBG="!@#$%&*-+=?/.,;~|^";
-const FT_BPAIRS={'(':')','[':']','{':'}','<':'>'};
-const FT_ROWS=17, FT_LINE=12, FT_MAXATT=4;
-const FT_TOTAL=2*FT_ROWS*FT_LINE;
-
-let ftPass,ftWords,ftAtt,ftGrid,ftWMeta,ftBMeta,ftElim,ftUsedBrk,ftSpans;
-
-function rnd(n){return Math.floor(Math.random()*n)}
-function ftGc(){return FT_GBG[rnd(FT_GBG.length)]}
-function ftAddr(i){return "0x"+(0xF000+i*12).toString(16).toUpperCase().padStart(4,"0")}
-
-function openFallout() {
-    const ov = document.getElementById("fallout-overlay");
-    ov.style.display = "flex";
-    document.addEventListener("keydown", ftKeyHandler);
-    // Reset to boot screen
-    document.getElementById("ft-boot").style.display = "flex";
-    document.getElementById("ft-loading").style.display = "none";
-    document.getElementById("ft-hacking").style.display = "none";
-    document.getElementById("ft-loggedin").style.display = "none";
-    document.getElementById("ft-boot-text").textContent =
-        "ROBCO INDUSTRIES (TM)\nUNIFIED OPERATING SYSTEM\nCOPYRIGHT 2075-2077\n\nINITIALIZE TERMINAL TO BEGIN";
-}
-
-function closeFallout() {
-    document.getElementById("fallout-overlay").style.display = "none";
-    document.removeEventListener("keydown", ftKeyHandler);
-}
-
-function ftKeyHandler(e) { if (e.key === "Escape") closeFallout(); }
-
-function ftStartBoot() {
-    document.getElementById("ft-boot").style.display = "none";
-    document.getElementById("ft-loading").style.display = "flex";
-    const lines = [
-        {id:"ft-ll1", text:"ROBCO INDUSTRIES (TM) TERMLINK PROTOCOL", delay:0},
-        {id:"ft-ll2", text:"PIERSON REPAIRS NETWORK // AUTHORIZED USERS ONLY", delay:600},
-        {id:"ft-ll3", text:"", delay:1100},
-        {id:"ft-ll4", text:"SECURITY LEVEL: RESTRICTED", delay:1200},
-        {id:"ft-ll5", text:"LOADING MEMORY BLOCKS...", delay:1800},
-        {id:"ft-ll6", text:"PASSWORD REQUIRED TO CONTINUE", delay:2600},
-    ];
-    lines.forEach(l => {
-        setTimeout(() => ftTypewriter(document.getElementById(l.id), l.text, 28), l.delay);
-    });
-    setTimeout(() => {
-        document.getElementById("ft-loading").style.display = "none";
-        document.getElementById("ft-hacking").style.display = "flex";
-        ftInitHack();
-    }, 3800);
-}
-
-function ftTypewriter(el, text, speed) {
-    let i = 0; el.textContent = "";
-    const iv = setInterval(() => {
-        if (i >= text.length) { clearInterval(iv); return; }
-        el.textContent += text[i++];
-    }, speed);
-}
-
-function ftInitHack() {
-    ftAtt = FT_MAXATT; ftElim = new Set(); ftUsedBrk = new Set(); ftSpans = [];
-    const sh = [...FT_POOL].sort(() => Math.random() - .5);
-    ftWords = sh.filter(w => w.length === 7).slice(0, 8);
-    ftPass = ftWords[rnd(ftWords.length)];
-    ftGrid = Array.from({length:FT_TOTAL}, ftGc);
-    ftWMeta = new Array(FT_TOTAL).fill(null);
-    ftBMeta = new Array(FT_TOTAL).fill(null);
-
-    const used = new Set();
-    ftWords.forEach(word => {
-        for (let t = 0; t < 2000; t++) {
-            const p = rnd(FT_TOTAL - word.length - 1);
-            const ls = Math.floor(p / FT_LINE) * FT_LINE;
-            if (p + word.length > ls + FT_LINE) continue;
-            let ok = true;
-            for (let i = Math.max(0, p-1); i <= Math.min(FT_TOTAL-1, p+word.length); i++) {
-                if (used.has(i)) { ok = false; break; }
-            }
-            if (!ok) continue;
-            for (let i = 0; i < word.length; i++) {
-                ftGrid[p+i] = word[i]; used.add(p+i);
-                ftWMeta[p+i] = {word, start:p};
-            }
-            break;
-        }
-    });
-
-    const bUsed = new Set([...used]);
-    let placed = 0;
-    for (let t = 0; t < FT_TOTAL*8 && placed < 10; t++) {
-        const open = Object.keys(FT_BPAIRS)[rnd(4)];
-        const close = FT_BPAIRS[open];
-        const inner = 1 + rnd(5);
-        const len = inner + 2;
-        const p = rnd(FT_TOTAL - len - 1);
-        const ls = Math.floor(p / FT_LINE) * FT_LINE;
-        if (p + len > ls + FT_LINE) continue;
-        let ok = true;
-        for (let i = p; i < p+len; i++) { if (bUsed.has(i)) { ok = false; break; } }
-        if (!ok) continue;
-        ftGrid[p] = open;
-        for (let i = 1; i <= inner; i++) ftGrid[p+i] = ftGc();
-        ftGrid[p+inner+1] = close;
-        const str = ftGrid.slice(p, p+len).join("");
-        const id = "b" + placed;
-        for (let i = p; i < p+len; i++) { bUsed.add(i); ftBMeta[i] = {id, str, start:p, end:p+len}; }
-        placed++;
-    }
-    ftRender();
-}
-
-function ftRender() {
-    document.getElementById("ft-hdr").textContent =
-        "ROBCO INDUSTRIES (TM) TERMLINK PROTOCOL\n" +
-        "PIERSON REPAIRS NET  //  AUTHORIZED ONLY\n\n" +
-        "PASSWORD REQUIRED";
-    ftRedrawPips();
-    const hex = document.getElementById("ft-hex");
-    hex.innerHTML = "";
-    ftSpans = new Array(FT_TOTAL).fill(null);
-
-    for (let col = 0; col < 2; col++) {
-        const cd = document.createElement("div");
-        cd.className = "ft-hcol";
-        for (let row = 0; row < FT_ROWS; row++) {
-            const li = col * FT_ROWS + row;
-            const ls = li * FT_LINE;
-            const rd = document.createElement("div");
-            rd.className = "ft-hrow";
-            const ad = document.createElement("span");
-            ad.className = "ft-hadr";
-            ad.textContent = ftAddr(li) + " ";
-            rd.appendChild(ad);
-            for (let ci = 0; ci < FT_LINE; ci++) {
-                const abs = ls + ci;
-                const sp = document.createElement("span");
-                sp.className = "ftc";
-                sp.textContent = ftGrid[abs];
-                ftSpans[abs] = sp;
-                const wm = ftWMeta[abs];
-                const bm = ftBMeta[abs];
-                if ((wm && ftElim.has(wm.word)) || (bm && ftUsedBrk.has(bm.id))) {
-                    sp.classList.add("FD"); sp.textContent = ftGc();
-                } else if (wm) {
-                    sp.onmouseenter = () => ftHlWord(wm.start, wm.word);
-                    sp.onmouseleave = ftClearHl;
-                    sp.onclick = () => ftGuess(wm.word);
-                } else if (bm) {
-                    sp.onmouseenter = () => ftHlBrk(bm);
-                    sp.onmouseleave = ftClearHl;
-                    sp.onclick = () => ftUseBrk(bm);
-                }
-                rd.appendChild(sp);
-            }
-            cd.appendChild(rd);
-        }
-        hex.appendChild(cd);
-    }
-    ftSetOut("");
-}
-
-function ftHlWord(start, word) {
-    ftClearHl();
-    for (let i = start; i < start + word.length; i++) {
-        if (ftSpans[i]) ftSpans[i].classList.add("FW");
-    }
-    ftSetOut("> " + word);
-}
-
-function ftHlBrk(bm) {
-    ftClearHl();
-    for (let i = bm.start; i < bm.end; i++) {
-        if (ftSpans[i]) ftSpans[i].classList.add("FK");
-    }
-    ftSetOut("> " + bm.str);
-}
-
-function ftClearHl() {
-    for (let i = 0; i < FT_TOTAL; i++) {
-        if (ftSpans[i]) ftSpans[i].classList.remove("FW","FK");
-    }
-    ftSetOut("");
-}
-
-function ftSetOut(txt) {
-    document.getElementById("ft-out").innerHTML =
-        (txt ? txt + "\n\n" : "") + '<span class="ft-blink"></span>';
-}
-
-function ftRedrawPips() {
-    document.getElementById("ft-atts").innerHTML =
-        "ATTEMPT(S) LEFT: " +
-        Array(FT_MAXATT).fill(0).map((_,i) =>
-            `<span class="ft-pip${i >= ftAtt ? " dead" : ""}"></span>`
-        ).join(" ");
-}
-
-function ftLik(a, b) {
-    let m = 0;
-    for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] === b[i]) m++;
-    return m;
-}
-
-function ftUseBrk(bm) {
-    ftUsedBrk.add(bm.id);
-    for (let i = bm.start; i < bm.end; i++) {
-        if (ftSpans[i]) {
-            ftSpans[i].classList.add("FD"); ftSpans[i].classList.remove("FK","FW");
-            ftSpans[i].textContent = ".";
-            ftSpans[i].onmouseenter = null; ftSpans[i].onmouseleave = null; ftSpans[i].onclick = null;
-        }
-    }
-    const duds = ftWords.filter(w => w !== ftPass && !ftElim.has(w));
-    if (Math.random() < 0.45 && ftAtt < FT_MAXATT) {
-        ftAtt = Math.min(FT_MAXATT, ftAtt + 1);
-        ftRedrawPips();
-        ftSetOut("> " + bm.str + "\n\nALLOWANCE\nREPLENISHED.");
-    } else if (duds.length > 0) {
-        const dud = duds[rnd(duds.length)];
-        ftElim.add(dud);
-        for (let i = 0; i < FT_TOTAL; i++) {
-            if (ftWMeta[i] && ftWMeta[i].word === dud && ftSpans[i]) {
-                ftSpans[i].classList.add("FD"); ftSpans[i].textContent = ftGc();
-                ftSpans[i].onmouseenter = null; ftSpans[i].onmouseleave = null; ftSpans[i].onclick = null;
-            }
-        }
-        ftSetOut("> " + bm.str + "\n\nDUD REMOVED.");
-    } else {
-        ftSetOut("> " + bm.str + "\n\nNO EFFECT.");
-    }
-}
-
-function ftGuess(word) {
-    ftClearHl();
-    if (word === ftPass) {
-        ftSetOut("> " + word + "\n\nEXACT MATCH!\n\nACCESS\nGRANTED.\n\nWELCOME,\nPIERSON\nTECH.");
-        ftLockAll();
-        setTimeout(() => {
-            closeFallout();
-            document.body.classList.remove("dark");
-            document.body.classList.add("hacker","dark");
-            document.documentElement.classList.add("hacker","dark");
-            localStorage.setItem("theme","hacker");
-            applyThemeLabel();
-        }, 2500);
-        return;
-    }
-    ftAtt--;
-    ftElim.add(word);
-    for (let i = 0; i < FT_TOTAL; i++) {
-        if (ftWMeta[i] && ftWMeta[i].word === word && ftSpans[i]) {
-            ftSpans[i].classList.add("FD"); ftSpans[i].textContent = ftGc();
-            ftSpans[i].onmouseenter = null; ftSpans[i].onmouseleave = null; ftSpans[i].onclick = null;
-        }
-    }
-    if (ftAtt <= 0) {
-        ftSetOut("> " + word + "\n\nLIKENESS\n= " + ftLik(word,ftPass) + "/" + ftPass.length + "\n\n!TERMINAL\nLOCKED!\n\nCONTACT\nADMIN.");
-        document.getElementById("ft-atts").innerHTML =
-            "<span style=\"color:#ff2222;animation:ftbl .5s step-end infinite;font-family:monospace;font-size:11px\">!!! LOCKED !!!</span>";
-        ftLockAll();
-        setTimeout(closeFallout, 4000);
-        return;
-    }
-    ftRedrawPips();
-    ftSetOut("> " + word + "\n\nLIKENESS\n= " + ftLik(word,ftPass) + "/" + ftPass.length + "\n\nENTRY\nDENIED.");
-}
-
-function ftLockAll() {
-    for (let i = 0; i < FT_TOTAL; i++) {
-        if (ftSpans[i]) { ftSpans[i].onmouseenter = null; ftSpans[i].onmouseleave = null; ftSpans[i].onclick = null; }
-    }
-}
-
-// ── Init ──
-const savedTheme = localStorage.getItem("theme");
-if (savedTheme === "hacker") {
-    document.body.classList.add("hacker","dark");
-    document.documentElement.classList.add("hacker","dark");
-} else if (savedTheme === "dark") {
+if (localStorage.getItem("theme") === "dark") {
     document.body.classList.add("dark");
     document.documentElement.classList.add("dark");
 }
 applyThemeLabel();
 </script>
-<div id="fallout-overlay">
-  <div class="ft-mon-wrap">
-    <div class="ft-bezel">
-      <div class="ft-topbar">
-        <div class="ft-brand">RobCo Industries &mdash; TermLink Protocol v2.9</div>
-        <div class="ft-leds">
-          <div class="ft-led on" id="ft-led1"></div>
-          <div class="ft-led"></div>
-          <div class="ft-led"></div>
-        </div>
-      </div>
-      <div class="ft-housing">
-        <div class="ft-scanlines"></div>
-        <div class="ft-vignette"></div>
-        <div class="ft-glow"></div>
-        <div class="ft-screen">
-          <!-- Boot -->
-          <div id="ft-boot">
-            <div id="ft-boot-text"></div>
-            <button id="ft-begin-btn" onclick="ftStartBoot()">[ INITIALIZE ]</button>
-          </div>
-          <!-- Loading -->
-          <div id="ft-loading">
-            <div class="ft-ll" id="ft-ll0">&nbsp;</div>
-            <div class="ft-ll" id="ft-ll1"></div>
-            <div class="ft-ll" id="ft-ll2"></div>
-            <div class="ft-ll" id="ft-ll3"></div>
-            <div class="ft-ll" id="ft-ll4"></div>
-            <div class="ft-ll" id="ft-ll5"></div>
-            <div class="ft-ll" id="ft-ll6"></div>
-          </div>
-          <!-- Hacking -->
-          <div id="ft-hacking">
-            <div class="ft-hdr" id="ft-hdr"></div>
-            <div class="ft-atts" id="ft-atts"></div>
-            <div class="ft-body">
-              <div class="ft-hex" id="ft-hex"></div>
-              <div class="ft-out-panel">
-                <div class="ft-out-lbl">// OUTPUT //</div>
-                <div class="ft-out-txt" id="ft-out"></div>
-              </div>
-            </div>
-          </div>
-          <!-- Logged in -->
-          <div id="ft-loggedin">
-            <div class="ft-li-hdr" id="ft-li-hdr"></div>
-          </div>
-        </div>
-      </div>
-      <div class="ft-chin">
-        <div class="ft-vents"><s></s><s></s><s></s><s></s><s></s></div>
-        <div class="ft-chin-lbl">POSEIDON ENERGY &bull; PT-1000</div>
-        <div class="ft-vents"><s></s><s></s><s></s><s></s><s></s></div>
-      </div>
-    </div>
-    <div class="ft-stand"></div>
-    <div class="ft-base"></div>
-    <div class="ft-tip">MOVE CURSOR OVER HEX DUMP TO FIND WORDS &bull; ESC TO CLOSE</div>
-  </div>
-</div>
 </body>
 </html>

@@ -1,0 +1,75 @@
+{% extends "portal/cp_base.html" %}
+{% block title %}{{ unit.intake_id }}{% endblock %}
+{% block page_title %}Repair {{ unit.intake_id }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:16px;">
+    <a href="{{ url_for('cp_repairs') }}" style="font-size:13px; color:#2563eb;">&larr; Back to all repairs</a>
+</div>
+
+<div class="cp-card">
+    <div class="cp-card-title">
+        Panel Details
+        <span style="float:right;">
+            <span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span>
+        </span>
+    </div>
+
+    <div class="cp-detail-grid">
+        <div><span class="cp-dl">Intake ID</span><span class="cp-dv">{{ unit.intake_id }}</span></div>
+        <div><span class="cp-dl">Brand</span><span class="cp-dv">{{ unit.brand|dash }}</span></div>
+        <div><span class="cp-dl">Model</span><span class="cp-dv">{{ unit.model|dash }}</span></div>
+        <div><span class="cp-dl">Screen Size</span><span class="cp-dv">{{ unit.screen_size|dash }}</span></div>
+        <div>
+            <span class="cp-dl">Serial Number</span>
+            <span class="cp-dv" style="font-family:ui-monospace,monospace;">{{ unit.serial_number|dash }}</span>
+        </div>
+        <div><span class="cp-dl">Location / Source</span><span class="cp-dv">{{ unit.source|dash }}</span></div>
+        <div><span class="cp-dl">Date Received</span><span class="cp-dv">{{ unit.date_received|dash }}</span></div>
+        <div><span class="cp-dl">Repaired</span><span class="cp-dv">{{ unit.repaired_date|dash }}</span></div>
+        <div><span class="cp-dl">Returned</span><span class="cp-dv">{{ unit.shipped_back_date|dash }}</span></div>
+    </div>
+</div>
+
+<div class="cp-card">
+    <div class="cp-card-title">Reported Issue</div>
+    <div style="font-size:14px; white-space:pre-wrap;">{{ unit.reported_issue|dash }}</div>
+</div>
+
+{% if unit.final_outcome %}
+<div class="cp-card">
+    <div class="cp-card-title">Outcome</div>
+    <div style="font-size:14px; white-space:pre-wrap;">{{ unit.final_outcome }}</div>
+</div>
+{% endif %}
+
+{% if notes %}
+<div class="cp-card">
+    <div class="cp-card-title">Repair Updates</div>
+    {% for note in notes %}
+        <div style="padding:12px 0; border-bottom:1px solid #f1f5f9;">
+            <div style="font-size:14px; white-space:pre-wrap;">{{ note.note_text }}</div>
+            <div style="font-size:12px; color:var(--muted); margin-top:6px;">
+                {{ note.technician|dash }} &middot; {{ note.created_at|dt }}
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="cp-card">
+    <div class="cp-card-title">Documents</div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        {% if unit.checkoff_file %}
+            <a href="{{ url_for('cp_repair_checkoff', unit_id=unit.id) }}" target="_blank"
+               class="btn btn-primary btn-sm">View Check-Off Slip</a>
+        {% else %}
+            <span style="font-size:13px; color:var(--muted);">
+                No check-off slip has been uploaded yet.
+            </span>
+        {% endif %}
+        <a href="{{ url_for('cp_repair_packing_slip', unit_id=unit.id) }}" target="_blank"
+           class="btn btn-outline-secondary btn-sm">Packing Slip</a>
+    </div>
+</div>
+{% endblock %}

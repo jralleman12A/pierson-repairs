@@ -4,7 +4,10 @@ import csv
 import io
 import os
 import smtplib
-from datetime import datetime
+import threading
+import time
+from collections import defaultdict
+from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -15,6 +18,8 @@ from typing import Any
 
 from flask import (
     Flask,
+    Response,
+    abort,
     send_from_directory,
     flash,
     redirect,
@@ -25,21 +30,30 @@ from flask import (
     url_for,
 )
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import or_
+from flask_wtf.csrf import CSRFProtect
+from sqlalchemy import or_, text
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 
+# ═══════════════════════════════════════════════════════════
+# CONFIG
+# ═══════════════════════════════════════════════════════════
+
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_ROOT = Path(os.getenv("UPLOAD_FOLDER", BASE_DIR / "uploads")).resolve()
 CHECKOFF_FOLDER = UPLOAD_ROOT / "checkoff_slips"
-EXPORT_FOLDER = Path(os.getenv("EXPORT_FOLDER", BASE_DIR / "exports")).resolve()
+CLIENT_FOLDER = UPLOAD_ROOT / "client_files"
 
 CHECKOFF_FOLDER.mkdir(parents=True, exist_ok=True)
-EXPORT_FOLDER.mkdir(parents=True, exist_ok=True)
+CLIENT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_CHECKOFF_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "webp"}
+ALLOWED_CLIENT_FILE_EXTENSIONS = {
+    "pdf", "png", "jpg", "jpeg", "webp", "gif",
+    "csv", "txt", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip",
+}
 
 STATUSES = [
     "Awaiting Diagnosis",
@@ -80,26 +94,73 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 app.secret_key = os.getenv("SECRET_KEY", "dev-only-change-me")
 app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(os.getenv("DATABASE_URL"))
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True, "pool_recycle": 280}
 app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_MB", "25")) * 1024 * 1024
 
+IS_DEBUG = os.getenv("FLASK_DEBUG") == "1"
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() not in {"0", "false", "no"}
-if os.getenv("FLASK_DEBUG") == "1":
+if IS_DEBUG:
     COOKIE_SECURE = False
 
 app.config["SESSION_COOKIE_SECURE"] = COOKIE_SECURE
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
+    minutes=int(os.getenv("SESSION_TIMEOUT_MINUTES", "120"))
+)
 
-CUSTOMER_PORTAL_PASSWORD = os.getenv("CUSTOMER_PORTAL_PASSWORD", "MCPS1234")
-DRIVER_PORTAL_PASSWORD = os.getenv("DRIVER_PORTAL_PASSWORD", "Driver1234")
+app.config["WTF_CSRF_TIME_LIMIT"] = None  # tie CSRF lifetime to the session
+csrf = CSRFProtect(app)
+
 GMAIL_USER = os.getenv("GMAIL_USER", "")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
 BOOTSTRAP_ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 BOOTSTRAP_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
+# First-run client bootstrap, so MCPS can sign in without shell access.
+BOOTSTRAP_CLIENT_COMPANY = os.getenv("BOOTSTRAP_CLIENT_COMPANY", "")
+BOOTSTRAP_CLIENT_USERNAME = os.getenv("BOOTSTRAP_CLIENT_USERNAME", "")
+BOOTSTRAP_CLIENT_PASSWORD = os.getenv("BOOTSTRAP_CLIENT_PASSWORD", "")
 
 db = SQLAlchemy(app)
 
+
+# ═══════════════════════════════════════════════════════════
+# LOGIN THROTTLE (in-process; adequate for a single web instance)
+# ═══════════════════════════════════════════════════════════
+
+_ATTEMPTS: dict[str, list[float]] = defaultdict(list)
+_ATTEMPTS_LOCK = threading.Lock()
+MAX_ATTEMPTS = int(os.getenv("LOGIN_MAX_ATTEMPTS", "8"))
+ATTEMPT_WINDOW = int(os.getenv("LOGIN_WINDOW_SECONDS", "900"))
+
+
+def _throttle_key(scope: str) -> str:
+    return f"{scope}:{request.remote_addr or 'unknown'}"
+
+
+def is_throttled(scope: str) -> bool:
+    key = _throttle_key(scope)
+    now = time.time()
+    with _ATTEMPTS_LOCK:
+        recent = [t for t in _ATTEMPTS[key] if now - t < ATTEMPT_WINDOW]
+        _ATTEMPTS[key] = recent
+        return len(recent) >= MAX_ATTEMPTS
+
+
+def record_failure(scope: str) -> None:
+    with _ATTEMPTS_LOCK:
+        _ATTEMPTS[_throttle_key(scope)].append(time.time())
+
+
+def clear_failures(scope: str) -> None:
+    with _ATTEMPTS_LOCK:
+        _ATTEMPTS.pop(_throttle_key(scope), None)
+
+
+# ═══════════════════════════════════════════════════════════
+# MODELS
+# ═══════════════════════════════════════════════════════════
 
 class RowLikeMixin:
     def __getitem__(self, key: str) -> Any:
@@ -125,11 +186,37 @@ class User(db.Model, RowLikeMixin):
         return check_password_hash(self.password_hash, password)
 
 
+class ClientAccount(db.Model, RowLikeMixin):
+    __tablename__ = "client_accounts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company = db.Column(db.String(120), nullable=False)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    contact_name = db.Column(db.String(120), default="")
+    email = db.Column(db.String(120), default="")
+    phone = db.Column(db.String(40), default="")
+    notes = db.Column(db.Text, default="")
+    active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    schedules = db.relationship("ClientSchedule", backref="client", lazy=True, cascade="all,delete-orphan")
+    eod_reports = db.relationship("ClientEOD", backref="client", lazy=True, cascade="all,delete-orphan")
+    files = db.relationship("ClientFile", backref="client", lazy=True, cascade="all,delete-orphan")
+
+    def set_password(self, pw: str) -> None:
+        self.password_hash = generate_password_hash(pw)
+
+    def check_password(self, pw: str) -> bool:
+        return check_password_hash(self.password_hash, pw)
+
+
 class Unit(db.Model, RowLikeMixin):
     __tablename__ = "units"
 
     id = db.Column(db.Integer, primary_key=True)
     intake_id = db.Column(db.String(120), unique=True, nullable=False)
+    client_id = db.Column(db.Integer, db.ForeignKey("client_accounts.id"), index=True, nullable=True)
     brand = db.Column(db.String(120), default="")
     model = db.Column(db.String(160), default="")
     serial_number = db.Column(db.String(160), default="")
@@ -150,6 +237,7 @@ class Unit(db.Model, RowLikeMixin):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     notes = db.relationship("RepairNote", backref="unit", lazy=True, cascade="all, delete-orphan")
+    client = db.relationship("ClientAccount", backref="units", lazy=True)
 
     @property
     def badge_class(self) -> str:
@@ -167,6 +255,8 @@ class RepairNote(db.Model, RowLikeMixin):
     unit_id = db.Column(db.Integer, db.ForeignKey("units.id"), nullable=False)
     note_text = db.Column(db.Text, nullable=False)
     technician = db.Column(db.String(120), default="")
+    # Internal by default — nothing reaches the client portal unless opted in.
+    is_internal = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -174,90 +264,57 @@ class EmailSettings(db.Model, RowLikeMixin):
     __tablename__ = "email_settings"
 
     id = db.Column(db.Integer, primary_key=True)
-    recipients = db.Column(db.Text, default="")          # comma-separated emails
-    frequency = db.Column(db.String(20), default="monthly")  # weekly, biweekly, monthly
+    recipients = db.Column(db.Text, default="")
+    frequency = db.Column(db.String(20), default="monthly")
     include_active = db.Column(db.Boolean, default=True)
     include_archived = db.Column(db.Boolean, default=False)
     last_sent = db.Column(db.String(40), default="")
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-class ArcadeScore(db.Model, RowLikeMixin):
-    __tablename__ = "arcade_scores"
-
-    id = db.Column(db.Integer, primary_key=True)
-    player_name = db.Column(db.String(32), nullable=False)
-    score = db.Column(db.Integer, nullable=False)
-    wave = db.Column(db.Integer, default=1)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-
-# ── Client Portal Models ──
-
-class ClientAccount(db.Model, RowLikeMixin):
-    __tablename__ = "client_accounts"
-
-    id           = db.Column(db.Integer, primary_key=True)
-    company      = db.Column(db.String(120), nullable=False)
-    username     = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash= db.Column(db.String(255), nullable=False)
-    contact_name = db.Column(db.String(120), default="")
-    email        = db.Column(db.String(120), default="")
-    phone        = db.Column(db.String(40), default="")
-    notes        = db.Column(db.Text, default="")
-    active       = db.Column(db.Boolean, default=True)
-    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
-
-    schedules    = db.relationship("ClientSchedule", backref="client", lazy=True, cascade="all,delete-orphan")
-    eod_reports  = db.relationship("ClientEOD", backref="client", lazy=True, cascade="all,delete-orphan")
-    files        = db.relationship("ClientFile", backref="client", lazy=True, cascade="all,delete-orphan")
-
-    def set_password(self, pw):
-        self.password_hash = generate_password_hash(pw)
-
-    def check_password(self, pw):
-        return check_password_hash(self.password_hash, pw)
-
-
 class ClientSchedule(db.Model, RowLikeMixin):
     __tablename__ = "client_schedules"
 
-    id          = db.Column(db.Integer, primary_key=True)
-    client_id   = db.Column(db.Integer, db.ForeignKey("client_accounts.id"), nullable=False)
-    title       = db.Column(db.String(200), nullable=False)
-    date        = db.Column(db.String(20), nullable=False)
-    time        = db.Column(db.String(20), default="")
-    location    = db.Column(db.String(200), default="")
-    technician  = db.Column(db.String(100), default="")
-    notes       = db.Column(db.Text, default="")
-    status      = db.Column(db.String(40), default="Scheduled")  # Scheduled, Completed, Cancelled
-    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client_accounts.id"), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    date = db.Column(db.String(20), nullable=False)
+    time = db.Column(db.String(20), default="")
+    location = db.Column(db.String(200), default="")
+    technician = db.Column(db.String(100), default="")
+    notes = db.Column(db.Text, default="")
+    status = db.Column(db.String(40), default="Scheduled")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class ClientEOD(db.Model, RowLikeMixin):
     __tablename__ = "client_eod_reports"
 
-    id              = db.Column(db.Integer, primary_key=True)
-    client_id       = db.Column(db.Integer, db.ForeignKey("client_accounts.id"), nullable=False)
-    report_date     = db.Column(db.String(20), nullable=False)
-    technician      = db.Column(db.String(100), default="")
-    work_completed  = db.Column(db.Text, default="")
-    issues          = db.Column(db.Text, default="")
-    next_steps      = db.Column(db.Text, default="")
-    hours           = db.Column(db.String(10), default="")
-    sharepoint_url  = db.Column(db.String(500), default="")  # link to original SP report
-    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client_accounts.id"), nullable=False)
+    report_date = db.Column(db.String(20), nullable=False)
+    technician = db.Column(db.String(100), default="")
+    work_completed = db.Column(db.Text, default="")
+    issues = db.Column(db.Text, default="")
+    next_steps = db.Column(db.Text, default="")
+    hours = db.Column(db.String(10), default="")
+    sharepoint_url = db.Column(db.String(500), default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class ClientFile(db.Model, RowLikeMixin):
     __tablename__ = "client_files"
 
-    id          = db.Column(db.Integer, primary_key=True)
-    client_id   = db.Column(db.Integer, db.ForeignKey("client_accounts.id"), nullable=False)
-    filename    = db.Column(db.String(255), nullable=False)
-    label       = db.Column(db.String(200), default="")
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client_accounts.id"), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    label = db.Column(db.String(200), default="")
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+
+# ═══════════════════════════════════════════════════════════
+# TEMPLATE HELPERS
+# ═══════════════════════════════════════════════════════════
 
 @app.template_filter("dt")
 def format_datetime(value):
@@ -274,34 +331,147 @@ def dash(value):
 
 
 def current_user() -> User | None:
-    user_id = session.get("user_id")
+    user_id = session.get("admin_user_id")
     if not user_id:
         return None
     return db.session.get(User, user_id)
+
+
+def current_client() -> ClientAccount | None:
+    client_id = session.get("client_portal_id")
+    if not client_id:
+        return None
+    client = db.session.get(ClientAccount, client_id)
+    if client and not client.active:
+        return None
+    return client
 
 
 @app.context_processor
 def inject_globals():
     return {
         "current_user": current_user(),
+        "current_client": current_client(),
         "STATUSES": STATUSES,
         "STATUS_BADGE_CLASSES": STATUS_BADGE_CLASSES,
     }
 
 
+@app.before_request
+def refresh_session_timeout():
+    session.permanent = True
+    session.modified = True
+
+
+# ═══════════════════════════════════════════════════════════
+# AUTH DECORATORS
+#
+# Admin and client sessions live in separate keys and never touch
+# each other. Hitting an admin URL as a client no longer destroys
+# the client session, and vice versa. That was the root cause of
+# the old redirect loops.
+# ═══════════════════════════════════════════════════════════
+
+def admin_login_required(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if not session.get("admin_user_id") or current_user() is None:
+            session.pop("admin_user_id", None)
+            session.pop("admin_role", None)
+            return redirect(url_for("login", next=request.full_path))
+        return view_func(*args, **kwargs)
+    return wrapped
+
+
+def client_login_required(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if current_client() is None:
+            session.pop("client_portal_id", None)
+            session.pop("client_portal_company", None)
+            return redirect(url_for("cp_login", next=request.full_path))
+        return view_func(*args, **kwargs)
+    return wrapped
+
+
+def safe_next(target: str | None, fallback_endpoint: str) -> str:
+    """Only allow same-site relative redirects."""
+    if target and target.startswith("/") and not target.startswith("//"):
+        return target
+    return url_for(fallback_endpoint)
+
+
+# ═══════════════════════════════════════════════════════════
+# DB INIT + LIGHTWEIGHT MIGRATION
+# ═══════════════════════════════════════════════════════════
+
+def _column_exists(table: str, column: str) -> bool:
+    try:
+        insp = db.inspect(db.engine)
+        return column in {c["name"] for c in insp.get_columns(table)}
+    except Exception:
+        return False
+
+
+def run_migrations() -> None:
+    """Add columns that db.create_all() cannot add to already-existing tables."""
+    statements = []
+    if not _column_exists("units", "client_id"):
+        statements.append("ALTER TABLE units ADD COLUMN client_id INTEGER")
+    if not _column_exists("repair_notes", "is_internal"):
+        default = "TRUE" if db.engine.dialect.name == "postgresql" else "1"
+        statements.append(
+            f"ALTER TABLE repair_notes ADD COLUMN is_internal BOOLEAN NOT NULL DEFAULT {default}"
+        )
+    for stmt in statements:
+        try:
+            db.session.execute(text(stmt))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+
+def backfill_unit_clients() -> None:
+    """Attach orphaned units to the only client, if there is exactly one."""
+    if not Unit.query.filter(Unit.client_id.is_(None)).count():
+        return
+    clients = ClientAccount.query.all()
+    if len(clients) != 1:
+        return
+    Unit.query.filter(Unit.client_id.is_(None)).update(
+        {Unit.client_id: clients[0].id}, synchronize_session=False
+    )
+    db.session.commit()
 
 
 def init_database() -> None:
     with app.app_context():
         db.create_all()
+        run_migrations()
+
         if BOOTSTRAP_ADMIN_USERNAME and BOOTSTRAP_ADMIN_PASSWORD:
-            existing = User.query.filter_by(username=BOOTSTRAP_ADMIN_USERNAME).first()
-            if not existing:
+            if not User.query.filter_by(username=BOOTSTRAP_ADMIN_USERNAME).first():
                 user = User(username=BOOTSTRAP_ADMIN_USERNAME, role="admin")
                 user.set_password(BOOTSTRAP_ADMIN_PASSWORD)
                 db.session.add(user)
                 db.session.commit()
 
+        if BOOTSTRAP_CLIENT_USERNAME and BOOTSTRAP_CLIENT_PASSWORD:
+            if not ClientAccount.query.filter_by(username=BOOTSTRAP_CLIENT_USERNAME).first():
+                client = ClientAccount(
+                    company=BOOTSTRAP_CLIENT_COMPANY or BOOTSTRAP_CLIENT_USERNAME,
+                    username=BOOTSTRAP_CLIENT_USERNAME,
+                )
+                client.set_password(BOOTSTRAP_CLIENT_PASSWORD)
+                db.session.add(client)
+                db.session.commit()
+
+        backfill_unit_clients()
+
+
+# ═══════════════════════════════════════════════════════════
+# SHARED HELPERS
+# ═══════════════════════════════════════════════════════════
 
 def validate_date(date_text: str) -> bool:
     if not date_text:
@@ -313,70 +483,26 @@ def validate_date(date_text: str) -> bool:
         return False
 
 
-def allowed_checkoff_file(filename: str) -> bool:
+def _ext_ok(filename: str, allowed: set[str]) -> bool:
     if not filename or "." not in filename:
         return False
-    extension = filename.rsplit(".", 1)[1].lower()
-    return extension in ALLOWED_CHECKOFF_EXTENSIONS
-
-
-def admin_login_required(view_func):
-    @wraps(view_func)
-    def wrapped(*args, **kwargs):
-        if not session.get("user_id"):
-            # Clear any customer/driver sessions so they don't hijack the redirect
-            session.pop("customer_portal_logged_in", None)
-            session.pop("driver_portal_logged_in", None)
-            return redirect(url_for("login", next=request.path))
-        return view_func(*args, **kwargs)
-    return wrapped
-
-
-def customer_login_required(view_func):
-    @wraps(view_func)
-    def wrapped(*args, **kwargs):
-        if not session.get("customer_portal_logged_in"):
-            return redirect(url_for("login"))
-        return view_func(*args, **kwargs)
-    return wrapped
-
-
-def driver_login_required(view_func):
-    @wraps(view_func)
-    def wrapped(*args, **kwargs):
-        if not session.get("driver_portal_logged_in"):
-            return redirect(url_for("driver_login"))
-        return view_func(*args, **kwargs)
-    return wrapped
+    return filename.rsplit(".", 1)[1].lower() in allowed
 
 
 def generate_next_intake_id() -> str:
     year = datetime.now().year
     prefix = f"BX-{year}-"
-    # Only look at units matching the BX-YEAR- prefix for sequencing
-    last = (Unit.query
-            .filter(Unit.intake_id.like(f"{prefix}%"))
-            .order_by(
-                db.func.cast(
-                    db.func.substr(Unit.intake_id, len(prefix) + 1),
-                    db.Integer
-                ).desc()
-            )
-            .first())
-    if last and last.intake_id:
+    highest = 0
+    for unit in Unit.query.filter(Unit.intake_id.like(f"{prefix}%")).all():
         try:
-            next_number = int(last.intake_id.split("-")[-1]) + 1
+            highest = max(highest, int(unit.intake_id.rsplit("-", 1)[-1]))
         except (ValueError, IndexError):
-            next_number = 1
-    else:
-        next_number = 1
-    return f"{prefix}{next_number:04d}"
+            continue
+    return f"{prefix}{highest + 1:04d}"
 
 
 def get_dashboard_counts() -> dict[str, int]:
-    counts = {}
-    for status in STATUSES:
-        counts[status] = Unit.query.filter_by(status=status, is_deleted=False).count()
+    counts = {s: Unit.query.filter_by(status=s, is_deleted=False).count() for s in STATUSES}
     counts["Total"] = Unit.query.filter_by(is_deleted=False).count()
     counts["Archived"] = Unit.query.filter_by(is_deleted=True).count()
     return counts
@@ -397,91 +523,129 @@ def get_active_unit(unit_id: int) -> Unit | None:
     return Unit.query.filter_by(id=unit_id, is_deleted=False).first()
 
 
+def get_client_unit(client_id: int, unit_id: int) -> Unit | None:
+    """Scoped lookup — a client can only ever reach their own units."""
+    return Unit.query.filter_by(id=unit_id, client_id=client_id, is_deleted=False).first()
+
+
+def parse_client_id(raw: str) -> int | None:
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        cid = int(raw)
+    except ValueError:
+        return None
+    return cid if db.session.get(ClientAccount, cid) else None
+
+
+# ═══════════════════════════════════════════════════════════
+# PUBLIC / ERRORS
+# ═══════════════════════════════════════════════════════════
+
 @app.route("/health")
 def health():
     return {"status": "ok", "app": "pierson-repairs"}, 200
 
 
+@app.errorhandler(404)
+def not_found(_):
+    return render_template("error.html", code=404,
+                           message="That page could not be found."), 404
+
+
+@app.errorhandler(413)
+def too_large(_):
+    return render_template("error.html", code=413,
+                           message="That file is too large to upload."), 413
+
+
+@app.errorhandler(500)
+def server_error(_):
+    db.session.rollback()
+    return render_template("error.html", code=500,
+                           message="Something went wrong on our end."), 500
+
+
+# ═══════════════════════════════════════════════════════════
+# ADMIN AUTH
+# ═══════════════════════════════════════════════════════════
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    # Only auto-redirect if navigating to login directly (no 'next' param)
-    # This prevents driver/customer sessions from hijacking admin navigation
-    if not request.args.get("next"):
-        if session.get("user_id"):
-            return redirect(url_for("index"))
-        if session.get("customer_portal_logged_in"):
-            return redirect(url_for("customer_portal"))
-        if session.get("driver_portal_logged_in"):
-            return redirect(url_for("driver_portal"))
+    if request.method == "GET" and current_user():
+        return redirect(safe_next(request.args.get("next"), "index"))
 
     if request.method == "POST":
-        portal = request.form.get("portal", "").strip()
+        if is_throttled("admin"):
+            flash("Too many failed attempts. Please wait and try again.", "danger")
+            return render_template("login.html"), 429
+
+        username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
+        user = User.query.filter_by(username=username).first()
 
-        # Always clear session before setting a new one
-        session.clear()
+        if user and user.check_password(password):
+            clear_failures("admin")
+            session["admin_user_id"] = user.id
+            session["admin_role"] = user.role
+            session.permanent = True
+            return redirect(safe_next(request.args.get("next"), "index"))
 
-        if portal == "driver":
-            if password == DRIVER_PORTAL_PASSWORD:
-                session["driver_portal_logged_in"] = True
-                return redirect(url_for("driver_portal"))
-            flash("Invalid driver portal password.", "danger")
-            return render_template("login.html", active_tab="driver")
+        record_failure("admin")
+        flash("Invalid username or password.", "danger")
 
-        elif portal == "customer":
-            if password == CUSTOMER_PORTAL_PASSWORD:
-                session["customer_portal_logged_in"] = True
-                return redirect(url_for("customer_portal"))
-            flash("Invalid customer portal password.", "danger")
-            return render_template("login.html", active_tab="customer")
-
-        else:  # admin
-            username = request.form.get("username", "").strip()
-            user = User.query.filter_by(username=username).first()
-            if user and user.check_password(password):
-                session["user_id"] = user.id
-                session["role"] = user.role
-                return redirect(request.args.get("next") or url_for("index"))
-            flash("Invalid username or password.", "danger")
-            return render_template("login.html", active_tab="admin")
-
-    return render_template("login.html", active_tab="admin")
+    return render_template("login.html")
 
 
 @app.route("/logout")
 def logout():
-    session.clear()
+    session.pop("admin_user_id", None)
+    session.pop("admin_role", None)
     flash("You have been logged out.", "success")
     return redirect(url_for("login"))
 
+
+# ═══════════════════════════════════════════════════════════
+# ADMIN — REPAIR TRACKER
+# ═══════════════════════════════════════════════════════════
 
 @app.route("/")
 @admin_login_required
 def index():
     search = request.args.get("search", "").strip()
     status_filter = request.args.get("status", "").strip()
+    client_filter = request.args.get("client", "").strip()
+
     query = Unit.query.filter_by(is_deleted=False)
 
     if search:
-        like_search = f"%{search}%"
+        like = f"%{search}%"
         query = query.filter(or_(
-            Unit.intake_id.ilike(like_search),
-            Unit.brand.ilike(like_search),
-            Unit.model.ilike(like_search),
-            Unit.serial_number.ilike(like_search),
-            Unit.reported_issue.ilike(like_search),
-            Unit.source.ilike(like_search),
+            Unit.intake_id.ilike(like),
+            Unit.brand.ilike(like),
+            Unit.model.ilike(like),
+            Unit.serial_number.ilike(like),
+            Unit.reported_issue.ilike(like),
+            Unit.source.ilike(like),
         ))
 
     if status_filter:
         query = query.filter_by(status=status_filter)
 
-    units = query.order_by(Unit.id.desc()).all()
+    if client_filter:
+        try:
+            query = query.filter_by(client_id=int(client_filter))
+        except ValueError:
+            pass
+
     return render_template(
         "index.html",
-        units=units,
+        units=query.order_by(Unit.id.desc()).all(),
         search=search,
         status_filter=status_filter,
+        client_filter=client_filter,
+        clients=ClientAccount.query.order_by(ClientAccount.company.asc()).all(),
         counts=get_dashboard_counts(),
         next_intake_id=generate_next_intake_id(),
     )
@@ -516,6 +680,7 @@ def add_unit():
 
     unit = Unit(
         intake_id=intake_id,
+        client_id=parse_client_id(request.form.get("client_id", "")),
         brand=request.form.get("brand", "").strip(),
         model=model,
         serial_number=serial_number,
@@ -530,9 +695,9 @@ def add_unit():
         db.session.add(unit)
         db.session.commit()
         flash(f"Unit {intake_id} added successfully.", "success")
-    except Exception as exc:
+    except Exception:
         db.session.rollback()
-        flash(f"Error adding unit: {exc}", "danger")
+        flash("Could not add that unit — the Intake ID may already exist.", "danger")
 
     return redirect(url_for("index"))
 
@@ -568,7 +733,8 @@ def edit_unit(unit_id: int):
             flash("Intake ID is required.", "danger")
             return redirect(url_for("edit_unit", unit_id=unit_id))
 
-        if not all(validate_date(value) for value in [date_received, shipped_back_date, repaired_date, delivery_date]):
+        if not all(validate_date(v) for v in
+                   [date_received, shipped_back_date, repaired_date, delivery_date]):
             flash("Dates must be in YYYY-MM-DD format.", "danger")
             return redirect(url_for("edit_unit", unit_id=unit_id))
 
@@ -576,6 +742,7 @@ def edit_unit(unit_id: int):
             status = unit.status
 
         unit.intake_id = intake_id
+        unit.client_id = parse_client_id(request.form.get("client_id", ""))
         unit.brand = request.form.get("brand", "").strip()
         unit.model = request.form.get("model", "").strip()
         unit.serial_number = request.form.get("serial_number", "").strip()
@@ -595,11 +762,15 @@ def edit_unit(unit_id: int):
             db.session.commit()
             flash(f"Unit {intake_id} updated successfully.", "success")
             return redirect(url_for("unit_detail", unit_id=unit_id))
-        except Exception as exc:
+        except Exception:
             db.session.rollback()
-            flash(f"Error updating unit: {exc}", "danger")
+            flash("Could not save that unit — the Intake ID may already exist.", "danger")
 
-    return render_template("edit_unit.html", unit=unit)
+    return render_template(
+        "edit_unit.html",
+        unit=unit,
+        clients=ClientAccount.query.order_by(ClientAccount.company.asc()).all(),
+    )
 
 
 @app.route("/unit/<int:unit_id>/add_note", methods=["POST"])
@@ -619,8 +790,12 @@ def add_note(unit_id: int):
     if not technician and current_user():
         technician = current_user().username
 
-    note = RepairNote(unit_id=unit_id, note_text=note_text, technician=technician)
-    db.session.add(note)
+    db.session.add(RepairNote(
+        unit_id=unit_id,
+        note_text=note_text,
+        technician=technician,
+        is_internal="share_with_client" not in request.form,
+    ))
     db.session.commit()
     flash("Repair note added.", "success")
     return redirect(url_for("unit_detail", unit_id=unit_id))
@@ -676,26 +851,22 @@ def upload_checkoff(unit_id: int):
         return redirect(url_for("index"))
 
     uploaded_file = request.files.get("checkoff_file")
-    if not uploaded_file or uploaded_file.filename == "":
+    if not uploaded_file or not uploaded_file.filename:
         flash("Please choose a check-off slip file to upload.", "danger")
         return redirect(url_for("unit_detail", unit_id=unit_id))
 
-    if not allowed_checkoff_file(uploaded_file.filename):
+    if not _ext_ok(uploaded_file.filename, ALLOWED_CHECKOFF_EXTENSIONS):
         flash("Allowed file types are PDF, PNG, JPG, JPEG, and WEBP.", "danger")
         return redirect(url_for("unit_detail", unit_id=unit_id))
 
-    original_filename = secure_filename(uploaded_file.filename)
-    extension = original_filename.rsplit(".", 1)[1].lower()
+    extension = secure_filename(uploaded_file.filename).rsplit(".", 1)[1].lower()
     safe_intake_id = secure_filename(unit.intake_id or f"unit_{unit_id}")
     filename = f"{safe_intake_id}_checkoff.{extension}"
-    filepath = CHECKOFF_FOLDER / filename
 
     if unit.checkoff_file and unit.checkoff_file != filename:
-        old_path = CHECKOFF_FOLDER / unit.checkoff_file
-        if old_path.exists():
-            old_path.unlink(missing_ok=True)
+        (CHECKOFF_FOLDER / unit.checkoff_file).unlink(missing_ok=True)
 
-    uploaded_file.save(filepath)
+    uploaded_file.save(CHECKOFF_FOLDER / filename)
     unit.checkoff_file = filename
     unit.checkoff_uploaded_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     db.session.commit()
@@ -748,220 +919,8 @@ def packing_slip_for_unit(unit_id: int):
     if unit is None:
         flash("Unit not found.", "danger")
         return redirect(url_for("index"))
-    today = datetime.now().strftime("%Y-%m-%d")
-    return render_template("packing_slip.html", unit=unit, today=today, portal="admin")
-
-
-@app.route("/export/csv")
-@admin_login_required
-def export_csv():
-    try:
-        rows = Unit.query.order_by(Unit.id.desc()).all()
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"repair_tracker_export_{timestamp}.csv"
-        filepath = EXPORT_FOLDER / filename
-
-        with open(filepath, "w", newline="", encoding="utf-8") as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow([
-                "id", "intake_id", "brand", "model", "serial_number", "screen_size", "source",
-                "date_received", "status", "reported_issue", "final_outcome", "repaired_date",
-                "delivery_date", "checkoff_file", "checkoff_uploaded_at", "shipped_back_mcps",
-                "shipped_back_date", "is_deleted", "created_at", "updated_at",
-            ])
-            for row in rows:
-                writer.writerow([
-                    row.id,
-                    f'=\"{row.intake_id or ""}\"',
-                    row.brand,
-                    row.model,
-                    f'=\"{row.serial_number or ""}\"',
-                    f'=\"{row.screen_size or ""}\"',
-                    row.source,
-                    row.date_received,
-                    row.status,
-                    row.reported_issue,
-                    row.final_outcome,
-                    row.repaired_date,
-                    row.delivery_date,
-                    row.checkoff_file,
-                    row.checkoff_uploaded_at,
-                    "Yes" if row.shipped_back_mcps else "No",
-                    row.shipped_back_date,
-                    "Yes" if row.is_deleted else "No",
-                    row.created_at,
-                    row.updated_at,
-                ])
-
-        return send_file(filepath, as_attachment=True)
-    except Exception as exc:
-        flash(f"CSV export failed: {exc}", "danger")
-        return redirect(url_for("index"))
-
-
-@app.route("/customer-login")
-def customer_login():
-    # Redirect old customer login URL to the unified login page
-    return redirect(url_for("login"))
-
-
-@app.route("/customer-logout")
-def customer_logout():
-    session.pop("customer_portal_logged_in", None)
-    flash("You have been logged out.", "success")
-    return redirect(url_for("login"))
-
-
-@app.route("/driver-login", methods=["GET", "POST"])
-def driver_login():
-    if session.get("driver_portal_logged_in"):
-        return redirect(url_for("driver_portal"))
-    if request.method == "POST":
-        password = request.form.get("password", "")
-        if password == DRIVER_PORTAL_PASSWORD:
-            session.clear()
-            session["driver_portal_logged_in"] = True
-            return redirect(url_for("driver_portal"))
-        flash("Invalid driver password.", "danger")
-    return render_template("driver_login.html")
-
-
-@app.route("/driver-logout")
-def driver_logout():
-    session.pop("driver_portal_logged_in", None)
-    flash("You have been logged out.", "success")
-    return redirect(url_for("login"))
-
-
-@app.route("/driver")
-@driver_login_required
-def driver_portal():
-    units = Unit.query.filter_by(
-        status="Picking up from MCPS", is_deleted=False
-    ).order_by(Unit.id.desc()).all()
-    return render_template("driver_portal.html", units=units)
-
-
-@app.route("/driver/pickup/<int:unit_id>", methods=["POST"])
-@driver_login_required
-def driver_pickup(unit_id: int):
-    unit = get_active_unit(unit_id)
-    if unit is None:
-        flash("Unit not found.", "danger")
-        return redirect(url_for("driver_portal"))
-    apply_status_side_effects(unit, "In Repair")
-    db.session.commit()
-    flash(f"{unit.intake_id} marked as picked up and In Repair.", "success")
-    return redirect(url_for("driver_portal"))
-
-
-@app.route("/driver/pickup-slip")
-@driver_login_required
-def driver_pickup_slip():
-    try:
-        units = Unit.query.filter_by(
-            status="Picking up from MCPS", is_deleted=False
-        ).order_by(Unit.id.desc()).all()
-        today = datetime.now().strftime("%Y-%m-%d")
-        return render_template("driver_pickup_slip.html", units=units, today=today)
-    except Exception as exc:
-        flash(f"Error loading pickup slip: {exc}", "danger")
-        return redirect(url_for("driver_portal"))
-
-
-@app.route("/customer")
-@customer_login_required
-def customer_portal():
-    search = request.args.get("search", "").strip()
-    query = Unit.query.filter_by(is_deleted=False)
-
-    if search:
-        like_search = f"%{search}%"
-        query = query.filter(or_(
-            Unit.intake_id.ilike(like_search),
-            Unit.serial_number.ilike(like_search),
-            Unit.model.ilike(like_search),
-            Unit.brand.ilike(like_search),
-            Unit.source.ilike(like_search),
-            Unit.status.ilike(like_search),
-        ))
-
-    units = query.order_by(Unit.id.desc()).all()
-    return render_template("customer_index.html", units=units, search=search)
-
-
-@app.route("/customer/unit/<int:unit_id>")
-@customer_login_required
-def customer_unit_detail(unit_id: int):
-    unit = get_active_unit(unit_id)
-    if unit is None:
-        flash("That repair record could not be found.", "danger")
-        return redirect(url_for("customer_portal"))
-    return render_template("customer_detail.html", unit=unit)
-
-
-@app.route("/customer/unit/<int:unit_id>/checkoff")
-@customer_login_required
-def customer_view_checkoff(unit_id: int):
-    unit = get_active_unit(unit_id)
-    if unit is None:
-        flash("That repair record could not be found.", "danger")
-        return redirect(url_for("customer_portal"))
-
-    if not unit.checkoff_file:
-        flash("No check-off slip is available for this unit.", "danger")
-        return redirect(url_for("customer_unit_detail", unit_id=unit_id))
-
-    filepath = CHECKOFF_FOLDER / unit.checkoff_file
-    if not filepath.exists():
-        flash("The check-off slip file could not be found.", "danger")
-        return redirect(url_for("customer_unit_detail", unit_id=unit_id))
-
-    return send_file(filepath, as_attachment=False)
-
-
-@app.route("/customer/unit/<int:unit_id>/packing-slip")
-@customer_login_required
-def customer_packing_slip(unit_id: int):
-    unit = get_active_unit(unit_id)
-    if unit is None:
-        flash("That repair record could not be found.", "danger")
-        return redirect(url_for("customer_portal"))
-    today = datetime.now().strftime("%Y-%m-%d")
-    return render_template("packing_slip.html", unit=unit, today=today, portal="customer")
-
-
-
-
-@app.route("/arcade/scores")
-@admin_login_required
-def arcade_scores():
-    scores = ArcadeScore.query.order_by(ArcadeScore.score.desc()).limit(10).all()
-    return {
-        "scores": [
-            {
-                "rank": i + 1,
-                "name": s.player_name,
-                "score": s.score,
-                "wave": s.wave,
-                "date": s.created_at.strftime("%Y-%m-%d") if s.created_at else ""
-            }
-            for i, s in enumerate(scores)
-        ]
-    }
-
-
-@app.route("/arcade/submit", methods=["POST"])
-@admin_login_required
-def arcade_submit():
-    data = request.get_json()
-    name = (data.get("name") or "Anonymous").strip()[:32]
-    score = int(data.get("score", 0))
-    wave = int(data.get("wave", 1))
-    entry = ArcadeScore(player_name=name, score=score, wave=wave)
-    db.session.add(entry)
-    db.session.commit()
-    return {"ok": True}
+    return render_template("packing_slip.html", unit=unit,
+                           today=datetime.now().strftime("%Y-%m-%d"), portal="admin")
 
 
 @app.route("/unit/<int:unit_id>/quick-status", methods=["POST"])
@@ -978,10 +937,45 @@ def quick_status_update(unit_id: int):
     return {"ok": True, "status": unit.status}
 
 
+@app.route("/export/csv")
+@admin_login_required
+def export_csv():
+    """Streamed from memory — no files left behind on the persistent disk."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "id", "intake_id", "client", "brand", "model", "serial_number", "screen_size",
+        "source", "date_received", "status", "reported_issue", "final_outcome",
+        "repaired_date", "delivery_date", "checkoff_file", "checkoff_uploaded_at",
+        "shipped_back_mcps", "shipped_back_date", "is_deleted", "created_at", "updated_at",
+    ])
+    for row in Unit.query.order_by(Unit.id.desc()).all():
+        writer.writerow([
+            row.id, row.intake_id, row.client.company if row.client else "",
+            row.brand, row.model, row.serial_number, row.screen_size, row.source,
+            row.date_received, row.status, row.reported_issue, row.final_outcome,
+            row.repaired_date, row.delivery_date, row.checkoff_file,
+            row.checkoff_uploaded_at, "Yes" if row.shipped_back_mcps else "No",
+            row.shipped_back_date, "Yes" if row.is_deleted else "No",
+            row.created_at, row.updated_at,
+        ])
+
+    filename = f"repair_tracker_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+# ═══════════════════════════════════════════════════════════
+# EMAIL REPORTING
+# ═══════════════════════════════════════════════════════════
+
 def send_report_email(settings, units):
-    """Send the repair report email with CSV attachment."""
     if not GMAIL_USER or not GMAIL_APP_PASSWORD:
-        return False, "Gmail credentials not configured. Add GMAIL_USER and GMAIL_APP_PASSWORD in Render environment variables."
+        return False, ("Gmail credentials not configured. Add GMAIL_USER and "
+                       "GMAIL_APP_PASSWORD in the Render environment variables.")
 
     recipients = [r.strip() for r in settings.recipients.split(",") if r.strip()]
     if not recipients:
@@ -990,50 +984,48 @@ def send_report_email(settings, units):
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
-        "Intake ID", "Brand", "Model", "Serial Number", "Screen Size",
+        "Intake ID", "Client", "Brand", "Model", "Serial Number", "Screen Size",
         "Date Received", "Status", "Shipped Back", "Shipped Back Date",
-        "Final Outcome", "Last Updated"
+        "Final Outcome", "Last Updated",
     ])
     for unit in units:
         writer.writerow([
-            unit.intake_id, unit.brand, unit.model, unit.serial_number,
-            unit.screen_size, unit.date_received, unit.status,
+            unit.intake_id, unit.client.company if unit.client else "",
+            unit.brand, unit.model, unit.serial_number, unit.screen_size,
+            unit.date_received, unit.status,
             "Yes" if unit.shipped_back_mcps else "No",
             unit.shipped_back_date, unit.final_outcome, unit.updated_at,
         ])
     csv_data = output.getvalue()
 
-    status_counts = {}
+    status_counts: dict[str, int] = {}
     for unit in units:
         status_counts[unit.status] = status_counts.get(unit.status, 0) + 1
-    summary_lines = "\n".join(
-        f"  - {s}: {c}" for s, c in sorted(status_counts.items())
-    )
+    summary_lines = "\n".join(f"  - {s}: {c}" for s, c in sorted(status_counts.items()))
     today = datetime.now().strftime("%B %d, %Y")
 
     msg = MIMEMultipart()
     msg["From"] = GMAIL_USER
     msg["To"] = ", ".join(recipients)
-    msg["Subject"] = f"Pierson Repairs - MCPS Boxlight Report ({today})"
+    msg["Subject"] = f"Pierson Repairs — Boxlight Report ({today})"
+    msg.attach(MIMEText(
+        f"Boxlight Repair Report\nGenerated: {today}\n\n"
+        f"Total Units: {len(units)}\n\nStatus Breakdown:\n{summary_lines}\n\n"
+        f"A full CSV report is attached.\n\n---\nPierson Repairs Tracker\n",
+        "plain",
+    ))
 
-    body = (
-        f"MCPS Boxlight Repair Report\n"
-        f"Generated: {today}\n\n"
-        f"Total Units: {len(units)}\n\n"
-        f"Status Breakdown:\n{summary_lines}\n\n"
-        f"A full CSV report is attached.\n\n---\nPierson Repairs Tracker\n"
-    )
-    msg.attach(MIMEText(body, "plain"))
-
-    filename = f"MCPS_Boxlight_Report_{datetime.now().strftime('%Y%m%d')}.csv"
     part = MIMEBase("application", "octet-stream")
     part.set_payload(csv_data.encode("utf-8"))
     encoders.encode_base64(part)
-    part.add_header("Content-Disposition", f"attachment; filename={filename}")
+    part.add_header(
+        "Content-Disposition",
+        f"attachment; filename=Boxlight_Report_{datetime.now().strftime('%Y%m%d')}.csv",
+    )
     msg.attach(part)
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
             server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
             server.sendmail(GMAIL_USER, recipients, msg.as_string())
         return True, f"Report sent to {', '.join(recipients)}"
@@ -1064,14 +1056,11 @@ def email_settings():
                 query = query.filter_by(is_deleted=False)
             elif settings.include_archived and not settings.include_active:
                 query = query.filter_by(is_deleted=True)
-            units = query.order_by(Unit.id.desc()).all()
-            success, message = send_report_email(settings, units)
+            success, message = send_report_email(settings, query.order_by(Unit.id.desc()).all())
             if success:
                 settings.last_sent = datetime.now().strftime("%Y-%m-%d %H:%M")
                 db.session.commit()
-                flash(message, "success")
-            else:
-                flash(message, "danger")
+            flash(message, "success" if success else "danger")
         else:
             flash("Email settings saved.", "success")
 
@@ -1081,274 +1070,418 @@ def email_settings():
                            gmail_configured=bool(GMAIL_USER and GMAIL_APP_PASSWORD))
 
 
+# ═══════════════════════════════════════════════════════════
+# CLIENT PORTAL — the single customer-facing surface
+# ═══════════════════════════════════════════════════════════
 
-# ═══════════════════════════════════════════
-# CLIENT PORTAL ROUTES
-# ═══════════════════════════════════════════
-
-CLIENT_FOLDER = UPLOAD_ROOT / "client_files"
-CLIENT_FOLDER.mkdir(parents=True, exist_ok=True)
-
-def client_login_required_portal(view_func):
-    @wraps(view_func)
-    def wrapped(*args, **kwargs):
-        if not session.get("client_portal_id"):
-            return redirect(url_for("cp_login"))
-        return view_func(*args, **kwargs)
-    return wrapped
-
-def portal_admin_required(view_func):
-    @wraps(view_func)
-    def wrapped(*args, **kwargs):
-        if not session.get("user_id"):
-            session.pop("customer_portal_logged_in", None)
-            session.pop("driver_portal_logged_in", None)
-            return redirect(url_for("login", next=request.path))
-        return view_func(*args, **kwargs)
-    return wrapped
-
-# ── Client login/logout ──
-@app.route("/portal/login", methods=["GET","POST"])
+@app.route("/portal/login", methods=["GET", "POST"])
 def cp_login():
-    if session.get("client_portal_id"):
-        return redirect(url_for("cp_dashboard"))
+    if request.method == "GET" and current_client():
+        return redirect(safe_next(request.args.get("next"), "cp_dashboard"))
+
     if request.method == "POST":
-        username = request.form.get("username","").strip()
-        password = request.form.get("password","")
+        if is_throttled("client"):
+            flash("Too many failed attempts. Please wait and try again.", "danger")
+            return render_template("portal/cp_login.html"), 429
+
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
         client = ClientAccount.query.filter_by(username=username, active=True).first()
+
         if client and client.check_password(password):
-            session.clear()
+            clear_failures("client")
             session["client_portal_id"] = client.id
             session["client_portal_company"] = client.company
-            return redirect(url_for("cp_dashboard"))
+            session.permanent = True
+            return redirect(safe_next(request.args.get("next"), "cp_dashboard"))
+
+        record_failure("client")
         flash("Invalid username or password.", "danger")
+
     return render_template("portal/cp_login.html")
+
 
 @app.route("/portal/logout")
 def cp_logout():
     session.pop("client_portal_id", None)
     session.pop("client_portal_company", None)
-    flash("You have been logged out.", "success")
+    flash("You have been signed out.", "success")
     return redirect(url_for("cp_login"))
 
-# ── Client dashboard ──
+
 @app.route("/portal")
 @app.route("/portal/dashboard")
-@client_login_required_portal
+@client_login_required
 def cp_dashboard():
-    client = db.session.get(ClientAccount, session["client_portal_id"])
-    if not client:
-        session.clear()
-        return redirect(url_for("cp_login"))
-    upcoming = ClientSchedule.query.filter_by(client_id=client.id, status="Scheduled")        .order_by(ClientSchedule.date.asc()).limit(10).all()
-    recent_eod = ClientEOD.query.filter_by(client_id=client.id)        .order_by(ClientEOD.report_date.desc()).limit(5).all()
-    files = ClientFile.query.filter_by(client_id=client.id)        .order_by(ClientFile.uploaded_at.desc()).all()
-    return render_template("portal/cp_dashboard.html",
-        client=client, upcoming=upcoming, recent_eod=recent_eod, files=files)
+    client = current_client()
+    upcoming = (ClientSchedule.query
+                .filter_by(client_id=client.id, status="Scheduled")
+                .order_by(ClientSchedule.date.asc()).limit(10).all())
+    recent_eod = (ClientEOD.query.filter_by(client_id=client.id)
+                  .order_by(ClientEOD.report_date.desc()).limit(5).all())
+    files = (ClientFile.query.filter_by(client_id=client.id)
+             .order_by(ClientFile.uploaded_at.desc()).all())
+
+    open_repairs = Unit.query.filter(
+        Unit.client_id == client.id,
+        Unit.is_deleted.is_(False),
+        ~Unit.status.in_(["Delivered to MCPS", "Shipped Back to MCPS", "Scrapped"]),
+    ).count()
+    total_repairs = Unit.query.filter_by(client_id=client.id, is_deleted=False).count()
+
+    return render_template(
+        "portal/cp_dashboard.html",
+        client=client, upcoming=upcoming, recent_eod=recent_eod, files=files,
+        open_repairs=open_repairs, total_repairs=total_repairs,
+    )
+
+
+@app.route("/portal/repairs")
+@client_login_required
+def cp_repairs():
+    client = current_client()
+    search = request.args.get("search", "").strip()
+    query = Unit.query.filter_by(client_id=client.id, is_deleted=False)
+
+    if search:
+        like = f"%{search}%"
+        query = query.filter(or_(
+            Unit.intake_id.ilike(like),
+            Unit.serial_number.ilike(like),
+            Unit.model.ilike(like),
+            Unit.brand.ilike(like),
+            Unit.source.ilike(like),
+            Unit.status.ilike(like),
+        ))
+
+    return render_template("portal/cp_repairs.html", client=client,
+                           units=query.order_by(Unit.id.desc()).all(), search=search)
+
+
+@app.route("/portal/repairs/<int:unit_id>")
+@client_login_required
+def cp_repair_detail(unit_id: int):
+    client = current_client()
+    unit = get_client_unit(client.id, unit_id)
+    if unit is None:
+        abort(404)
+    notes = (RepairNote.query
+             .filter_by(unit_id=unit.id, is_internal=False)
+             .order_by(RepairNote.id.desc()).all())
+    return render_template("portal/cp_repair_detail.html",
+                           client=client, unit=unit, notes=notes)
+
+
+@app.route("/portal/repairs/<int:unit_id>/checkoff")
+@client_login_required
+def cp_repair_checkoff(unit_id: int):
+    client = current_client()
+    unit = get_client_unit(client.id, unit_id)
+    if unit is None or not unit.checkoff_file:
+        abort(404)
+    filepath = CHECKOFF_FOLDER / unit.checkoff_file
+    if not filepath.exists():
+        abort(404)
+    return send_file(filepath, as_attachment=False)
+
+
+@app.route("/portal/repairs/<int:unit_id>/packing-slip")
+@client_login_required
+def cp_repair_packing_slip(unit_id: int):
+    client = current_client()
+    unit = get_client_unit(client.id, unit_id)
+    if unit is None:
+        abort(404)
+    return render_template("packing_slip.html", unit=unit,
+                           today=datetime.now().strftime("%Y-%m-%d"), portal="customer")
+
 
 @app.route("/portal/schedule")
-@client_login_required_portal
+@client_login_required
 def cp_schedule():
-    client = db.session.get(ClientAccount, session["client_portal_id"])
-    schedules = ClientSchedule.query.filter_by(client_id=client.id)        .order_by(ClientSchedule.date.desc()).all()
+    client = current_client()
+    schedules = (ClientSchedule.query.filter_by(client_id=client.id)
+                 .order_by(ClientSchedule.date.desc()).all())
     return render_template("portal/cp_schedule.html", client=client, schedules=schedules)
 
+
 @app.route("/portal/reports")
-@client_login_required_portal
+@client_login_required
 def cp_reports():
-    client = db.session.get(ClientAccount, session["client_portal_id"])
+    client = current_client()
     page = request.args.get("page", 1, type=int)
-    reports = ClientEOD.query.filter_by(client_id=client.id)        .order_by(ClientEOD.report_date.desc()).paginate(page=page, per_page=10)
+    reports = (ClientEOD.query.filter_by(client_id=client.id)
+               .order_by(ClientEOD.report_date.desc())
+               .paginate(page=page, per_page=10, error_out=False))
     return render_template("portal/cp_reports.html", client=client, reports=reports)
 
+
 @app.route("/portal/report/<int:report_id>")
-@client_login_required_portal
-def cp_report_detail(report_id):
-    client = db.session.get(ClientAccount, session["client_portal_id"])
+@client_login_required
+def cp_report_detail(report_id: int):
+    client = current_client()
     report = ClientEOD.query.filter_by(id=report_id, client_id=client.id).first_or_404()
     return render_template("portal/cp_report_detail.html", client=client, report=report)
 
+
 @app.route("/portal/files")
-@client_login_required_portal
+@client_login_required
 def cp_files():
-    client = db.session.get(ClientAccount, session["client_portal_id"])
-    files = ClientFile.query.filter_by(client_id=client.id)        .order_by(ClientFile.uploaded_at.desc()).all()
+    client = current_client()
+    files = (ClientFile.query.filter_by(client_id=client.id)
+             .order_by(ClientFile.uploaded_at.desc()).all())
     return render_template("portal/cp_files.html", client=client, files=files)
 
-@app.route("/portal/files/download/<int:file_id>")
-@client_login_required_portal
-def cp_download_file(file_id):
-    client = db.session.get(ClientAccount, session["client_portal_id"])
-    cf = ClientFile.query.filter_by(id=file_id, client_id=client.id).first_or_404()
-    folder = CLIENT_FOLDER / str(client.id)
-    return send_from_directory(folder, cf.filename, as_attachment=True, download_name=cf.label or cf.filename)
 
-# ── Admin: client management ──
+@app.route("/portal/files/download/<int:file_id>")
+@client_login_required
+def cp_download_file(file_id: int):
+    client = current_client()
+    cf = ClientFile.query.filter_by(id=file_id, client_id=client.id).first_or_404()
+    return send_from_directory(CLIENT_FOLDER / str(client.id), cf.filename,
+                               as_attachment=True, download_name=cf.label or cf.filename)
+
+
+# ═══════════════════════════════════════════════════════════
+# ADMIN — CLIENT MANAGEMENT
+# ═══════════════════════════════════════════════════════════
+
 @app.route("/portal/admin")
-@portal_admin_required
+@admin_login_required
 def cp_admin():
     clients = ClientAccount.query.order_by(ClientAccount.company.asc()).all()
     return render_template("portal/admin_clients.html", clients=clients)
 
-@app.route("/portal/admin/client/new", methods=["GET","POST"])
-@portal_admin_required
+
+@app.route("/portal/admin/client/new", methods=["GET", "POST"])
+@admin_login_required
 def cp_admin_new_client():
     if request.method == "POST":
-        username = request.form.get("username","").strip()
-        if ClientAccount.query.filter_by(username=username).first():
-            flash("Username already exists.", "danger")
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        if not username or not password:
+            flash("Username and password are both required.", "danger")
             return redirect(url_for("cp_admin_new_client"))
+        if len(password) < 10:
+            flash("Password must be at least 10 characters.", "danger")
+            return redirect(url_for("cp_admin_new_client"))
+        if ClientAccount.query.filter_by(username=username).first():
+            flash("That username already exists.", "danger")
+            return redirect(url_for("cp_admin_new_client"))
+
         client = ClientAccount(
-            company=request.form.get("company","").strip(),
+            company=request.form.get("company", "").strip(),
             username=username,
-            contact_name=request.form.get("contact_name","").strip(),
-            email=request.form.get("email","").strip(),
-            phone=request.form.get("phone","").strip(),
-            notes=request.form.get("notes","").strip(),
+            contact_name=request.form.get("contact_name", "").strip(),
+            email=request.form.get("email", "").strip(),
+            phone=request.form.get("phone", "").strip(),
+            notes=request.form.get("notes", "").strip(),
         )
-        client.set_password(request.form.get("password",""))
+        client.set_password(password)
         db.session.add(client)
         db.session.commit()
         flash(f"Client {client.company} created.", "success")
         return redirect(url_for("cp_admin_client", client_id=client.id))
+
     return render_template("portal/admin_client_form.html", client=None)
 
-@app.route("/portal/admin/client/<int:client_id>", methods=["GET","POST"])
-@portal_admin_required
-def cp_admin_client(client_id):
+
+@app.route("/portal/admin/client/<int:client_id>")
+@admin_login_required
+def cp_admin_client(client_id: int):
     client = db.session.get(ClientAccount, client_id)
     if not client:
         flash("Client not found.", "danger")
         return redirect(url_for("cp_admin"))
-    schedules = ClientSchedule.query.filter_by(client_id=client_id)        .order_by(ClientSchedule.date.desc()).all()
-    eods = ClientEOD.query.filter_by(client_id=client_id)        .order_by(ClientEOD.report_date.desc()).limit(20).all()
-    files = ClientFile.query.filter_by(client_id=client_id)        .order_by(ClientFile.uploaded_at.desc()).all()
-    return render_template("portal/admin_client_detail.html",
-        client=client, schedules=schedules, eods=eods, files=files)
 
-@app.route("/portal/admin/client/<int:client_id>/edit", methods=["GET","POST"])
-@portal_admin_required
-def cp_admin_edit_client(client_id):
+    schedules = (ClientSchedule.query.filter_by(client_id=client_id)
+                 .order_by(ClientSchedule.date.desc()).all())
+    eods = (ClientEOD.query.filter_by(client_id=client_id)
+            .order_by(ClientEOD.report_date.desc()).limit(20).all())
+    files = (ClientFile.query.filter_by(client_id=client_id)
+             .order_by(ClientFile.uploaded_at.desc()).all())
+    unit_count = Unit.query.filter_by(client_id=client_id, is_deleted=False).count()
+
+    return render_template("portal/admin_client_detail.html", client=client,
+                           schedules=schedules, eods=eods, files=files,
+                           unit_count=unit_count)
+
+
+@app.route("/portal/admin/client/<int:client_id>/edit", methods=["GET", "POST"])
+@admin_login_required
+def cp_admin_edit_client(client_id: int):
     client = db.session.get(ClientAccount, client_id)
     if not client:
+        flash("Client not found.", "danger")
         return redirect(url_for("cp_admin"))
+
     if request.method == "POST":
-        client.company      = request.form.get("company","").strip()
-        client.contact_name = request.form.get("contact_name","").strip()
-        client.email        = request.form.get("email","").strip()
-        client.phone        = request.form.get("phone","").strip()
-        client.notes        = request.form.get("notes","").strip()
-        client.active       = "active" in request.form
-        new_pw = request.form.get("password","").strip()
+        client.company = request.form.get("company", "").strip()
+        client.contact_name = request.form.get("contact_name", "").strip()
+        client.email = request.form.get("email", "").strip()
+        client.phone = request.form.get("phone", "").strip()
+        client.notes = request.form.get("notes", "").strip()
+        client.active = "active" in request.form
+
+        new_pw = request.form.get("password", "").strip()
         if new_pw:
+            if len(new_pw) < 10:
+                flash("Password must be at least 10 characters.", "danger")
+                return redirect(url_for("cp_admin_edit_client", client_id=client.id))
             client.set_password(new_pw)
+
         db.session.commit()
         flash("Client updated.", "success")
         return redirect(url_for("cp_admin_client", client_id=client.id))
+
     return render_template("portal/admin_client_form.html", client=client)
 
+
 @app.route("/portal/admin/client/<int:client_id>/schedule/add", methods=["POST"])
-@portal_admin_required
-def cp_admin_add_schedule(client_id):
-    s = ClientSchedule(
+@admin_login_required
+def cp_admin_add_schedule(client_id: int):
+    if not db.session.get(ClientAccount, client_id):
+        abort(404)
+    db.session.add(ClientSchedule(
         client_id=client_id,
-        title=request.form.get("title","").strip(),
-        date=request.form.get("date","").strip(),
-        time=request.form.get("time","").strip(),
-        location=request.form.get("location","").strip(),
-        technician=request.form.get("technician","").strip(),
-        notes=request.form.get("notes","").strip(),
-        status=request.form.get("status","Scheduled"),
-    )
-    db.session.add(s)
+        title=request.form.get("title", "").strip(),
+        date=request.form.get("date", "").strip(),
+        time=request.form.get("time", "").strip(),
+        location=request.form.get("location", "").strip(),
+        technician=request.form.get("technician", "").strip(),
+        notes=request.form.get("notes", "").strip(),
+        status=request.form.get("status", "Scheduled"),
+    ))
     db.session.commit()
     flash("Schedule entry added.", "success")
     return redirect(url_for("cp_admin_client", client_id=client_id))
 
+
 @app.route("/portal/admin/schedule/<int:schedule_id>/delete", methods=["POST"])
-@portal_admin_required
-def cp_admin_delete_schedule(schedule_id):
+@admin_login_required
+def cp_admin_delete_schedule(schedule_id: int):
     s = db.session.get(ClientSchedule, schedule_id)
-    if s:
-        cid = s.client_id
-        db.session.delete(s)
-        db.session.commit()
-        flash("Schedule entry deleted.", "success")
-        return redirect(url_for("cp_admin_client", client_id=cid))
-    return redirect(url_for("cp_admin"))
+    if not s:
+        return redirect(url_for("cp_admin"))
+    cid = s.client_id
+    db.session.delete(s)
+    db.session.commit()
+    flash("Schedule entry deleted.", "success")
+    return redirect(url_for("cp_admin_client", client_id=cid))
+
 
 @app.route("/portal/admin/client/<int:client_id>/eod/add", methods=["POST"])
-@portal_admin_required
-def cp_admin_add_eod(client_id):
-    e = ClientEOD(
+@admin_login_required
+def cp_admin_add_eod(client_id: int):
+    if not db.session.get(ClientAccount, client_id):
+        abort(404)
+    db.session.add(ClientEOD(
         client_id=client_id,
-        report_date=request.form.get("report_date","").strip(),
-        technician=request.form.get("technician","").strip(),
-        work_completed=request.form.get("work_completed","").strip(),
-        issues=request.form.get("issues","").strip(),
-        next_steps=request.form.get("next_steps","").strip(),
-        hours=request.form.get("hours","").strip(),
-        sharepoint_url=request.form.get("sharepoint_url","").strip(),
-    )
-    db.session.add(e)
+        report_date=request.form.get("report_date", "").strip(),
+        technician=request.form.get("technician", "").strip(),
+        work_completed=request.form.get("work_completed", "").strip(),
+        issues=request.form.get("issues", "").strip(),
+        next_steps=request.form.get("next_steps", "").strip(),
+        hours=request.form.get("hours", "").strip(),
+        sharepoint_url=request.form.get("sharepoint_url", "").strip(),
+    ))
     db.session.commit()
     flash("EOD report added.", "success")
     return redirect(url_for("cp_admin_client", client_id=client_id))
 
+
 @app.route("/portal/admin/eod/<int:eod_id>/delete", methods=["POST"])
-@portal_admin_required
-def cp_admin_delete_eod(eod_id):
+@admin_login_required
+def cp_admin_delete_eod(eod_id: int):
     e = db.session.get(ClientEOD, eod_id)
-    if e:
-        cid = e.client_id
-        db.session.delete(e)
-        db.session.commit()
-        flash("EOD report deleted.", "success")
-        return redirect(url_for("cp_admin_client", client_id=cid))
-    return redirect(url_for("cp_admin"))
+    if not e:
+        return redirect(url_for("cp_admin"))
+    cid = e.client_id
+    db.session.delete(e)
+    db.session.commit()
+    flash("EOD report deleted.", "success")
+    return redirect(url_for("cp_admin_client", client_id=cid))
+
 
 @app.route("/portal/admin/client/<int:client_id>/file/upload", methods=["POST"])
-@portal_admin_required
-def cp_admin_upload_file(client_id):
-    client = db.session.get(ClientAccount, client_id)
+@admin_login_required
+def cp_admin_upload_file(client_id: int):
+    if not db.session.get(ClientAccount, client_id):
+        abort(404)
+
     f = request.files.get("file")
     if not f or not f.filename:
         flash("No file selected.", "danger")
         return redirect(url_for("cp_admin_client", client_id=client_id))
+
+    if not _ext_ok(f.filename, ALLOWED_CLIENT_FILE_EXTENSIONS):
+        flash("That file type is not allowed.", "danger")
+        return redirect(url_for("cp_admin_client", client_id=client_id))
+
+    # secure_filename strips path components — no traversal out of the folder.
+    cleaned = secure_filename(f.filename)
+    if not cleaned:
+        flash("That filename could not be used.", "danger")
+        return redirect(url_for("cp_admin_client", client_id=client_id))
+
     folder = CLIENT_FOLDER / str(client_id)
     folder.mkdir(parents=True, exist_ok=True)
-    safe_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{f.filename}"
+    safe_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{cleaned}"
     f.save(folder / safe_name)
-    label = request.form.get("label","").strip() or f.filename
-    cf = ClientFile(client_id=client_id, filename=safe_name, label=label)
-    db.session.add(cf)
+
+    db.session.add(ClientFile(
+        client_id=client_id,
+        filename=safe_name,
+        label=request.form.get("label", "").strip() or f.filename,
+    ))
     db.session.commit()
     flash("File uploaded.", "success")
     return redirect(url_for("cp_admin_client", client_id=client_id))
 
+
 @app.route("/portal/admin/file/<int:file_id>/delete", methods=["POST"])
-@portal_admin_required
-def cp_admin_delete_file(file_id):
+@admin_login_required
+def cp_admin_delete_file(file_id: int):
     cf = db.session.get(ClientFile, file_id)
-    if cf:
-        cid = cf.client_id
-        try:
-            (CLIENT_FOLDER / str(cid) / cf.filename).unlink(missing_ok=True)
-        except Exception:
-            pass
-        db.session.delete(cf)
-        db.session.commit()
-        flash("File deleted.", "success")
-        return redirect(url_for("cp_admin_client", client_id=cid))
-    return redirect(url_for("cp_admin"))
+    if not cf:
+        return redirect(url_for("cp_admin"))
+    cid = cf.client_id
+    try:
+        (CLIENT_FOLDER / str(cid) / cf.filename).unlink(missing_ok=True)
+    except OSError:
+        pass
+    db.session.delete(cf)
+    db.session.commit()
+    flash("File deleted.", "success")
+    return redirect(url_for("cp_admin_client", client_id=cid))
+
+
+# ═══════════════════════════════════════════════════════════
+# LEGACY REDIRECTS — old bookmarks land somewhere sensible
+# ═══════════════════════════════════════════════════════════
+
+@app.route("/customer")
+@app.route("/customer-login")
+@app.route("/customer/<path:_rest>")
+def legacy_customer(_rest=None):
+    return redirect(url_for("cp_login"))
+
+
+@app.route("/customer-logout")
+def legacy_customer_logout():
+    return redirect(url_for("cp_logout"))
+
+
+@app.route("/driver")
+@app.route("/driver-login")
+@app.route("/driver/<path:_rest>")
+def legacy_driver(_rest=None):
+    return redirect(url_for("login"))
 
 
 init_database()
 
 
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", "5000")),
-        debug=os.getenv("FLASK_DEBUG") == "1",
-    )
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=IS_DEBUG)

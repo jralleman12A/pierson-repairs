@@ -36,6 +36,7 @@
                         <td>{{ unit["updated_at"] or "" }}</td>
                         <td>
                             <form method="post" action="{{ url_for('restore_unit', unit_id=unit['id']) }}" onsubmit="return confirm('Restore this unit?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-sm btn-success">Restore</button>
                             </form>
                         </td>

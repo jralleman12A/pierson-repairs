@@ -11,12 +11,21 @@
                 </div>
 
                 <form method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="row g-3">
                         <div class="col-md-4">
                             <label class="small-label">Intake ID</label>
                             <input type="text" class="form-control" name="intake_id" value="{{ unit['intake_id'] }}" required>
                         </div>
                         <div class="col-md-4">
+                            <label class="small-label">Client</label>
+                            <select class="form-control" name="client_id">
+                                <option value="">— Unassigned —</option>
+                                {% for c in clients %}
+                                    <option value="{{ c.id }}" {% if unit.client_id == c.id %}selected{% endif %}>{{ c.company }}</option>
+                                {% endfor %}
+                            </select>
+                            <div style="height:14px;"></div>
                             <label class="small-label">Brand</label>
                             <input type="text" class="form-control" name="brand" value="{{ unit['brand'] or '' }}">
                         </div>

@@ -5,6 +5,14 @@
 {% block content %}
 <div class="cp-stat-grid">
     <div class="cp-stat">
+        <div class="cp-stat-val">{{ open_repairs }}</div>
+        <div class="cp-stat-lbl">Repairs In Progress</div>
+    </div>
+    <div class="cp-stat">
+        <div class="cp-stat-val">{{ total_repairs }}</div>
+        <div class="cp-stat-lbl">Total Repairs</div>
+    </div>
+    <div class="cp-stat">
         <div class="cp-stat-val">{{ upcoming|length }}</div>
         <div class="cp-stat-lbl">Upcoming Installs</div>
     </div>
@@ -16,6 +24,21 @@
         <div class="cp-stat-val">{{ files|length }}</div>
         <div class="cp-stat-lbl">Shared Files</div>
     </div>
+</div>
+
+<div class="cp-card">
+    <div class="cp-card-title">&#128736; Panel Repairs</div>
+    {% if total_repairs %}
+        <div style="font-size:14px;">
+            {{ open_repairs }} unit{{ '' if open_repairs == 1 else 's' }} currently in progress
+            out of {{ total_repairs }} total.
+        </div>
+        <div style="margin-top:12px;">
+            <a href="{{ url_for('cp_repairs') }}" style="font-size:13px;color:#2563eb;">View all repairs &rarr;</a>
+        </div>
+    {% else %}
+        <div class="cp-empty">No repair records yet.</div>
+    {% endif %}
 </div>
 
 <!-- Upcoming Schedule -->

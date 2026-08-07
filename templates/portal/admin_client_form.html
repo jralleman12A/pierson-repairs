@@ -9,6 +9,7 @@
     <div class="card card-clean">
         <div class="card-body">
             <form method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="small-label">Company Name *</label>

@@ -7,28 +7,8 @@
             <div class="card-body">
 
                 <div class="section-title mb-1">Pierson Repairs</div>
-                <p class="text-muted mb-4" style="font-size:14px;">Select your portal to continue.</p>
+                <p class="text-muted mb-4" style="font-size:14px;">Staff sign-in.</p>
 
-                <!-- Portal toggle tabs -->
-                <div style="display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap;">
-                    <button type="button" id="tab-admin" onclick="showTab('admin')"
-                        style="flex:1; padding:10px; border-radius:12px; border:2px solid #2563eb;
-                               background:#2563eb; color:#fff; font-weight:700; cursor:pointer; transition:all .15s; min-width:100px;">
-                        Admin
-                    </button>
-                    <button type="button" id="tab-customer" onclick="showTab('customer')"
-                        style="flex:1; padding:10px; border-radius:12px; border:2px solid #2563eb;
-                               background:transparent; color:#2563eb; font-weight:700; cursor:pointer; transition:all .15s; min-width:100px;">
-                        Customer
-                    </button>
-                    <button type="button" id="tab-driver" onclick="showTab('driver')"
-                        style="flex:1; padding:10px; border-radius:12px; border:2px solid #16a34a;
-                               background:transparent; color:#16a34a; font-weight:700; cursor:pointer; transition:all .15s; min-width:100px;">
-                        Driver
-                    </button>
-                </div>
-
-                <!-- Flash messages -->
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
                         {% for category, message in messages %}
@@ -37,95 +17,35 @@
                     {% endif %}
                 {% endwith %}
 
-                <!-- Single unified form -->
-                <form method="post" action="{{ url_for('login') }}" id="login-form">
-                    <input type="hidden" name="portal" id="portal-field" value="admin">
+                <form method="post" action="{{ url_for('login', next=request.args.get('next')) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-                    <!-- Username field (admin only) -->
-                    <div class="mb-3" id="username-group">
-                        <label class="small-label">Username</label>
-                        <input type="text" class="form-control" name="username" id="username-input" autofocus>
-                    </div>
-
-                    <!-- Password field (all portals) -->
                     <div class="mb-3">
-                        <label class="small-label" id="password-label">Password</label>
-                        <input type="password" class="form-control" name="password" required>
+                        <label class="small-label">Username</label>
+                        <input type="text" class="form-control" name="username"
+                               autocomplete="username" required autofocus>
                     </div>
 
-                    <!-- Helper text -->
-                    <p class="text-muted mb-3" id="portal-hint" style="font-size:13px; display:none;"></p>
+                    <div class="mb-3">
+                        <label class="small-label">Password</label>
+                        <input type="password" class="form-control" name="password"
+                               autocomplete="current-password" required>
+                    </div>
 
-                    <button type="submit" class="btn btn-primary w-100" id="submit-btn"
-                        style="font-weight:700; border-radius:12px; padding:10px;">
-                        Login to Admin
+                    <button type="submit" class="btn btn-primary w-100"
+                            style="font-weight:700; border-radius:12px; padding:10px;">
+                        Sign In
                     </button>
                 </form>
+
+                <hr style="margin:24px 0; border-color:var(--border);">
+
+                <p class="text-muted mb-0" style="font-size:13px;">
+                    Are you a client? <a href="{{ url_for('cp_login') }}">Sign in to the client portal</a>.
+                </p>
 
             </div>
         </div>
     </div>
 </div>
-
-<script>
-const activeTab = "{{ active_tab | default('admin') }}";
-
-function showTab(tab) {
-    // Update hidden field
-    document.getElementById('portal-field').value = tab;
-
-    // Show/hide username field
-    const usernameGroup = document.getElementById('username-group');
-    const usernameInput = document.getElementById('username-input');
-    usernameGroup.style.display = tab === 'admin' ? 'block' : 'none';
-    usernameInput.required = tab === 'admin';
-
-    // Update password label
-    const labels = {
-        admin: 'Password',
-        customer: 'Portal Password',
-        driver: 'Driver Password'
-    };
-    document.getElementById('password-label').textContent = labels[tab];
-
-    // Update hint text
-    const hints = {
-        admin: '',
-        customer: 'Enter the customer portal password to view repair status.',
-        driver: 'Enter the driver portal password to view your pickup list.'
-    };
-    const hint = document.getElementById('portal-hint');
-    hint.textContent = hints[tab];
-    hint.style.display = hints[tab] ? 'block' : 'none';
-
-    // Update submit button
-    const btnLabels = {
-        admin: 'Login to Admin',
-        customer: 'Enter Customer Portal',
-        driver: 'Enter Driver Portal'
-    };
-    const btn = document.getElementById('submit-btn');
-    btn.textContent = btnLabels[tab];
-    btn.style.background = tab === 'driver' ? '#16a34a' : '#2563eb';
-
-    // Update tab styles
-    const tabs = ['admin', 'customer', 'driver'];
-    tabs.forEach(t => {
-        const el = document.getElementById('tab-' + t);
-        const isDriver = t === 'driver';
-        const color = isDriver ? '#16a34a' : '#2563eb';
-        if (t === tab) {
-            el.style.background = color;
-            el.style.color = '#fff';
-            el.style.borderColor = color;
-        } else {
-            el.style.background = 'transparent';
-            el.style.color = color;
-            el.style.borderColor = color;
-        }
-    });
-}
-
-showTab(activeTab);
-</script>
 {% endblock %}

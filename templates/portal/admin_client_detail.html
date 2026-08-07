@@ -40,6 +40,7 @@ table.at tr:last-child td{border-bottom:none}
             <div class="add-form">
                 <div class="add-form-title">Add Schedule Entry</div>
                 <form method="post" action="{{ url_for('cp_admin_add_schedule', client_id=client['id']) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="row g-2">
                         <div class="col-md-4"><input class="form-control form-control-sm" name="title" placeholder="Title *" required></div>
                         <div class="col-md-2"><input type="date" class="form-control form-control-sm" name="date" required></div>
@@ -73,6 +74,7 @@ table.at tr:last-child td{border-bottom:none}
                     <td><span class="spill badge-{{ s['status']|lower }}">{{ s["status"] }}</span></td>
                     <td>
                         <form method="post" action="{{ url_for('cp_admin_delete_schedule', schedule_id=s['id']) }}" onsubmit="return confirm('Delete this schedule entry?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button class="btn btn-sm btn-outline-danger">Delete</button>
                         </form>
                     </td>
@@ -95,6 +97,7 @@ table.at tr:last-child td{border-bottom:none}
             <div class="add-form">
                 <div class="add-form-title">Add EOD Report</div>
                 <form method="post" action="{{ url_for('cp_admin_add_eod', client_id=client['id']) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="row g-2">
                         <div class="col-md-3"><input type="date" class="form-control form-control-sm" name="report_date" required></div>
                         <div class="col-md-3"><input class="form-control form-control-sm" name="technician" placeholder="Technician"></div>
@@ -121,6 +124,7 @@ table.at tr:last-child td{border-bottom:none}
                     <td>{% if e["sharepoint_url"] %}<a href="{{ e['sharepoint_url'] }}" target="_blank" style="font-size:12px">Link</a>{% else %}—{% endif %}</td>
                     <td>
                         <form method="post" action="{{ url_for('cp_admin_delete_eod', eod_id=e['id']) }}" onsubmit="return confirm('Delete this EOD report?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button class="btn btn-sm btn-outline-danger">Delete</button>
                         </form>
                     </td>
@@ -143,6 +147,7 @@ table.at tr:last-child td{border-bottom:none}
             <div class="add-form">
                 <div class="add-form-title">Upload File</div>
                 <form method="post" action="{{ url_for('cp_admin_upload_file', client_id=client['id']) }}" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="row g-2 align-items-end">
                         <div class="col-md-4"><input type="file" class="form-control form-control-sm" name="file" required></div>
                         <div class="col-md-4"><input class="form-control form-control-sm" name="label" placeholder="Label (shown to client)"></div>
@@ -161,6 +166,7 @@ table.at tr:last-child td{border-bottom:none}
                     <td style="font-size:12px;color:var(--muted)">{{ f["uploaded_at"].strftime("%Y-%m-%d %H:%M") if f["uploaded_at"] else "" }}</td>
                     <td>
                         <form method="post" action="{{ url_for('cp_admin_delete_file', file_id=f['id']) }}" onsubmit="return confirm('Delete this file?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button class="btn btn-sm btn-outline-danger">Delete</button>
                         </form>
                     </td>

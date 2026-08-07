@@ -182,7 +182,7 @@ body {
 
 <div class="page-actions">
     {% if portal == 'customer' %}
-        <a href="{{ url_for('customer_unit_detail', unit_id=unit['id']) }}">Back to Unit</a>
+        <a href="{{ url_for('cp_repair_detail', unit_id=unit['id']) }}">Back to Unit</a>
     {% else %}
         <a href="{{ url_for('unit_detail', unit_id=unit['id']) }}">Back to Unit</a>
     {% endif %}
@@ -191,7 +191,7 @@ body {
 
 {% set box_id = "BOX-" ~ unit["intake_id"] %}
 {% set date_out = unit["shipped_back_date"] or today %}
-{% set unit_url = "https://mcps-boxlight-portal.onrender.com/unit/" ~ unit["id"] %}
+{% set unit_url = request.url_root.rstrip('/') ~ url_for('unit_detail', unit_id=unit['id']) %}
 
 <div class="slip">
 
