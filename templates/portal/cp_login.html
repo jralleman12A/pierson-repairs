@@ -26,8 +26,12 @@
 <body>
 <div class="login-card">
     <div class="login-logo">
-        <div class="brand">Pierson Repairs</div>
-        <div class="sub">Client Portal</div>
+        <img src="{{ url_for('static', filename='pierson-logo.png') }}"
+             srcset="{{ url_for('static', filename='pierson-logo.png') }} 1x,
+                     {{ url_for('static', filename='pierson-logo@2x.png') }} 2x"
+             alt="Pierson Computing Connection"
+             style="height:36px; width:auto; display:block; margin:0 auto 14px;">
+        <div class="sub">Repairs &mdash; Client Portal</div>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -37,12 +41,6 @@
             {% endfor %}
         {% endif %}
     {% endwith %}
-
-    <img src="{{ url_for('static', filename='pierson-logo.png') }}"
-         srcset="{{ url_for('static', filename='pierson-logo.png') }} 1x,
-                 {{ url_for('static', filename='pierson-logo@2x.png') }} 2x"
-         alt="Pierson Computing Connection"
-         style="height:34px; width:auto; display:block; margin:0 auto 22px;">
 
     <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
