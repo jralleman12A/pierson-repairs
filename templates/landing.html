@@ -130,12 +130,10 @@
 <body>
 
 <div class="hero">
-    {% if logo_available %}
-        <img src="{{ url_for('static', filename='pierson-logo.png') }}"
-             alt="Pierson Computing Connection" class="logo-img">
-    {% else %}
-        <div class="wordmark">Pierson<span class="dot">.</span></div>
-    {% endif %}
+    <img src="{{ url_for('static', filename='pierson-logo-white.png') }}"
+         srcset="{{ url_for('static', filename='pierson-logo-white.png') }} 1x,
+                 {{ url_for('static', filename='pierson-logo-white@2x.png') }} 2x"
+         alt="Pierson Computing Connection" class="logo-img">
     <div class="hero-sub">Panel Repair Tracking</div>
 </div>
 

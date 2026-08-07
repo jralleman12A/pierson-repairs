@@ -185,7 +185,12 @@
 
 <div class="cp-sidebar">
     <div class="cp-sidebar-brand">
-        <div class="brand-name">Pierson Repairs</div>
+        <img src="{{ url_for('static', filename='pierson-logo-white.png') }}"
+             srcset="{{ url_for('static', filename='pierson-logo-white.png') }} 1x,
+                     {{ url_for('static', filename='pierson-logo-white@2x.png') }} 2x"
+             alt="Pierson Computing Connection"
+             style="height:26px; width:auto; display:block; margin-bottom:10px;">
+        <div class="brand-name">Repairs</div>
         <div class="brand-company">{{ session.get('client_portal_company', 'Client Portal') }}</div>
     </div>
 

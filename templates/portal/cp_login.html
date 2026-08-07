@@ -38,6 +38,12 @@
         {% endif %}
     {% endwith %}
 
+    <img src="{{ url_for('static', filename='pierson-logo.png') }}"
+         srcset="{{ url_for('static', filename='pierson-logo.png') }} 1x,
+                 {{ url_for('static', filename='pierson-logo@2x.png') }} 2x"
+         alt="Pierson Computing Connection"
+         style="height:34px; width:auto; display:block; margin:0 auto 22px;">
+
     <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="mb-3">

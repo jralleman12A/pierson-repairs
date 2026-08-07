@@ -414,6 +414,11 @@
     <div class="topbar">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div>
+                <img src="{{ url_for('static', filename='pierson-logo-white.png') }}"
+                     srcset="{{ url_for('static', filename='pierson-logo-white.png') }} 1x,
+                             {{ url_for('static', filename='pierson-logo-white@2x.png') }} 2x"
+                     alt="Pierson Computing Connection"
+                     style="height:30px; width:auto; display:block; margin-bottom:10px;">
                 <h1 class="topbar-title">Boxlight Tracker</h1>
                 <p class="topbar-subtitle">Repair intake, status tracking, notes, and exports</p>
             </div>
