@@ -135,6 +135,10 @@ BOOTSTRAP_CLIENT_COMPANY = os.getenv("BOOTSTRAP_CLIENT_COMPANY", "")
 BOOTSTRAP_CLIENT_USERNAME = os.getenv("BOOTSTRAP_CLIENT_USERNAME", "")
 BOOTSTRAP_CLIENT_PASSWORD = os.getenv("BOOTSTRAP_CLIENT_PASSWORD", "")
 
+# Optional first-run Boxlight rep account.
+BOOTSTRAP_BOXLIGHT_USERNAME = os.getenv("BOXLIGHT_USERNAME", "")
+BOOTSTRAP_BOXLIGHT_PASSWORD = os.getenv("BOXLIGHT_PASSWORD", "")
+
 db = SQLAlchemy(app)
 
 # The landing page shows the real logo once static/pierson-logo.png exists,
@@ -231,6 +235,40 @@ class ClientAccount(db.Model, RowLikeMixin):
 
     def check_password(self, pw: str) -> bool:
         return check_password_hash(self.password_hash, pw)
+
+
+class BoxlightAccount(db.Model, RowLikeMixin):
+    __tablename__ = "boxlight_accounts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    contact_name = db.Column(db.String(120), default="")
+    active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def set_password(self, pw: str) -> None:
+        self.password_hash = generate_password_hash(pw)
+
+    def check_password(self, pw: str) -> bool:
+        return check_password_hash(self.password_hash, pw)
+
+
+class ReplacementPanel(db.Model, RowLikeMixin):
+    __tablename__ = "replacement_panels"
+
+    id = db.Column(db.Integer, primary_key=True)
+    brand = db.Column(db.String(120), default="Boxlight")
+    model = db.Column(db.String(160), default="")
+    serial_number = db.Column(db.String(160), unique=True, nullable=False, index=True)
+    date_received = db.Column(db.String(20), default="")
+    status = db.Column(db.String(40), nullable=False, default="Available")
+    used_for_unit_id = db.Column(db.Integer, db.ForeignKey("units.id"), nullable=True, index=True)
+    notes = db.Column(db.Text, default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    used_for_unit = db.relationship("Unit", foreign_keys=[used_for_unit_id], backref="replacement_panel")
 
 
 class Unit(db.Model, RowLikeMixin):
@@ -408,6 +446,16 @@ def current_client() -> ClientAccount | None:
     if client and not client.active:
         return None
     return client
+
+
+def current_boxlight() -> BoxlightAccount | None:
+    account_id = session.get("boxlight_account_id")
+    if not account_id:
+        return None
+    account = db.session.get(BoxlightAccount, account_id)
+    if account and not account.active:
+        return None
+    return account
 
 
 def upcoming_deliveries(client_id: int, limit: int | None = None):
@@ -592,6 +640,7 @@ def inject_globals():
     return {
         "current_user": current_user(),
         "current_client": current_client(),
+        "current_boxlight": current_boxlight(),
         "STATUSES": STATUSES,
         "STATUS_BADGE_CLASSES": STATUS_BADGE_CLASSES,
         "logo_available": LOGO_PATH.exists(),
@@ -635,6 +684,16 @@ def client_login_required(view_func):
             session.pop("client_portal_id", None)
             session.pop("client_portal_company", None)
             return redirect(url_for("cp_login", next=request.full_path))
+        return view_func(*args, **kwargs)
+    return wrapped
+
+
+def boxlight_login_required(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if current_boxlight() is None:
+            session.pop("boxlight_account_id", None)
+            return redirect(url_for("boxlight_login", next=request.full_path))
         return view_func(*args, **kwargs)
     return wrapped
 
@@ -686,7 +745,7 @@ def sync_postgres_sequences() -> None:
     if db.engine.dialect.name != "postgresql":
         return
 
-    for table_name in ("units", "repair_notes"):
+    for table_name in ("units", "repair_notes", "replacement_panels", "boxlight_accounts"):
         try:
             db.session.execute(text(f"""
                 SELECT setval(
@@ -735,6 +794,16 @@ def init_database() -> None:
                 )
                 client.set_password(BOOTSTRAP_CLIENT_PASSWORD)
                 db.session.add(client)
+                db.session.commit()
+
+        if BOOTSTRAP_BOXLIGHT_USERNAME and BOOTSTRAP_BOXLIGHT_PASSWORD:
+            existing = BoxlightAccount.query.filter(
+                db.func.lower(BoxlightAccount.username) == BOOTSTRAP_BOXLIGHT_USERNAME.strip().lower()
+            ).first()
+            if not existing:
+                rep = BoxlightAccount(username=BOOTSTRAP_BOXLIGHT_USERNAME.strip())
+                rep.set_password(BOOTSTRAP_BOXLIGHT_PASSWORD)
+                db.session.add(rep)
                 db.session.commit()
 
         backfill_unit_clients()
@@ -2174,6 +2243,163 @@ def cp_admin_delete_file(file_id: int):
     db.session.commit()
     flash("File deleted.", "success")
     return redirect(url_for("cp_admin_client", client_id=cid))
+
+
+# ═══════════════════════════════════════════════════════════
+# BOXLIGHT SERVICE-PROVIDER PORTAL + REPLACEMENT STOCK
+# ═══════════════════════════════════════════════════════════
+
+@app.route("/boxlight/login", methods=["GET", "POST"])
+def boxlight_login():
+    if request.method == "GET" and current_boxlight():
+        return redirect(url_for("boxlight_dashboard"))
+    if request.method == "POST":
+        if is_throttled("boxlight"):
+            flash("Too many failed attempts. Please wait and try again.", "danger")
+            return render_template("boxlight/login.html"), 429
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        account = BoxlightAccount.query.filter(
+            db.func.lower(BoxlightAccount.username) == username.lower(),
+            BoxlightAccount.active.is_(True),
+        ).first()
+        if account and account.check_password(password):
+            clear_failures("boxlight")
+            session["boxlight_account_id"] = account.id
+            session.permanent = True
+            return redirect(safe_next(request.args.get("next"), "boxlight_dashboard"))
+        record_failure("boxlight")
+        flash("Invalid username or password.", "danger")
+    return render_template("boxlight/login.html")
+
+
+@app.route("/boxlight/logout")
+def boxlight_logout():
+    session.pop("boxlight_account_id", None)
+    return redirect(url_for("boxlight_login"))
+
+
+@app.route("/boxlight")
+@app.route("/boxlight/dashboard")
+@boxlight_login_required
+def boxlight_dashboard():
+    active = Unit.query.filter(Unit.is_deleted.is_(False))
+    repaired_statuses = ["Completed", "Delivering to MCPS", "Delivered to MCPS", "Shipped Back to MCPS"]
+    counts = {
+        "total_repairs": active.count(),
+        "open_repairs": active.filter(~Unit.status.in_(repaired_statuses + ["Scrapped"])).count(),
+        "repaired": active.filter(Unit.status.in_(repaired_statuses)).count(),
+        "unrepairable": active.filter(Unit.status == "Scrapped").count(),
+        "stock_available": ReplacementPanel.query.filter_by(status="Available").count(),
+        "stock_total": ReplacementPanel.query.count(),
+    }
+    recent = active.order_by(Unit.updated_at.desc()).limit(15).all()
+    return render_template("boxlight/dashboard.html", counts=counts, units=recent)
+
+
+@app.route("/boxlight/repairs")
+@boxlight_login_required
+def boxlight_repairs():
+    search = request.args.get("search", "").strip()
+    status = request.args.get("status", "").strip()
+    q = Unit.query.filter(Unit.is_deleted.is_(False))
+    if search:
+        like = f"%{search}%"
+        q = q.filter(or_(Unit.serial_number.ilike(like), Unit.model.ilike(like),
+                         Unit.intake_id.ilike(like), Unit.reported_issue.ilike(like)))
+    if status:
+        q = q.filter(Unit.status == status)
+    return render_template("boxlight/repairs.html", units=q.order_by(Unit.updated_at.desc()).all(),
+                           search=search, status_filter=status)
+
+
+@app.route("/boxlight/repairs/<int:unit_id>")
+@boxlight_login_required
+def boxlight_repair_detail(unit_id: int):
+    unit = Unit.query.filter_by(id=unit_id, is_deleted=False).first_or_404()
+    return render_template("boxlight/repair_detail.html", unit=unit)
+
+
+@app.route("/boxlight/stock")
+@boxlight_login_required
+def boxlight_stock():
+    panels = ReplacementPanel.query.order_by(ReplacementPanel.id.desc()).all()
+    return render_template("boxlight/stock.html", panels=panels)
+
+
+@app.route("/boxlight/export/repairs.csv")
+@boxlight_login_required
+def boxlight_export_repairs():
+    output = io.StringIO()
+    w = csv.writer(output)
+    w.writerow(["Intake ID", "Serial Number", "Model", "Status", "Issue", "Date Received",
+                "Repaired Date", "Delivery Date", "Final Outcome", "Replacement Serial"])
+    for u in Unit.query.filter(Unit.is_deleted.is_(False)).order_by(Unit.id).all():
+        replacement = u.replacement_panel[0].serial_number if u.replacement_panel else ""
+        w.writerow([u.intake_id, u.serial_number, u.model, u.status, u.reported_issue,
+                    u.date_received, u.repaired_date, u.delivery_date, u.final_outcome, replacement])
+    return Response(output.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=boxlight_repairs.csv"})
+
+
+@app.route("/boxlight/export/stock.csv")
+@boxlight_login_required
+def boxlight_export_stock():
+    output = io.StringIO()
+    w = csv.writer(output)
+    w.writerow(["Serial Number", "Model", "Status", "Date Received", "Used For SN", "Notes"])
+    for p in ReplacementPanel.query.order_by(ReplacementPanel.id).all():
+        w.writerow([p.serial_number, p.model, p.status, p.date_received,
+                    p.used_for_unit.serial_number if p.used_for_unit else "", p.notes])
+    return Response(output.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=boxlight_replacement_stock.csv"})
+
+
+@app.route("/replacement-stock")
+@admin_login_required
+def replacement_stock_admin():
+    return render_template("replacement_stock.html",
+                           panels=ReplacementPanel.query.order_by(ReplacementPanel.id.desc()).all(),
+                           units=Unit.query.filter(Unit.is_deleted.is_(False)).order_by(Unit.id.desc()).all())
+
+
+@app.route("/replacement-stock/add", methods=["POST"])
+@admin_login_required
+def replacement_stock_add():
+    serial = request.form.get("serial_number", "").strip()
+    if not serial:
+        flash("Replacement serial number is required.", "danger")
+        return redirect(url_for("replacement_stock_admin"))
+    if ReplacementPanel.query.filter(db.func.lower(ReplacementPanel.serial_number) == serial.lower()).first():
+        flash("That replacement serial number is already in stock history.", "warning")
+        return redirect(url_for("replacement_stock_admin"))
+    panel = ReplacementPanel(serial_number=serial,
+                             model=request.form.get("model", "").strip(),
+                             date_received=request.form.get("date_received", "").strip(),
+                             notes=request.form.get("notes", "").strip())
+    db.session.add(panel)
+    db.session.commit()
+    flash("Replacement panel added to available stock.", "success")
+    return redirect(url_for("replacement_stock_admin"))
+
+
+@app.route("/replacement-stock/<int:panel_id>/assign", methods=["POST"])
+@admin_login_required
+def replacement_stock_assign(panel_id: int):
+    panel = db.session.get(ReplacementPanel, panel_id) or abort(404)
+    unit_id = request.form.get("unit_id", "").strip()
+    if not unit_id:
+        panel.used_for_unit_id = None
+        panel.status = "Available"
+    else:
+        unit = get_active_unit(int(unit_id))
+        if not unit:
+            abort(404)
+        panel.used_for_unit_id = unit.id
+        panel.status = "Used"
+    db.session.commit()
+    flash("Replacement stock assignment updated.", "success")
+    return redirect(url_for("replacement_stock_admin"))
 
 
 # ═══════════════════════════════════════════════════════════
