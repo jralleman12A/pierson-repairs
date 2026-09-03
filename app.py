@@ -878,7 +878,6 @@ def parse_boxlight_support_email(raw_text: str) -> list[dict[str, str]]:
         current.setdefault("model", "")
         current.setdefault("serial_number", "")
         current.setdefault("invoice", "")
-        current.setdefault("purchase_date", "")
         current.setdefault("location", current_location)
         current.setdefault("issue", "")
         current.setdefault("flag", "")
@@ -904,7 +903,6 @@ def parse_boxlight_support_email(raw_text: str) -> list[dict[str, str]]:
                 "location": current_location,
                 "issue": "",
                 "invoice": "",
-                "purchase_date": "",
                 "flag": "",
             }
             # Preserve meaningful text appearing before the model as a location.
@@ -917,7 +915,6 @@ def parse_boxlight_support_email(raw_text: str) -> list[dict[str, str]]:
         invoice_match = INVOICE_RE.search(line)
         if invoice_match and current:
             current["invoice"] = invoice_match.group("invoice").upper()
-            current["purchase_date"] = invoice_match.group("purchase_date")
             current["flag"] = (invoice_match.group("flag") or "").strip()
             continue
 
@@ -926,12 +923,12 @@ def parse_boxlight_support_email(raw_text: str) -> list[dict[str, str]]:
             current["issue"] = issue_match.group("issue").strip()
             continue
 
-        # A standalone school/location heading applies to subsequent records until
-        # another school heading is encountered.
+        # A standalone school/location heading starts a new location block.
+        # Finish the prior panel first so a heading that appears AFTER a panel
+        # does not get incorrectly attached to that previous record.
         if SCHOOL_RE.search(line) and not re.search(r"\d{12,16}", line):
+            finish_current()
             current_location = line.strip(" -–—")
-            if current and not current.get("location"):
-                current["location"] = current_location
             continue
 
         loose = LOOSE_SERIAL_RE.match(line)
@@ -946,7 +943,6 @@ def parse_boxlight_support_email(raw_text: str) -> list[dict[str, str]]:
                 "location": current_location,
                 "issue": loose.group("issue").strip(" -–—"),
                 "invoice": "",
-                "purchase_date": "",
                 "flag": "",
             }
             continue
@@ -1147,7 +1143,6 @@ def import_email_commit():
     brands = request.form.getlist("brand")
     screens = request.form.getlist("screen_size")
     invoices = request.form.getlist("invoice")
-    purchase_dates = request.form.getlist("purchase_date")
     locations = request.form.getlist("location")
     issues = request.form.getlist("issue")
     flags = request.form.getlist("flag")
@@ -1175,7 +1170,6 @@ def import_email_commit():
             continue
 
         invoice = (invoices[i] if i < len(invoices) else "").strip()
-        purchase_date = (purchase_dates[i] if i < len(purchase_dates) else "").strip()
         location = (locations[i] if i < len(locations) else "").strip()
         issue = (issues[i] if i < len(issues) else "").strip()
         flag = (flags[i] if i < len(flags) else "").strip()
@@ -1183,8 +1177,6 @@ def import_email_commit():
         source_bits = ["Boxlight Support"]
         if invoice:
             source_bits.append(invoice)
-        if purchase_date:
-            source_bits.append(purchase_date)
         source = " | ".join(source_bits)[:160]
 
         issue_bits = []

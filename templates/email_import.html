@@ -3,21 +3,34 @@
 {% block content %}
 <style>
 .import-shell { max-width: 1180px; margin: 0 auto; }
-.import-editor { min-height: 320px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-.import-table-wrap { overflow-x: auto; }
-.import-table { min-width: 1160px; }
-.import-table th { white-space: nowrap; }
-.import-table input, .import-table textarea { min-width: 130px; }
-.import-table .issue-input { min-width: 260px; }
-.review-chip { display:inline-block; padding:4px 8px; border-radius:999px; background:#fff3cd; color:#7a5200; font-size:11px; font-weight:700; }
-.ok-chip { display:inline-block; padding:4px 8px; border-radius:999px; background:#dcfce7; color:#166534; font-size:11px; font-weight:700; }
+.import-editor { min-height: 300px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.import-defaults { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.panel-list { display:grid; gap:16px; }
+.panel-card { border:1px solid #dbe3ee; border-radius:16px; padding:18px; background:#fff; }
+.panel-card.needs-review { border-color:#f2cf7d; background:#fffdf7; }
+.panel-card-head { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
+.panel-select { display:flex; align-items:center; gap:10px; font-weight:700; }
+.panel-grid { display:grid; grid-template-columns:1.25fr 1.35fr 1fr .55fr; gap:12px; }
+.panel-grid-secondary { display:grid; grid-template-columns:1fr 1.25fr 2fr; gap:12px; margin-top:12px; }
+.field label { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.04em; font-weight:700; color:#64748b; margin-bottom:6px; }
+.field input, .field textarea { width:100%; }
+.field textarea { min-height:74px; resize:vertical; }
+.review-chip { display:inline-block; padding:5px 10px; border-radius:999px; background:#fff3cd; color:#7a5200; font-size:11px; font-weight:700; }
+.ok-chip { display:inline-block; padding:5px 10px; border-radius:999px; background:#dcfce7; color:#166534; font-size:11px; font-weight:700; }
+.import-note { font-size:12px; color:#64748b; }
+@media (max-width: 900px) {
+  .import-defaults, .panel-grid, .panel-grid-secondary { grid-template-columns:1fr 1fr; }
+}
+@media (max-width: 620px) {
+  .import-defaults, .panel-grid, .panel-grid-secondary { grid-template-columns:1fr; }
+}
 </style>
 
 <div class="import-shell">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
             <h2 class="mb-1">Import Panels from Boxlight Email</h2>
-            <div class="text-muted">Paste the support email exactly as you received it. Nothing is imported until you review the preview and click Import Selected Panels.</div>
+            <div class="text-muted">Paste the support email, review what was found, then import only the panels you want.</div>
         </div>
         <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Tracker</a>
     </div>
@@ -40,20 +53,20 @@
         <div class="card card-clean mb-4">
             <div class="card-body">
                 <div class="section-title">Import Defaults</div>
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="small-label">Client</label>
+                <div class="import-defaults">
+                    <div class="field">
+                        <label>Client</label>
                         <select class="form-control" name="client_id">
                             <option value="">— Unassigned —</option>
                             {% for c in clients %}<option value="{{ c.id }}">{{ c.company }}</option>{% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-4">
-                        <label class="small-label">Date Received</label>
+                    <div class="field">
+                        <label>Pierson Date Received</label>
                         <input type="date" class="form-control" name="date_received" value="{{ today }}">
                     </div>
-                    <div class="col-md-4">
-                        <label class="small-label">Starting Status</label>
+                    <div class="field">
+                        <label>Starting Status</label>
                         <select class="form-select" name="status">
                             <option value="Awaiting Diagnosis">Awaiting Diagnosis</option>
                             <option value="Picking up from MCPS">Picking up from MCPS</option>
@@ -62,43 +75,53 @@
                         </select>
                     </div>
                 </div>
+                <div class="import-note mt-3">Boxlight purchase dates are intentionally ignored. The date above is the date Pierson received the repair.</div>
             </div>
         </div>
 
         <div class="card card-clean">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div class="section-title mb-0">Parsed Panels ({{ records|length }})</div>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <div>
+                        <div class="section-title mb-1">Parsed Panels ({{ records|length }})</div>
+                        <div class="import-note">School headings apply only to panels listed after that heading. Missing model/serial rows stay unchecked for review.</div>
+                    </div>
                     <button class="btn btn-success" type="submit">Import Selected Panels</button>
                 </div>
 
-                <div class="import-table-wrap">
-                    <table class="table import-table">
-                        <thead>
-                            <tr>
-                                <th>Import</th><th>Review</th><th>Model</th><th>Serial</th><th>Brand</th><th>Size</th><th>Invoice</th><th>Purchase Date</th><th>School / Location</th><th>Issue</th><th>Flag</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        {% for r in records %}
-                            <tr>
-                                <td><input type="checkbox" name="include" value="{{ loop.index0 }}" {% if not r.needs_review %}checked{% endif %}></td>
-                                <td>{% if r.needs_review %}<span class="review-chip">Needs review</span>{% else %}<span class="ok-chip">Ready</span>{% endif %}</td>
-                                <td><input class="form-control" name="model" value="{{ r.model }}"></td>
-                                <td><input class="form-control" name="serial_number" value="{{ r.serial_number }}"></td>
-                                <td><input class="form-control" name="brand" value="{{ r.brand }}"></td>
-                                <td><input class="form-control" name="screen_size" value="{{ r.screen_size }}"></td>
-                                <td><input class="form-control" name="invoice" value="{{ r.invoice }}"></td>
-                                <td><input class="form-control" name="purchase_date" value="{{ r.purchase_date }}"></td>
-                                <td><input class="form-control" name="location" value="{{ r.location }}"></td>
-                                <td><textarea class="form-control issue-input" name="issue" rows="2">{{ r.issue }}</textarea></td>
-                                <td><input class="form-control" name="flag" value="{{ r.flag }}"></td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
+                <div class="panel-list">
+                {% for r in records %}
+                    <div class="panel-card {% if r.needs_review %}needs-review{% endif %}">
+                        <div class="panel-card-head">
+                            <label class="panel-select">
+                                <input type="checkbox" name="include" value="{{ loop.index0 }}" {% if not r.needs_review %}checked{% endif %}>
+                                Import panel {{ loop.index }}
+                            </label>
+                            {% if r.needs_review %}<span class="review-chip">Needs review</span>{% else %}<span class="ok-chip">Ready</span>{% endif %}
+                        </div>
+
+                        <div class="panel-grid">
+                            <div class="field"><label>Model</label><input class="form-control" name="model" value="{{ r.model }}"></div>
+                            <div class="field"><label>Serial Number</label><input class="form-control" name="serial_number" value="{{ r.serial_number }}"></div>
+                            <div class="field"><label>Brand</label><input class="form-control" name="brand" value="{{ r.brand }}"></div>
+                            <div class="field"><label>Size</label><input class="form-control" name="screen_size" value="{{ r.screen_size }}"></div>
+                        </div>
+
+                        <div class="panel-grid-secondary">
+                            <div class="field"><label>Boxlight Ref / Invoice</label><input class="form-control" name="invoice" value="{{ r.invoice }}"></div>
+                            <div class="field"><label>School / Location</label><input class="form-control" name="location" value="{{ r.location }}"></div>
+                            <div class="field"><label>Issue / Notes</label><textarea class="form-control" name="issue">{{ r.issue }}</textarea></div>
+                        </div>
+
+                        <input type="hidden" name="flag" value="{{ r.flag }}">
+                        {% if r.flag %}<div class="import-note mt-2"><strong>Boxlight flag:</strong> {{ r.flag }}</div>{% endif %}
+                    </div>
+                {% endfor %}
                 </div>
-                <div class="text-muted mt-3" style="font-size:12px;">Rows missing a model or serial are intentionally unchecked. Fill the missing value, check the row, and then import it.</div>
+
+                <div class="d-flex justify-content-end mt-4">
+                    <button class="btn btn-success" type="submit">Import Selected Panels</button>
+                </div>
             </div>
         </div>
     </form>
