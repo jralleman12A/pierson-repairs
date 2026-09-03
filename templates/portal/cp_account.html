@@ -1,0 +1,59 @@
+{% extends "portal/cp_base.html" %}
+{% block title %}Account{% endblock %}
+{% block page_title %}Account{% endblock %}
+
+{% block content %}
+
+<div class="cp-section" style="margin-top:26px;">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Sign-in details</div>
+    </div>
+
+    <div class="cp-detail-grid" style="max-width:640px;">
+        <div><span class="cp-dl">Organisation</span><span class="cp-dv">{{ client.company }}</span></div>
+        <div><span class="cp-dl">Username</span><span class="cp-dv mono">{{ client.username }}</span></div>
+        {% if client.contact_name %}
+        <div><span class="cp-dl">Contact</span><span class="cp-dv">{{ client.contact_name }}</span></div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Change password</div>
+    </div>
+
+    <form method="post" style="max-width:380px; margin-top:20px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <label class="cp-dl" for="current_password">Current password</label>
+        <input type="password" name="current_password" id="current_password"
+               autocomplete="current-password" required
+               style="width:100%; margin-bottom:18px;">
+
+        <label class="cp-dl" for="new_password">New password</label>
+        <input type="password" name="new_password" id="new_password"
+               autocomplete="new-password" required minlength="{{ min_length }}"
+               style="width:100%; margin-bottom:4px;">
+        <div style="font-size:12.5px; color:var(--muted); margin-bottom:18px;">
+            At least {{ min_length }} characters. A few unrelated words works well.
+        </div>
+
+        <label class="cp-dl" for="confirm_password">Confirm new password</label>
+        <input type="password" name="confirm_password" id="confirm_password"
+               autocomplete="new-password" required minlength="{{ min_length }}"
+               style="width:100%; margin-bottom:22px;">
+
+        <button type="submit" class="cp-btn">Change password</button>
+    </form>
+</div>
+
+<div class="cp-section">
+    <div class="cp-empty">
+        Forgotten your password? Email
+        <a href="mailto:Justin@pierson.it">Justin@pierson.it</a>
+        and we will reset it for you.
+    </div>
+</div>
+
+{% endblock %}

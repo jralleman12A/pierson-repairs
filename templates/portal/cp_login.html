@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pierson Repairs</title>
+    <style>
+        :root {
+            --navy: #0A2540;
+            --orange: #EF4E24;
+            --text: #14181f;
+            --muted: #6b7280;
+            --rule: #dfe3e8;
+        }
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0; min-height: 100vh;
+            display: flex; flex-direction: column;
+            background: #fff; color: var(--text);
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+
+        .shell { flex: 1; display: flex; min-height: 100vh; }
+
+        /* Left: brand panel */
+        .brandside {
+            flex: 1 1 46%;
+            background: var(--navy);
+            padding: 56px 52px;
+            display: flex; flex-direction: column; justify-content: space-between;
+            /* Without this, column flex stretches children across the full
+               width — which turns the logo into a 900px banner. */
+            align-items: flex-start;
+        }
+        .brandside img {
+            height: 32px; width: auto;
+            display: block; align-self: flex-start; flex: 0 0 auto;
+        }
+        .brand-copy { max-width: 380px; }
+        .brand-copy h1 {
+            color: #fff; font-size: 30px; line-height: 1.25;
+            font-weight: 600; letter-spacing: -0.4px; margin: 0 0 14px;
+        }
+        .brand-copy p {
+            color: rgba(255,255,255,.62); font-size: 15px;
+            line-height: 1.6; margin: 0;
+        }
+        .brand-foot {
+            color: rgba(255,255,255,.4); font-size: 13px; line-height: 1.7;
+        }
+        .brand-foot a { color: rgba(255,255,255,.6); text-decoration: none; }
+        .brand-foot a:hover { color: #fff; }
+
+        /* Right: sign-in */
+        .formside {
+            flex: 1 1 54%;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            padding: 56px 40px;
+        }
+        .formwrap { width: 100%; max-width: 340px; }
+
+        .formwrap h2 {
+            font-size: 22px; font-weight: 600; margin: 0 0 6px;
+            letter-spacing: -0.2px;
+        }
+        .formwrap .lede { font-size: 14px; color: var(--muted); margin: 0 0 28px; }
+
+        label {
+            display: block; font-size: 11.5px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: .5px;
+            color: var(--muted); margin-bottom: 5px;
+        }
+        input[type=text], input[type=password] {
+            width: 100%; font: inherit; font-size: 15px;
+            padding: 10px 12px; border: 1px solid var(--rule);
+            border-radius: 7px; background: #fff; margin-bottom: 18px;
+        }
+        input:focus { outline: 2px solid var(--navy); outline-offset: -1px; }
+
+        button {
+            width: 100%; font: inherit; font-size: 15px; font-weight: 600;
+            padding: 11px; border: none; border-radius: 7px;
+            background: var(--navy); color: #fff; cursor: pointer;
+        }
+        button:hover { background: #143656; }
+
+        .flash {
+            padding: 10px 13px; border-radius: 7px; font-size: 14px;
+            margin-bottom: 20px; border: 1px solid var(--rule);
+        }
+        .flash.success { background:#E6F4EA; border-color:#CCE7D4; color:#166534; }
+        .flash.danger  { background:#FCE9E9; border-color:#F5D0D0; color:#991B1B; }
+        .flash.warning { background:#FDEDE7; border-color:#F8D5C7; color:#9A3412; }
+
+        .helper {
+            margin-top: 26px; padding-top: 20px;
+            border-top: 1px solid var(--rule);
+            font-size: 13px; color: var(--muted); line-height: 1.6;
+        }
+        .helper a { color: var(--navy); }
+        .staff-link { margin-top: 12px; font-size: 12.5px; }
+        .staff-link a { color: var(--muted); }
+
+        .mobile-logo { display: none; }
+
+        @media (max-width: 860px) {
+            .shell { flex-direction: column; min-height: auto; }
+            .brandside { display: none; }
+            .formside { padding: 40px 24px; min-height: 100vh; justify-content: flex-start; }
+            .mobile-logo { display: block; margin-bottom: 32px; }
+            .mobile-logo img { height: 30px; width: auto; display: block; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="shell">
+
+    <div class="brandside">
+        <img src="{{ url_for('static', filename='pierson-logo-white.png') }}"
+             srcset="{{ url_for('static', filename='pierson-logo-white.png') }} 1x,
+                     {{ url_for('static', filename='pierson-logo-white@2x.png') }} 2x"
+             alt="Pierson Computing Connection">
+
+        <div class="brand-copy">
+            <h1>Track your panel repairs.</h1>
+            <p>
+                See what we have in for repair, where each panel is in the process,
+                what is coming back to you and when, and download the technician
+                check-off slips.
+            </p>
+        </div>
+
+        <div class="brand-foot">
+            Pierson Computing Connection<br>
+            <a href="https://www.pierson.it" target="_blank" rel="noopener">pierson.it</a>
+            &nbsp;&middot;&nbsp; (717) 796-0493
+        </div>
+    </div>
+
+    <div class="formside">
+        <div class="formwrap">
+
+            <div class="mobile-logo">
+                <img src="{{ url_for('static', filename='pierson-logo.png') }}"
+                     srcset="{{ url_for('static', filename='pierson-logo.png') }} 1x,
+                             {{ url_for('static', filename='pierson-logo@2x.png') }} 2x"
+                     alt="Pierson Computing Connection">
+            </div>
+
+            <h2>Sign in</h2>
+            <p class="lede">Client access to your repair records.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for cat, msg in messages %}
+                        <div class="flash {{ cat }}">{{ msg }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="post" action="{{ url_for('cp_login', next=request.args.get('next')) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <label for="username">Username</label>
+                <input type="text" name="username" id="username"
+                       autocomplete="username" required autofocus>
+
+                <label for="password">Password</label>
+                <input type="password" name="password" id="password"
+                       autocomplete="current-password" required>
+
+                <button type="submit">Sign in</button>
+            </form>
+
+            <div class="helper">
+                Forgotten your password? Email
+                <a href="mailto:Justin@pierson.it">Justin@pierson.it</a>
+                and we will reset it for you.
+                <div class="staff-link">
+                    <a href="{{ url_for('login') }}">Pierson staff sign-in</a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>

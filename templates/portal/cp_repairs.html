@@ -1,0 +1,67 @@
+{% extends "portal/cp_base.html" %}
+{% block title %}Repairs{% endblock %}
+{% block page_title %}Repairs{% endblock %}
+
+{% block content %}
+
+<form method="get" action="{{ url_for('cp_repairs') }}"
+      style="display:flex; gap:8px; margin-top:22px; flex-wrap:wrap;">
+    <input type="search" name="search" value="{{ search }}"
+           placeholder="Search intake ID, serial, model, or status"
+           style="flex:1; min-width:240px; max-width:420px;">
+    <button type="submit" class="cp-btn">Search</button>
+    {% if search %}
+        <a href="{{ url_for('cp_repairs') }}" class="cp-btn ghost">Clear</a>
+    {% endif %}
+</form>
+
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">
+            {% if search %}Results for &ldquo;{{ search }}&rdquo;{% else %}All repairs{% endif %}
+        </div>
+        <div class="cp-section-meta">
+            {{ units|length }} panel{{ '' if units|length == 1 else 's' }}
+        </div>
+    </div>
+
+    {% if units %}
+        <table class="cp-table">
+            <thead>
+                <tr>
+                    <th>Intake ID</th>
+                    <th>Panel</th>
+                    <th>Serial number</th>
+                    <th>Received</th>
+                    <th>Status</th>
+                    <th>Returned</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for unit in units %}
+                <tr>
+                    <td><strong>{{ unit.intake_id }}</strong></td>
+                    <td>
+                        {{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}
+                        {% if unit.screen_size %}
+                            <div style="color:var(--muted); font-size:13px;">{{ unit.screen_size|screensize }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="mono">{{ unit.serial_number|dash }}</td>
+                    <td>{{ unit.date_received|nicedate }}</td>
+                    <td><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></td>
+                    <td>{{ unit.shipped_back_date|nicedate }}</td>
+                    <td><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="cp-empty">
+            {% if search %}No repairs match that search.{% else %}No repair records yet.{% endif %}
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}

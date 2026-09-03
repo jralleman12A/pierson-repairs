@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-xl-5">
+        <div class="card card-clean">
+            <div class="card-body">
+
+                <div class="section-title mb-1">Your account</div>
+                <p class="text-muted mb-4" style="font-size:14px;">
+                    Signed in as <strong>{{ user.username }}</strong>.
+                </p>
+
+                <form method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="mb-3">
+                        <label class="small-label">Current password</label>
+                        <input type="password" class="form-control" name="current_password"
+                               autocomplete="current-password" required>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="small-label">New password</label>
+                        <input type="password" class="form-control" name="new_password"
+                               autocomplete="new-password" required minlength="{{ min_length }}">
+                    </div>
+                    <p class="text-muted mb-3" style="font-size:12.5px;">
+                        At least {{ min_length }} characters.
+                    </p>
+
+                    <div class="mb-4">
+                        <label class="small-label">Confirm new password</label>
+                        <input type="password" class="form-control" name="confirm_password"
+                               autocomplete="new-password" required minlength="{{ min_length }}">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary"
+                            style="font-weight:700; border-radius:12px; padding:9px 22px;">
+                        Change password
+                    </button>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

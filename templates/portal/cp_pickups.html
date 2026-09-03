@@ -1,0 +1,64 @@
+{% extends "portal/cp_base.html" %}
+{% block title %}Pickups{% endblock %}
+{% block page_title %}Pickups{% endblock %}
+
+{% block content %}
+
+<div class="cp-summary">
+    {% if units %}
+        <strong>{{ units|length }}</strong>
+        panel{{ '' if units|length == 1 else 's' }} scheduled for collection.
+        Please have {{ 'it' if units|length == 1 else 'them' }} disconnected and
+        accessible before our driver arrives.
+    {% else %}
+        No panels are scheduled for collection right now.
+    {% endif %}
+</div>
+
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Scheduled for pickup</div>
+        {% if units %}
+        <div class="cp-section-meta">{{ units|length }} panel{{ '' if units|length == 1 else 's' }}</div>
+        {% endif %}
+    </div>
+
+    {% if units %}
+        <table class="cp-table">
+            <thead>
+                <tr>
+                    <th>Intake ID</th>
+                    <th>Panel</th>
+                    <th>Serial number</th>
+                    <th>Location</th>
+                    <th>Reported issue</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for unit in units %}
+                <tr>
+                    <td><strong>{{ unit.intake_id }}</strong></td>
+                    <td>
+                        {{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}
+                        {% if unit.screen_size %}
+                            <div style="color:var(--muted); font-size:13px;">{{ unit.screen_size|screensize }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="mono">{{ unit.serial_number|dash }}</td>
+                    <td>{{ unit.source|dash }}</td>
+                    <td style="max-width:280px;">{{ unit.reported_issue|dash }}</td>
+                    <td><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="cp-empty">
+            When Pierson schedules a collection, the panels will be listed here with
+            their locations so your team can prepare them in advance.
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}

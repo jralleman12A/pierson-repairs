@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+.import-shell { max-width: 1180px; margin: 0 auto; }
+.import-editor { min-height: 320px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.import-table-wrap { overflow-x: auto; }
+.import-table { min-width: 1160px; }
+.import-table th { white-space: nowrap; }
+.import-table input, .import-table textarea { min-width: 130px; }
+.import-table .issue-input { min-width: 260px; }
+.review-chip { display:inline-block; padding:4px 8px; border-radius:999px; background:#fff3cd; color:#7a5200; font-size:11px; font-weight:700; }
+.ok-chip { display:inline-block; padding:4px 8px; border-radius:999px; background:#dcfce7; color:#166534; font-size:11px; font-weight:700; }
+</style>
+
+<div class="import-shell">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h2 class="mb-1">Import Panels from Boxlight Email</h2>
+            <div class="text-muted">Paste the support email exactly as you received it. Nothing is imported until you review the preview and click Import Selected Panels.</div>
+        </div>
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Tracker</a>
+    </div>
+
+    <div class="card card-clean mb-4">
+        <div class="card-body">
+            <form method="post" action="{{ url_for('import_email') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <label class="small-label">Paste Boxlight / Mimio Support Email</label>
+                <textarea class="form-control import-editor" name="raw_email" placeholder="Paste the full email here...">{{ raw_email }}</textarea>
+                <button type="submit" class="btn btn-primary mt-3">Parse Email</button>
+            </form>
+        </div>
+    </div>
+
+    {% if records %}
+    <form method="post" action="{{ url_for('import_email_commit') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="card card-clean mb-4">
+            <div class="card-body">
+                <div class="section-title">Import Defaults</div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="small-label">Client</label>
+                        <select class="form-control" name="client_id">
+                            <option value="">— Unassigned —</option>
+                            {% for c in clients %}<option value="{{ c.id }}">{{ c.company }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small-label">Date Received</label>
+                        <input type="date" class="form-control" name="date_received" value="{{ today }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small-label">Starting Status</label>
+                        <select class="form-select" name="status">
+                            <option value="Awaiting Diagnosis">Awaiting Diagnosis</option>
+                            <option value="Picking up from MCPS">Picking up from MCPS</option>
+                            <option value="In Repair">In Repair</option>
+                            <option value="Waiting on Parts">Waiting on Parts</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card card-clean">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="section-title mb-0">Parsed Panels ({{ records|length }})</div>
+                    <button class="btn btn-success" type="submit">Import Selected Panels</button>
+                </div>
+
+                <div class="import-table-wrap">
+                    <table class="table import-table">
+                        <thead>
+                            <tr>
+                                <th>Import</th><th>Review</th><th>Model</th><th>Serial</th><th>Brand</th><th>Size</th><th>Invoice</th><th>Purchase Date</th><th>School / Location</th><th>Issue</th><th>Flag</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for r in records %}
+                            <tr>
+                                <td><input type="checkbox" name="include" value="{{ loop.index0 }}" {% if not r.needs_review %}checked{% endif %}></td>
+                                <td>{% if r.needs_review %}<span class="review-chip">Needs review</span>{% else %}<span class="ok-chip">Ready</span>{% endif %}</td>
+                                <td><input class="form-control" name="model" value="{{ r.model }}"></td>
+                                <td><input class="form-control" name="serial_number" value="{{ r.serial_number }}"></td>
+                                <td><input class="form-control" name="brand" value="{{ r.brand }}"></td>
+                                <td><input class="form-control" name="screen_size" value="{{ r.screen_size }}"></td>
+                                <td><input class="form-control" name="invoice" value="{{ r.invoice }}"></td>
+                                <td><input class="form-control" name="purchase_date" value="{{ r.purchase_date }}"></td>
+                                <td><input class="form-control" name="location" value="{{ r.location }}"></td>
+                                <td><textarea class="form-control issue-input" name="issue" rows="2">{{ r.issue }}</textarea></td>
+                                <td><input class="form-control" name="flag" value="{{ r.flag }}"></td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-muted mt-3" style="font-size:12px;">Rows missing a model or serial are intentionally unchecked. Fill the missing value, check the row, and then import it.</div>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

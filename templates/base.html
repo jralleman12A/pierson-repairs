@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Boxlight Tracker</title>
+    <script>
+    (function() {
+        if (localStorage.getItem("theme") === "dark") {
+            document.documentElement.classList.add("dark");
+        }
+    })();
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --surface: #ffffff;
+            --surface-2: #f8fafc;
+            --text: #172033;
+            --muted: #667085;
+            --border: #e5e7eb;
+            --header-a: #1d4ed8;
+            --header-b: #0f172a;
+            --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+            --row-hover: #f8fbff;
+
+            --stat-total: #334155;
+            --stat-awaiting: #b45309;
+            --stat-repair: #0369a1;
+            --stat-parts: #7c3aed;
+            --stat-complete: #15803d;
+            --stat-scrapped: #b91c1c;
+            --stat-archived: #475569;
+
+            --status-awaiting-bg: #fff3cd;
+            --status-awaiting-text: #856404;
+            --status-repair-bg: #d1ecf1;
+            --status-repair-text: #0c5460;
+            --status-parts-bg: #ede9fe;
+            --status-parts-text: #5b21b6;
+            --status-complete-bg: #d4edda;
+            --status-complete-text: #155724;
+            --status-scrapped-bg: #f8d7da;
+            --status-scrapped-text: #721c24;
+        }
+
+        html.dark body, body.dark {
+            --bg: #07111f;
+            --surface: #0f1b2d;
+            --surface-2: #14233a;
+            --text: #f3f7ff;
+            --muted: #d0d8e5;
+            --border: #223552;
+            --header-a: #0b1730;
+            --header-b: #182843;
+            --shadow: 0 10px 30px rgba(0, 0, 0, 0.30);
+            --row-hover: #162842;
+
+            --status-awaiting-bg: #5e4309;
+            --status-awaiting-text: #ffe08a;
+            --status-repair-bg: #0f4558;
+            --status-repair-text: #a9ebff;
+            --status-parts-bg: #44218b;
+            --status-parts-text: #e2d4ff;
+            --status-complete-bg: #14532d;
+            --status-complete-text: #bbf7d0;
+            --status-scrapped-bg: #5f1d24;
+            --status-scrapped-text: #fecdd3;
+        }
+
+        html {
+            background: var(--bg);
+        }
+
+        html.dark {
+            background: #07111f;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            transition: background-color .2s ease, color .2s ease;
+        }
+
+        .app-shell {
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .topbar {
+            background: linear-gradient(135deg, var(--header-a), var(--header-b));
+            color: white;
+            border-radius: 22px;
+            padding: 22px 24px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow);
+        }
+
+        .topbar-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 0;
+            color: #ffffff;
+        }
+
+        .topbar-subtitle {
+            margin: 4px 0 0 0;
+            color: rgba(255,255,255,0.90);
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar .btn {
+            border-radius: 12px;
+        }
+
+        .card-clean {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .card-clean .card-body {
+            padding: 20px;
+        }
+
+        .section-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin-bottom: 14px;
+            color: var(--text);
+        }
+
+
+        .stat-card {
+            border-radius: 12px;
+            padding: 16px 18px;
+            border: 1px solid var(--border);
+        }
+        .stat-label { font-size: 12px; font-weight: 600; letter-spacing: .3px; opacity: .85; }
+        .stat-value { font-size: 30px; font-weight: 700; line-height: 1.15; margin-top: 2px; }
+
+        .stat-total     { background:#0A2540; color:#ffffff; border-color:#0A2540; }
+        .stat-awaiting  { background:#FDEDE7; color:#9A3412; border-color:#F8D5C7; }
+        .stat-repair    { background:#E8EEF6; color:#1E3A5F; border-color:#CFDCEC; }
+        .stat-parts     { background:#EFEAF7; color:#5B21B6; border-color:#DCD2EF; }
+        .stat-complete  { background:#E6F4EA; color:#166534; border-color:#CCE7D4; }
+        .stat-scrapped  { background:#FCE9E9; color:#991B1B; border-color:#F5D0D0; }
+
+        body.dark .stat-awaiting  { background:#3B1D0F; color:#FBBF9C; border-color:#5A2E18; }
+        body.dark .stat-repair    { background:#132539; color:#A9C8EE; border-color:#1E3A57; }
+        body.dark .stat-parts     { background:#241A3D; color:#C9B6F0; border-color:#372A57; }
+        body.dark .stat-complete  { background:#10291A; color:#A7DCB8; border-color:#1C4029; }
+        body.dark .stat-scrapped  { background:#341417; color:#F2AFAF; border-color:#4E2024; }
+        .stat-archived  { background:#EEF1F5; color:#334155; border-color:#DDE3EA; }
+        body.dark .stat-archived  { background:#1B2431; color:#C3CEDC; border-color:#2B3747; }
+
+        .form-control,
+        .form-select,
+        textarea {
+            background-color: var(--surface-2) !important;
+            color: var(--text) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 14px !important;
+        }
+
+        .form-control::placeholder,
+        textarea::placeholder {
+            color: var(--muted) !important;
+            opacity: 1;
+        }
+
+        .form-text,
+        .text-muted,
+        .small-label {
+            color: var(--muted) !important;
+        }
+
+        body.dark .small-label,
+        body.dark .form-text,
+        body.dark .text-muted {
+            color: #dbe4f0 !important;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            overflow-y: visible;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .table {
+            --bs-table-color: var(--text);
+            --bs-table-bg: transparent;
+            --bs-table-border-color: var(--border);
+            --bs-table-hover-bg: var(--row-hover);
+            --bs-table-hover-color: var(--text);
+            --bs-table-striped-color: var(--text);
+            --bs-table-striped-bg: var(--surface-2);
+            --bs-table-active-bg: var(--row-hover);
+            --bs-table-active-color: var(--text);
+            margin-bottom: 0;
+            color: var(--text) !important;
+            vertical-align: middle;
+            table-layout: fixed;
+            width: 100%;
+        }
+
+        .table thead th {
+            background: var(--surface-2) !important;
+            border-bottom: 1px solid var(--border) !important;
+            color: var(--text) !important;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .table td,
+        .table th {
+            border-color: var(--border) !important;
+            padding: 12px 10px;
+            font-size: 0.95rem;
+            color: var(--text) !important;
+            background-color: transparent !important;
+        }
+
+        .table tbody tr {
+            background-color: transparent !important;
+        }
+
+        .table tbody tr:hover td {
+            background: var(--row-hover) !important;
+            color: var(--text) !important;
+        }
+
+        .btn-primary {
+            background: #EF4F25 !important;
+            border-color: #EF4F25 !important;
+        }
+        .btn-primary:hover, .btn-primary:focus {
+            background: #d8431b !important;
+            border-color: #d8431b !important;
+        }
+
+        .table td {
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
+        }
+
+        /* Header cells should hug their label, not stretch the row. */
+        .table thead th {
+            white-space: nowrap;
+            word-break: normal;
+            vertical-align: middle;
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .status-badge {
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        .status-awaiting {
+            background: var(--status-awaiting-bg);
+            color: var(--status-awaiting-text);
+        }
+
+        .status-repair {
+            background: var(--status-repair-bg);
+            color: var(--status-repair-text);
+        }
+
+        .status-parts {
+            background: var(--status-parts-bg);
+            color: var(--status-parts-text);
+        }
+
+        .status-complete {
+            background: var(--status-complete-bg);
+            color: var(--status-complete-text);
+        }
+
+        .status-scrapped {
+            background: var(--status-scrapped-bg);
+            color: var(--status-scrapped-text);
+        }
+
+        .unit-meta th {
+            width: 165px;
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        .note-box {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-left: 4px solid #3b82f6;
+            padding: 14px;
+            border-radius: 14px;
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+
+        .btn {
+            border-radius: 12px;
+        }
+
+        .btn-soft {
+            background: var(--surface-2);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-soft:hover {
+            background: var(--row-hover);
+            color: var(--text);
+        }
+
+        .panel-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--muted);
+            padding: 32px 0;
+        }
+
+        .alert {
+            border-radius: 14px;
+        }
+
+
+        @media (max-width: 1200px) {
+            .table {
+                min-width: 1080px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .app-shell {
+                padding: 12px;
+            }
+
+            .topbar {
+                padding: 16px;
+                border-radius: 14px;
+            }
+
+            .topbar-title {
+                font-size: 1.3rem;
+            }
+
+            .topbar-subtitle {
+                font-size: 13px;
+            }
+
+            .toolbar {
+                gap: 6px;
+            }
+
+            .toolbar .btn {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+
+            .card-clean .card-body {
+                padding: 14px;
+            }
+
+            .stat-card {
+                min-height: 80px;
+                padding: 14px;
+            }
+
+            .stat-value {
+                font-size: 1.4rem;
+            }
+
+            .table {
+                min-width: 700px;
+            }
+
+            .table-wrap {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+
+    </style>
+</head>
+<body>
+<div class="app-shell">
+    <div class="topbar">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <img src="{{ url_for('static', filename='pierson-logo-white.png') }}"
+                     srcset="{{ url_for('static', filename='pierson-logo-white.png') }} 1x,
+                             {{ url_for('static', filename='pierson-logo-white@2x.png') }} 2x"
+                     alt="Pierson Computing Connection"
+                     style="height:30px; width:auto; display:block; margin-bottom:10px;">
+                <h1 class="topbar-title">Boxlight Tracker</h1>
+                <p class="topbar-subtitle">Repair intake, status tracking, notes, and exports</p>
+            </div>
+            <div class="toolbar">
+                {% if current_user %}
+                    <a href="{{ url_for('index') }}" class="btn btn-light btn-sm">Home</a>
+                    <a href="{{ url_for('archived_units') }}" class="btn btn-outline-light btn-sm">Archived</a>
+                    <a href="{{ url_for('cp_admin') }}" class="btn btn-outline-light btn-sm">Clients</a>
+                    <a href="{{ url_for('email_settings') }}" class="btn btn-outline-light btn-sm">Settings</a>
+                    <a href="{{ url_for('export_csv') }}" class="btn btn-warning btn-sm">Download CSV</a>
+                    <a href="{{ url_for('admin_account') }}" class="btn btn-outline-light btn-sm">Account</a>
+                    <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="btn btn-light btn-sm">Login</a>
+                {% endif %}
+                <button type="button" class="btn btn-dark btn-sm" onclick="toggleTheme()" id="themeToggle">Dark Mode</button>
+            </div>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// CSRF token for fetch() posts
+window.CSRF_TOKEN = "{{ csrf_token() }}";
+
+function applyThemeLabel() {
+    const btn = document.getElementById("themeToggle");
+    if (!btn) return;
+    btn.textContent = document.body.classList.contains("dark") ? "Light Mode" : "Dark Mode";
+}
+
+function toggleTheme() {
+    document.body.classList.toggle("dark");
+    document.documentElement.classList.toggle("dark");
+    localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
+    applyThemeLabel();
+}
+
+if (localStorage.getItem("theme") === "dark") {
+    document.body.classList.add("dark");
+    document.documentElement.classList.add("dark");
+}
+applyThemeLabel();
+</script>
+</body>
+</html>

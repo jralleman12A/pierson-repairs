@@ -1,0 +1,202 @@
+{% extends "portal/cp_base.html" %}
+{% block title %}Overview{% endblock %}
+{% block page_title %}Overview{% endblock %}
+
+{% block content %}
+
+{% if stats.total %}
+<div class="hero-stats">
+    <div class="hero-stat">
+        <div class="hero-num">{{ stats.total }}</div>
+        <div class="hero-lbl">Panels on record</div>
+    </div>
+    <div class="hero-stat">
+        <div class="hero-num">{{ stats.active }}</div>
+        <div class="hero-lbl">Currently in progress</div>
+    </div>
+    <div class="hero-stat">
+        <div class="hero-num">{{ stats.returned }}</div>
+        <div class="hero-lbl">Repaired and returned</div>
+    </div>
+</div>
+
+{% if stats.live or stats.scrapped %}
+<div class="cp-section" style="margin-top:34px;">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Repair progress</div>
+        {% if stats.repair_rate is not none and stats.total %}
+        <div class="cp-section-meta">
+            {{ stats.repaired }} of {{ stats.total }} repaired rather than replaced
+            &middot; {{ stats.repair_rate }}%
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="tracker">
+        <div class="tk-railwrap">
+            <div class="tk-rail"></div>
+            <div class="tk-fill" style="width: {{ stats.progress }}%;"></div>
+            {% for st in stats.pipeline %}
+                <span class="tk-node {% if st.reached %}reached{% endif %} {% if st.count %}holding{% endif %}"
+                      style="left: {{ (loop.index0 / (stats.pipeline|length - 1) * 100)|round(2) }}%;"></span>
+            {% endfor %}
+        </div>
+
+        <div class="tk-stages">
+            {% for st in stats.pipeline %}
+            <div class="tk-stage {% if st.reached %}reached{% endif %} {% if st.count %}holding{% endif %}">
+                <div class="tk-count">{{ st.count }}</div>
+                <div class="tk-label">{{ st.label }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="tk-summary">
+        {% if stats.live %}
+            <strong>{{ stats.live }}</strong>
+            panel{{ '' if stats.live == 1 else 's' }} in the workflow &mdash;
+            <strong>{{ stats.progress }}%</strong> of the way through.
+            {% if stats.pipeline[3].count %}
+                {{ stats.pipeline[3].count }} back with you,
+            {% endif %}
+            {% if stats.pipeline[1].count %}
+                {{ stats.pipeline[1].count }} on the bench,
+            {% endif %}
+            {% if stats.pipeline[0].count %}
+                {{ stats.pipeline[0].count }} awaiting diagnosis.
+            {% endif %}
+        {% endif %}
+        {% if stats.scrapped %}
+            <span class="tk-scrapped">{{ stats.scrapped }} assessed as beyond economical repair.</span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% else %}
+<div class="cp-summary">No panels on record yet.</div>
+{% endif %}
+
+<div class="logistics">
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Scheduled for pickup</div>
+        {% if cp_counts.pickups %}
+            <a href="{{ url_for('cp_pickups') }}" class="cp-section-meta">View all {{ cp_counts.pickups }}</a>
+        {% endif %}
+    </div>
+
+    {% if pickups %}
+    <table class="cp-table">
+        <thead>
+            <tr><th>Intake ID</th><th>Panel</th><th>Serial number</th><th>Location</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for unit in pickups %}
+            <tr>
+                <td><strong>{{ unit.intake_id }}</strong></td>
+                <td>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</td>
+                <td class="mono">{{ unit.serial_number|dash }}</td>
+                <td>{{ unit.source|dash }}</td>
+                <td><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <div class="cp-empty">
+            Nothing scheduled for collection. Panels booked for pickup appear here
+            with their locations so your team can prepare them.
+        </div>
+    {% endif %}
+</div>
+
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Coming back to you</div>
+        {% if cp_counts.schedule %}
+            <a href="{{ url_for('cp_schedule') }}" class="cp-section-meta">View all {{ cp_counts.schedule }}</a>
+        {% endif %}
+    </div>
+
+    {% if upcoming %}
+    <table class="cp-table">
+        <thead>
+            <tr><th>Intake ID</th><th>Panel</th><th>Delivery date</th><th>Returning to</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for unit in upcoming %}
+            <tr>
+                <td><strong>{{ unit.intake_id }}</strong></td>
+                <td>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</td>
+                <td>{{ unit.delivery_date|nicedate }}</td>
+                <td>{{ unit.source|dash }}</td>
+                <td><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></td>
+                <td><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <div class="cp-empty">
+            Nothing scheduled for delivery. Once a repair is finished and a return
+            run is booked, the panel appears here with its date and destination.
+        </div>
+    {% endif %}
+</div>
+</div>
+
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Recent repairs</div>
+        {% if total_repairs > recent_repairs|length %}
+            <a href="{{ url_for('cp_repairs') }}" class="cp-section-meta">View all {{ total_repairs }}</a>
+        {% endif %}
+    </div>
+
+    {% if recent_repairs %}
+        <table class="cp-table">
+            <thead>
+                <tr>
+                    <th>Intake ID</th><th>Panel</th><th>Serial number</th>
+                    <th>Received</th><th>Status</th><th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for unit in recent_repairs %}
+                <tr>
+                    <td><strong>{{ unit.intake_id }}</strong></td>
+                    <td>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</td>
+                    <td class="mono">{{ unit.serial_number|dash }}</td>
+                    <td>{{ unit.date_received|nicedate }}</td>
+                    <td><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></td>
+                    <td><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="cp-empty">No repair records yet.</div>
+    {% endif %}
+</div>
+
+{% if files %}
+<div class="cp-section">
+    <div class="cp-section-head"><div class="cp-section-title">Shared files</div></div>
+    <table class="cp-table">
+        <tbody>
+        {% for f in files %}
+        <tr>
+            <td>{{ f.label or f.filename }}</td>
+            <td style="color:var(--muted); font-size:13px;">
+                {{ f.uploaded_at.strftime("%b %d, %Y") if f.uploaded_at else "" }}
+            </td>
+            <td><a href="{{ url_for('cp_download_file', file_id=f.id) }}">Download</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% endblock %}

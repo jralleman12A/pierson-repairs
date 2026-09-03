@@ -1,0 +1,452 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<style>
+.table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.units-table {
+    width: 100%;
+}
+
+.units-table td,
+.units-table th {
+    vertical-align: middle;
+    padding: 10px 12px;
+    white-space: nowrap;
+}
+
+.units-table tbody tr {
+    height: auto !important;
+}
+
+.panel-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: nowrap;
+    min-width: 120px;
+}
+
+.panel-actions .btn {
+    white-space: nowrap;
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+.status-badge {
+    white-space: nowrap;
+    display: inline-block;
+}
+
+.quick-status-select {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    min-width: 155px;
+    transition: border-color 0.15s ease;
+}
+
+.quick-status-select:focus {
+    outline: none;
+    border-color: #2563eb;
+}
+
+.quick-status-select.updating {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.quick-status-select.saved {
+    border-color: #16a34a;
+}
+
+.shipped-yes {
+    color: #198754;
+    font-weight: bold;
+}
+
+.shipped-no {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+/* Column sizing by name, not position — adding or moving a column
+   no longer shifts every rule after it. */
+.units-table .col-id      { width: 44px;  text-align: center; }
+.units-table .col-intake  { min-width: 120px; }
+.units-table .col-actions { min-width: 112px; }
+.units-table .col-panel   { min-width: 145px; white-space: normal; }
+.units-table .col-serial  { min-width: 135px; font-variant-numeric: tabular-nums; }
+.units-table .col-client  { min-width: 130px; max-width: 170px; white-space: normal; }
+.units-table .col-status  { min-width: 170px; }
+.units-table .col-shipped { min-width: 70px;  text-align: center; }
+.units-table .col-date    { min-width: 100px; }
+
+/* Break only where a word genuinely cannot fit — never mid-word
+   on ordinary text like "Montgomery County Public Schools". */
+.units-table td,
+.units-table th {
+    word-break: normal;
+    overflow-wrap: normal;
+}
+.units-table .col-serial { overflow-wrap: anywhere; }
+
+/* Wide enough for every column at full size; the wrapper scrolls
+   horizontally instead of squeezing cells into each other. */
+.units-table { min-width: 1080px; }
+</style>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-2">
+        <div class="stat-card stat-total">
+            <div class="stat-label">Total</div>
+            <div class="stat-value">{{ counts["Total"] }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-2">
+        <div class="stat-card stat-awaiting">
+            <div class="stat-label">Awaiting</div>
+            <div class="stat-value">{{ counts["Awaiting Diagnosis"] }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-2">
+        <div class="stat-card stat-repair">
+            <div class="stat-label">In Repair</div>
+            <div class="stat-value">{{ counts["In Repair"] }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-2">
+        <div class="stat-card stat-parts">
+            <div class="stat-label">Waiting Parts</div>
+            <div class="stat-value">{{ counts["Waiting on Parts"] }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-2">
+        <div class="stat-card stat-complete">
+            <div class="stat-label">Completed</div>
+            <div class="stat-value">{{ counts["Completed"] }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-xl-2">
+        <div class="stat-card stat-scrapped">
+            <div class="stat-label">Scrapped</div>
+            <div class="stat-value">{{ counts["Scrapped"] }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+
+    <div class="col-xl-4">
+        <div class="card card-clean">
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                    <div class="section-title mb-0">Add New Unit</div>
+                    <a href="{{ url_for('import_email') }}" class="btn btn-outline-primary btn-sm">Import from Email</a>
+                </div>
+
+                <form method="post" action="{{ url_for('add_unit') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="mb-3">
+                        <label class="small-label">Intake ID</label>
+                        <input type="text" class="form-control" name="intake_id" value="{{ next_intake_id }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="small-label">Client</label>
+                        <select class="form-control" name="client_id">
+                            <option value="">— Unassigned —</option>
+                            {% for c in clients %}
+                                <option value="{{ c.id }}">{{ c.company }}</option>
+                            {% endfor %}
+                        </select>
+                        <div style="font-size:12px; color:var(--muted); margin-top:4px;">
+                            Unassigned units are not visible in any client portal.
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="small-label">Brand</label>
+                            <input type="text" class="form-control" name="brand">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small-label">Model</label>
+                            <input type="text" class="form-control" name="model">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small-label">Serial Number</label>
+                            <input type="text" class="form-control" name="serial_number">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small-label">Screen Size</label>
+                            <input type="text" class="form-control" name="screen_size">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small-label">Source</label>
+                            <input type="text" class="form-control" name="source">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="small-label">Date Received</label>
+                            <input type="date" class="form-control" name="date_received">
+                        </div>
+
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="small-label">Status</label>
+
+                        <select class="form-select" name="status">
+                            <option value="Awaiting Diagnosis">Awaiting Diagnosis</option>
+                            <option value="In Repair">In Repair</option>
+                            <option value="Waiting on Parts">Waiting on Parts</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Shipped Back to MCPS">Shipped Back to MCPS</option>
+                            <option value="Scrapped">Scrapped</option>
+                        </select>
+                    </div>
+
+                    <div class="mt-3">
+                        <label class="small-label">Reported Issue</label>
+
+                        <textarea class="form-control" name="reported_issue" rows="4"></textarea>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary w-100">
+                            Add Unit
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-8">
+
+        <div class="card card-clean mb-4">
+            <div class="card-body">
+
+                <div class="section-title">Search and Filter</div>
+
+                <form method="get" action="{{ url_for('index') }}" class="row g-3">
+
+                    <div class="col-md-6">
+                        <input
+                            type="text"
+                            class="form-control"
+                            name="search"
+                            placeholder="Search..."
+                            value="{{ search }}"
+                        >
+                    </div>
+
+                    <div class="col-md-3">
+                        <select class="form-select" name="status">
+                            <option value="">All Statuses</option>
+
+                            <option value="Awaiting Diagnosis"
+                                {% if status_filter == "Awaiting Diagnosis" %}selected{% endif %}>
+                                Awaiting Diagnosis
+                            </option>
+
+                            <option value="In Repair"
+                                {% if status_filter == "In Repair" %}selected{% endif %}>
+                                In Repair
+                            </option>
+
+                            <option value="Waiting on Parts"
+                                {% if status_filter == "Waiting on Parts" %}selected{% endif %}>
+                                Waiting on Parts
+                            </option>
+
+                            <option value="Completed"
+                                {% if status_filter == "Completed" %}selected{% endif %}>
+                                Completed
+                            </option>
+
+                            <option value="Shipped Back to MCPS"
+                                {% if status_filter == "Shipped Back to MCPS" %}selected{% endif %}>
+                                Shipped Back to MCPS
+                            </option>
+
+                            <option value="Scrapped"
+                                {% if status_filter == "Scrapped" %}selected{% endif %}>
+                                Scrapped
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3 d-grid">
+                        <button type="submit" class="btn btn-soft">
+                            Apply Filters
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+
+        <div class="card card-clean">
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="section-title mb-0">Active Units</div>
+                    <span class="badge text-bg-secondary">{{ units|length }} shown</span>
+                </div>
+
+                <div class="table-wrap">
+
+                    <table class="table table-hover align-middle units-table">
+
+                        <thead>
+                            <tr>
+                                <th class="col-id">ID</th>
+                                <th class="col-intake">Intake</th>
+                                <th class="col-actions">Actions</th>
+                                <th class="col-panel">Panel Info</th>
+                                <th class="col-serial">Serial Number</th>
+                                {% if clients|length > 1 %}
+                                <th class="col-client">Client</th>
+                                {% endif %}
+                                <th class="col-status">Status</th>
+                                <th class="col-shipped">Shipped</th>
+                                <th class="col-date">Ship Date</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for unit in units %}
+                            <tr>
+
+                                <td class="col-id">{{ unit["id"] }}</td>
+
+                                <td class="col-intake">
+                                    <strong>{{ unit["intake_id"] }}</strong>
+                                </td>
+
+                                <td class="col-actions">
+                                    <div class="panel-actions">
+
+                                        <a href="{{ url_for('unit_detail', unit_id=unit['id']) }}"
+                                           class="btn btn-sm btn-primary">
+                                            Open
+                                        </a>
+
+                                        <a href="{{ url_for('edit_unit', unit_id=unit['id']) }}"
+                                           class="btn btn-sm btn-secondary">
+                                            Edit
+                                        </a>
+
+                                    </div>
+                                </td>
+
+                                <td class="col-panel">
+                                    <strong>{{ unit["brand"] or "—" }}</strong><br>
+                                    <small>{{ unit["model"] or "" }}</small>
+                                </td>
+
+                                <td class="col-serial">{{ unit["serial_number"] or "" }}</td>
+                                {% if clients|length > 1 %}
+                                <td class="col-client">
+                                    {% if unit.client %}{{ unit.client.company }}
+                                    {% else %}<span style="color:var(--muted);">Unassigned</span>{% endif %}
+                                </td>
+                                {% endif %}
+
+                                <td>
+
+                                    {% set status = unit["status"] or "" %}
+                                    <form class="quick-status-form" data-unit-id="{{ unit['id'] }}" onsubmit="return false;">
+                                        <select class="quick-status-select" onchange="quickStatusUpdate(this, {{ unit['id'] }})">
+                                            {% for s in STATUSES %}
+                                                <option value="{{ s }}" {% if s == status %}selected{% endif %}>{{ s }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </form>
+                                </td>
+
+                                <td>
+                                    {% if unit["shipped_back_mcps"] %}
+                                        <span class="shipped-yes">✔</span>
+                                    {% else %}
+                                        <span class="shipped-no">✖</span>
+                                    {% endif %}
+                                </td>
+
+                                <td class="col-date">{{ unit["shipped_back_date"] or "—" }}</td>
+
+                            </tr>
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+                {% if not units %}
+                    <div class="empty-state">No active units found.</div>
+                {% endif %}
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+
+<script>
+async function quickStatusUpdate(select, unitId) {
+    const status = select.value;
+    select.classList.add('updating');
+    try {
+        const formData = new FormData();
+        formData.append('status', status);
+        const res = await fetch(`/unit/${unitId}/quick-status`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': window.CSRF_TOKEN },
+            body: formData
+        });
+        const data = await res.json();
+        if (data.ok) {
+            select.classList.remove('updating');
+            select.classList.add('saved');
+            setTimeout(() => select.classList.remove('saved'), 1500);
+        } else {
+            alert('Failed to update status: ' + (data.error || 'Unknown error'));
+            select.classList.remove('updating');
+        }
+    } catch(e) {
+        alert('Error updating status.');
+        select.classList.remove('updating');
+    }
+}
+</script>
+
+
+{% endblock %}

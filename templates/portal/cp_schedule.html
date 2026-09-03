@@ -1,0 +1,59 @@
+{% extends "portal/cp_base.html" %}
+{% block title %}Deliveries{% endblock %}
+{% block page_title %}Deliveries{% endblock %}
+
+{% block content %}
+
+<div class="cp-summary">
+    {% if units %}
+        <strong>{{ units|length }}</strong>
+        panel{{ '' if units|length == 1 else 's' }} repaired and heading back to you.
+    {% else %}
+        No panels are scheduled for delivery right now.
+    {% endif %}
+</div>
+
+<div class="cp-section">
+    <div class="cp-section-head">
+        <div class="cp-section-title">Coming back to you</div>
+        {% if units %}
+        <div class="cp-section-meta">{{ units|length }} panel{{ '' if units|length == 1 else 's' }}</div>
+        {% endif %}
+    </div>
+
+    {% if units %}
+        <table class="cp-table">
+            <thead>
+                <tr>
+                    <th>Delivery date</th>
+                    <th>Intake ID</th>
+                    <th>Panel</th>
+                    <th>Serial number</th>
+                    <th>Returning to</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for unit in units %}
+                <tr>
+                    <td>{{ unit.delivery_date|nicedate }}</td>
+                    <td><strong>{{ unit.intake_id }}</strong></td>
+                    <td>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</td>
+                    <td class="mono">{{ unit.serial_number|dash }}</td>
+                    <td>{{ unit.source|dash }}</td>
+                    <td><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></td>
+                    <td><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="cp-empty">
+            Once a repair is finished and a return run is booked, the panel will appear
+            here with its delivery date and destination so your team can expect it.
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}
