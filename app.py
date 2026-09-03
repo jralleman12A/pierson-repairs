@@ -693,7 +693,7 @@ def boxlight_login_required(view_func):
     def wrapped(*args, **kwargs):
         if current_boxlight() is None:
             session.pop("boxlight_account_id", None)
-            return redirect(url_for("boxlight_login", next=request.full_path))
+            return redirect(url_for("cp_login", next=request.full_path))
         return view_func(*args, **kwargs)
     return wrapped
 
@@ -1790,32 +1790,48 @@ def email_settings():
 @app.route("/", methods=["GET", "POST"])
 @app.route("/portal/login", methods=["GET", "POST"])
 def cp_login():
-    """The public front door. Clients are the overwhelming majority of
-    visitors, so the root URL is their sign-in rather than a chooser."""
-    if request.method == "GET" and current_client():
-        return redirect(safe_next(request.args.get("next"), "cp_dashboard"))
+    """Single public sign-in for district clients and Boxlight reps."""
+    if request.method == "GET":
+        if current_client():
+            return redirect(safe_next(request.args.get("next"), "cp_dashboard"))
+        if current_boxlight():
+            return redirect(safe_next(request.args.get("next"), "boxlight_dashboard"))
 
     if request.method == "POST":
-        if is_throttled("client"):
+        if is_throttled("public_portal"):
             flash("Too many failed attempts. Please wait and try again.", "danger")
             return render_template("portal/cp_login.html"), 429
 
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        client = find_client_by_username(username)
 
+        # District / customer account
+        client = find_client_by_username(username)
         if client and client.check_password(password):
-            clear_failures("client")
+            clear_failures("public_portal")
+            session.pop("boxlight_account_id", None)
             session["client_portal_id"] = client.id
             session["client_portal_company"] = client.company
             session.permanent = True
             return redirect(safe_next(request.args.get("next"), "cp_dashboard"))
 
-        record_failure("client")
+        # Manufacturer / Boxlight service-provider account
+        boxlight = BoxlightAccount.query.filter(
+            db.func.lower(BoxlightAccount.username) == username.lower(),
+            BoxlightAccount.active.is_(True),
+        ).first()
+        if boxlight and boxlight.check_password(password):
+            clear_failures("public_portal")
+            session.pop("client_portal_id", None)
+            session.pop("client_portal_company", None)
+            session["boxlight_account_id"] = boxlight.id
+            session.permanent = True
+            return redirect(safe_next(request.args.get("next"), "boxlight_dashboard"))
+
+        record_failure("public_portal")
 
         if find_user_by_username(username):
-            flash("That looks like a Pierson staff account. Please use the staff "
-                  "sign-in instead.", "warning")
+            flash("That looks like a Pierson staff account. Please use the staff sign-in instead.", "warning")
             return redirect(url_for("login"))
 
         flash("Invalid username or password.", "danger")
@@ -2251,32 +2267,16 @@ def cp_admin_delete_file(file_id: int):
 
 @app.route("/boxlight/login", methods=["GET", "POST"])
 def boxlight_login():
-    if request.method == "GET" and current_boxlight():
+    """Legacy Boxlight URL; all external users now share one polished sign-in."""
+    if current_boxlight():
         return redirect(url_for("boxlight_dashboard"))
-    if request.method == "POST":
-        if is_throttled("boxlight"):
-            flash("Too many failed attempts. Please wait and try again.", "danger")
-            return render_template("boxlight/login.html"), 429
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
-        account = BoxlightAccount.query.filter(
-            db.func.lower(BoxlightAccount.username) == username.lower(),
-            BoxlightAccount.active.is_(True),
-        ).first()
-        if account and account.check_password(password):
-            clear_failures("boxlight")
-            session["boxlight_account_id"] = account.id
-            session.permanent = True
-            return redirect(safe_next(request.args.get("next"), "boxlight_dashboard"))
-        record_failure("boxlight")
-        flash("Invalid username or password.", "danger")
-    return render_template("boxlight/login.html")
+    return redirect(url_for("cp_login", next=url_for("boxlight_dashboard")))
 
 
 @app.route("/boxlight/logout")
 def boxlight_logout():
     session.pop("boxlight_account_id", None)
-    return redirect(url_for("boxlight_login"))
+    return redirect(url_for("cp_login"))
 
 
 @app.route("/boxlight")
