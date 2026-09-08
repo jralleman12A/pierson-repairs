@@ -10,7 +10,7 @@
         <div class="detail-sub">{{ unit.intake_id }} · {{ unit.model or 'Model not recorded' }}</div>
     </div>
     <div class="actions">
-        <a class="btn" href="{{ url_for('boxlight_dashboard') }}">Back to Boxlight dashboard</a>
+        <a class="btn" href="{{ url_for('boxlight_repairs') }}">Back to repairs</a>
         <a class="btn primary" href="{{ url_for('boxlight_messages', unit_id=unit.id) }}">Message Pierson</a>
         <a class="btn" href="{{ url_for('boxlight_export_repairs') }}">Export repairs</a>
     </div>

@@ -53,7 +53,7 @@
                     <td><span class="status {% if u.status in ['Completed','Delivered to MCPS','Shipped Back to MCPS'] %}good{% elif u.status=='Scrapped' %}bad{% elif u.status in ['In Repair','Waiting on Parts'] %}info{% else %}warn{% endif %}">{{ u.status }}</span></td>
                     <td>{{ u.date_received or '—' }}</td>
                     <td>{{ u.repaired_date or '—' }}</td>
-                    <td>{{ u.final_outcome|truncate(48) or '—' }}</td>
+                    <td>{{ (u.final_outcome or '')|truncate(48) or '—' }}</td>
                     <td class="mono">{% if u.replacement_panel %}{{ u.replacement_panel[0].serial_number }}{% else %}—{% endif %}</td>
                     <td><a href="{{ url_for('boxlight_repair_detail', unit_id=u.id) }}">View</a></td>
                 </tr>
