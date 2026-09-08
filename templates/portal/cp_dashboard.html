@@ -78,77 +78,75 @@
 {% endif %}
 
 <div class="logistics">
-<div class="cp-section">
-    <div class="cp-section-head">
-        <div class="cp-section-title">Scheduled for pickup</div>
-        {% if cp_counts.pickups %}
-            <a href="{{ url_for('cp_pickups') }}" class="cp-section-meta">View all {{ cp_counts.pickups }}</a>
-        {% endif %}
-    </div>
-
-    {% if pickups %}
-    <table class="cp-table">
-        <thead>
-            <tr><th>Intake ID</th><th>Panel</th><th>Serial number</th><th>Location</th><th></th></tr>
-        </thead>
-        <tbody>
-        {% for unit in pickups %}
-            <tr>
-                <td><strong>{{ unit.intake_id }}</strong></td>
-                <td>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</td>
-                <td class="mono">{{ unit.serial_number|dash }}</td>
-                <td>{{ unit.source|dash }}</td>
-                <td><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-        <div class="cp-empty">
-            Nothing scheduled for collection. Panels booked for pickup appear here
-            with their locations so your team can prepare them.
+    <section class="cp-section dashboard-panel">
+        <div class="cp-section-head">
+            <div>
+                <div class="cp-section-title">Scheduled for pickup</div>
+                <div style="font-size:13px;color:var(--muted);margin-top:3px;">Panels your team is preparing for collection</div>
+            </div>
+            {% if cp_counts.pickups %}
+                <a href="{{ url_for('cp_pickups') }}" class="cp-section-meta">View all {{ cp_counts.pickups }}</a>
+            {% endif %}
         </div>
-    {% endif %}
-</div>
 
-<div class="cp-section">
-    <div class="cp-section-head">
-        <div class="cp-section-title">Coming back to you</div>
-        {% if cp_counts.schedule %}
-            <a href="{{ url_for('cp_schedule') }}" class="cp-section-meta">View all {{ cp_counts.schedule }}</a>
-        {% endif %}
-    </div>
-
-    {% if upcoming %}
-    <table class="cp-table">
-        <thead>
-            <tr><th>Intake ID</th><th>Panel</th><th>Delivery date</th><th>Returning to</th><th>Status</th><th></th></tr>
-        </thead>
-        <tbody>
-        {% for unit in upcoming %}
-            <tr>
-                <td><strong>{{ unit.intake_id }}</strong></td>
-                <td>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</td>
-                <td>{{ unit.delivery_date|nicedate }}</td>
-                <td>{{ unit.source|dash }}</td>
-                <td><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></td>
-                <td><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-        <div class="cp-empty">
-            Nothing scheduled for delivery. Once a repair is finished and a return
-            run is booked, the panel appears here with its date and destination.
+        {% if pickups %}
+        <div class="dashboard-list-head">
+            <div>Intake</div><div>Panel</div><div>Serial</div><div>Location</div><div></div>
         </div>
-    {% endif %}
-</div>
+        <div class="dashboard-list">
+            {% for unit in pickups %}
+            <div class="dashboard-row">
+                <div class="primary">{{ unit.intake_id }}</div>
+                <div>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</div>
+                <div class="mono">{{ unit.serial_number|dash }}</div>
+                <div class="secondary">{{ unit.source|dash }}</div>
+                <div class="row-action"><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+            <div class="cp-empty">Nothing is scheduled for collection right now. When a pickup is booked, the panel and location will appear here.</div>
+        {% endif %}
+    </section>
+
+    <section class="cp-section dashboard-panel">
+        <div class="cp-section-head">
+            <div>
+                <div class="cp-section-title">Coming back to you</div>
+                <div style="font-size:13px;color:var(--muted);margin-top:3px;">Completed panels with a return delivery scheduled</div>
+            </div>
+            {% if cp_counts.schedule %}
+                <a href="{{ url_for('cp_schedule') }}" class="cp-section-meta">View all {{ cp_counts.schedule }}</a>
+            {% endif %}
+        </div>
+
+        {% if upcoming %}
+        <div class="dashboard-list-head" style="grid-template-columns:minmax(105px,.9fr) minmax(150px,1.25fr) minmax(120px,1fr) minmax(120px,1fr) 54px;">
+            <div>Intake</div><div>Panel</div><div>Delivery</div><div>Status</div><div></div>
+        </div>
+        <div class="dashboard-list">
+            {% for unit in upcoming %}
+            <div class="dashboard-row" style="grid-template-columns:minmax(105px,.9fr) minmax(150px,1.25fr) minmax(120px,1fr) minmax(120px,1fr) 54px;">
+                <div class="primary">{{ unit.intake_id }}</div>
+                <div>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</div>
+                <div class="secondary">{{ unit.delivery_date|nicedate }}</div>
+                <div><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></div>
+                <div class="row-action"><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+            <div class="cp-empty">No return delivery is scheduled yet. Finished repairs will appear here as soon as a delivery run is booked.</div>
+        {% endif %}
+    </section>
 </div>
 
-<div class="cp-section">
+<section class="cp-section dashboard-panel dashboard-panel--wide">
     <div class="cp-section-head">
-        <div class="cp-section-title">Recent repairs</div>
+        <div>
+            <div class="cp-section-title">Recent repairs</div>
+            <div style="font-size:13px;color:var(--muted);margin-top:3px;">Latest activity across your repair inventory</div>
+        </div>
         {% if total_repairs > recent_repairs|length %}
             <a href="{{ url_for('cp_repairs') }}" class="cp-section-meta">View all {{ total_repairs }}</a>
         {% endif %}
@@ -178,7 +176,7 @@
     {% else %}
         <div class="cp-empty">No repair records yet.</div>
     {% endif %}
-</div>
+</section>
 
 {% if files %}
 <div class="cp-section">
