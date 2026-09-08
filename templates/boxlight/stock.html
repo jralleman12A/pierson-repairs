@@ -1,5 +1,63 @@
-{% extends 'boxlight/base.html' %}{% block title %}Replacement stock{% endblock %}{% block page_title %}Warranty replacement stock{% endblock %}
-{% block content %}<div class="section" style="margin-top:22px"><div class="section-head"><div><div class="section-title">Current inventory</div></div><a class="btn" href="{{url_for('boxlight_export_stock')}}">Export CSV</a></div>
-{% if panels %}<table class="table"><thead><tr><th>Serial number</th><th>Model</th><th>Status</th><th>Received</th><th>Used for original SN</th><th>Notes</th></tr></thead><tbody>
-{% for p in panels %}<tr><td class="mono"><strong>{{p.serial_number}}</strong></td><td>{{p.model or '—'}}</td><td><span class="pill {% if p.status=='Available' %}good{% elif p.status=='Used' %}warn{% endif %}">{{p.status}}</span></td><td>{{p.date_received or '—'}}</td><td class="mono">{% if p.used_for_unit %}{{p.used_for_unit.serial_number}}{% else %}—{% endif %}</td><td>{{p.notes or '—'}}</td></tr>{% endfor %}
-</tbody></table>{% else %}<div class="empty">No warranty replacement panels have been entered yet.</div>{% endif %}</div>{% endblock %}
+{% extends 'boxlight/base.html' %}
+{% block title %}Replacement stock{% endblock %}
+{% block page_title %}Warranty replacement stock{% endblock %}
+{% block content %}
+
+{% set available = panels|selectattr('status','equalto','Available')|list|length %}
+{% set used = panels|selectattr('status','equalto','Used')|list|length %}
+
+<div class="intro">
+    <div>
+        <div class="eyebrow">Boxlight-owned inventory at Pierson</div>
+        <h1 class="intro-title">Warranty replacement panels</h1>
+        <div class="intro-copy">Serial-level history of new panels supplied for full-warranty replacement when an original unit cannot be economically repaired.</div>
+    </div>
+    <a class="btn" href="{{ url_for('boxlight_export_stock') }}">Export CSV</a>
+</div>
+
+<div class="metrics" style="grid-template-columns:repeat(3,1fr)">
+    <div class="metric"><div class="metric-value">{{ panels|length }}</div><div class="metric-label">Total stock history</div></div>
+    <div class="metric"><div class="metric-value">{{ available }}</div><div class="metric-label">Available now</div></div>
+    <div class="metric"><div class="metric-value">{{ used }}</div><div class="metric-label">Used for warranty fulfillment</div></div>
+</div>
+
+<section class="section">
+    <div class="section-head">
+        <div>
+            <div class="section-title">Replacement inventory</div>
+            <div class="section-caption">Every replacement serial received and its disposition</div>
+        </div>
+    </div>
+    {% if panels %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Replacement serial</th>
+                    <th>Panel</th>
+                    <th>Status</th>
+                    <th>Received</th>
+                    <th>Original serial replaced</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for p in panels %}
+                <tr>
+                    <td class="mono"><strong>{{ p.serial_number }}</strong></td>
+                    <td>{{ p.model or '—' }}</td>
+                    <td><span class="status {% if p.status=='Available' %}good{% elif p.status=='Used' %}warn{% endif %}">{{ p.status }}</span></td>
+                    <td>{{ p.date_received or '—' }}</td>
+                    <td class="mono">{% if p.used_for_unit %}<a class="table-link" href="{{ url_for('boxlight_repair_detail', unit_id=p.used_for_unit.id) }}">{{ p.used_for_unit.serial_number or p.used_for_unit.intake_id }}</a>{% else %}—{% endif %}</td>
+                    <td>{{ p.notes or '—' }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <div class="empty">No warranty replacement panels have been entered.</div>
+    {% endif %}
+</section>
+
+{% endblock %}

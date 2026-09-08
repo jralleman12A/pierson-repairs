@@ -1,0 +1,54 @@
+{% extends "boxlight/base.html" %}
+{% block title %}Messages{% endblock %}
+{% block page_title %}Service communications{% endblock %}
+{% block content %}
+<section class="intro">
+  <div>
+    <div class="eyebrow">Pierson service desk</div>
+    <h1>Messages</h1>
+    <p>Keep repair questions and warranty conversations in one place with the service team.</p>
+  </div>
+</section>
+
+<div style="display:grid;grid-template-columns:minmax(300px,420px) 1fr;gap:36px;align-items:start;">
+  <section>
+    <div class="section-head"><div><div class="section-kicker">New conversation</div><h2>Contact Pierson</h2></div></div>
+    <form method="post" action="{{ url_for('boxlight_message_new') }}" style="border-top:1px solid var(--line);padding-top:18px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px;">Related repair</label>
+      <select name="unit_id" style="width:100%;height:38px;border:1px solid var(--line);background:#fff;padding:0 10px;margin-bottom:14px;">
+        <option value="">General service question</option>
+        {% for u in units %}<option value="{{u.id}}" {% if request.args.get('unit_id') == u.id|string %}selected{% endif %}>{{u.intake_id}} · {{u.serial_number|dash}} · {{u.model|dash}}</option>{% endfor %}
+      </select>
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px;">Subject</label>
+      <input name="subject" maxlength="220" required style="width:100%;height:38px;border:1px solid var(--line);padding:0 10px;margin-bottom:14px;" placeholder="What do you need from Pierson?">
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px;">Message</label>
+      <textarea name="message" rows="6" required style="width:100%;border:1px solid var(--line);padding:10px;resize:vertical;margin-bottom:12px;" placeholder="Add the details your service team needs..."></textarea>
+      <button type="submit" class="btn primary">Send message</button>
+    </form>
+  </section>
+
+  <section>
+    <div class="section-head"><div><div class="section-kicker">History</div><h2>Conversations</h2></div></div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Subject</th><th>Repair</th><th>Last activity</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {% for t in threads %}
+          {% set unread = t.messages|selectattr('sender_type','equalto','admin')|selectattr('read_by_boxlight','equalto',false)|list|length %}
+          <tr>
+            <td><a class="table-link" href="{{url_for('boxlight_message_thread',thread_id=t.id)}}">{{t.subject}}</a>{% if unread %}<span style="margin-left:7px;background:#ef4f25;color:#fff;font-size:10px;padding:2px 6px;border-radius:10px;">{{unread}} new</span>{% endif %}<div class="muted" style="font-size:11px;margin-top:3px;">{{t.created_by_name|dash}}</div></td>
+            <td>{% if t.unit %}<span class="mono">{{t.unit.serial_number|dash}}</span><div class="muted" style="font-size:11px;">{{t.unit.intake_id}}</div>{% else %}<span class="muted">General</span>{% endif %}</td>
+            <td>{{t.updated_at|dt}}</td>
+            <td><span class="status">{{'Closed' if t.is_closed else 'Open'}}</span></td>
+            <td><a class="table-link" href="{{url_for('boxlight_message_thread',thread_id=t.id)}}">Open</a></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="muted" style="padding:24px 0;">No conversations yet.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

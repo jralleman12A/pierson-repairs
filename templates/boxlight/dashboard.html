@@ -1,18 +1,86 @@
 {% extends 'boxlight/base.html' %}
-{% block title %}Overview{% endblock %}{% block page_title %}Service overview{% endblock %}
+{% block title %}Overview{% endblock %}
+{% block page_title %}Boxlight service overview{% endblock %}
 {% block content %}
-<div class="stats">
-    <div class="stat"><div class="stat-num">{{ counts.total_repairs }}</div><div class="stat-label">Panels on record</div></div>
-    <div class="stat"><div class="stat-num">{{ counts.open_repairs }}</div><div class="stat-label">Currently open</div></div>
-    <div class="stat"><div class="stat-num">{{ counts.repaired }}</div><div class="stat-label">Repaired / completed</div></div>
-    <div class="stat"><div class="stat-num">{{ counts.unrepairable }}</div><div class="stat-label">Unrepairable</div></div>
-    <div class="stat"><div class="stat-num">{{ counts.stock_available }}</div><div class="stat-label">Replacement panels available</div></div>
+
+<div class="intro">
+    <div>
+        <div class="eyebrow">Pierson service-provider reporting</div>
+        <h1 class="intro-title">Repair and warranty replacement visibility</h1>
+        <div class="intro-copy">Current repair serials, completion status, unrepairable units, and Boxlight-owned replacement inventory held by Pierson.</div>
+    </div>
+    <div class="actions">
+        <a class="btn" href="{{ url_for('boxlight_export_repairs') }}">Export repairs</a>
+        <a class="btn" href="{{ url_for('boxlight_export_stock') }}">Export stock</a>
+    </div>
 </div>
-<div class="section">
-    <div class="section-head"><div class="section-title">Recently updated repairs</div><div class="actions"><a class="btn" href="{{url_for('boxlight_repairs')}}">View all repairs</a><a class="btn" href="{{url_for('boxlight_export_repairs')}}">Export CSV</a></div></div>
-    {% if units %}<table class="table"><thead><tr><th>Serial number</th><th>Panel</th><th>Status</th><th>Issue</th><th>Last updated</th><th></th></tr></thead><tbody>
-    {% for u in units %}<tr><td class="mono"><strong>{{u.serial_number or '—'}}</strong></td><td>{{u.model or '—'}}</td><td><span class="pill {% if u.status in ['Completed','Delivered to MCPS','Shipped Back to MCPS'] %}good{% elif u.status=='Scrapped' %}bad{% endif %}">{{u.status}}</span></td><td>{{u.reported_issue|truncate(72) or '—'}}</td><td>{{u.updated_at.strftime('%b %d, %Y') if u.updated_at else '—'}}</td><td><a href="{{url_for('boxlight_repair_detail',unit_id=u.id)}}">View</a></td></tr>{% endfor %}
-    </tbody></table>{% else %}<div class="empty">No repair records are available yet.</div>{% endif %}
+
+<div class="metrics">
+    <div class="metric"><div class="metric-value">{{ counts.total_repairs }}</div><div class="metric-label">Repair records</div></div>
+    <div class="metric"><div class="metric-value">{{ counts.open_repairs }}</div><div class="metric-label">Currently open</div></div>
+    <div class="metric"><div class="metric-value">{{ counts.repaired }}</div><div class="metric-label">Repaired / returned</div></div>
+    <div class="metric"><div class="metric-value">{{ counts.unrepairable }}</div><div class="metric-label">Beyond economical repair</div></div>
+    <div class="metric"><div class="metric-value">{{ counts.stock_available }}</div><div class="metric-label">Replacement units available</div></div>
 </div>
-<div class="section"><div class="section-head"><div class="section-title">Warranty replacement inventory</div><a href="{{url_for('boxlight_stock')}}">View inventory</a></div><div class="stock-summary" style="margin-top:14px;">{{counts.stock_available}} of {{counts.stock_total}} replacement panel{{'' if counts.stock_total==1 else 's'}} currently available for warranty fulfillment.</div></div>
+
+<div class="split">
+    <section class="flat-panel">
+        <div class="section-head">
+            <div>
+                <div class="section-title">Recently updated repairs</div>
+                <div class="section-caption">Latest service activity by panel serial number</div>
+            </div>
+            <a href="{{ url_for('boxlight_repairs') }}">View all repairs</a>
+        </div>
+
+        {% if units %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Serial number</th>
+                        <th>Panel</th>
+                        <th>Status</th>
+                        <th>Issue</th>
+                        <th>Updated</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for u in units %}
+                    <tr>
+                        <td class="mono"><a class="table-link" href="{{ url_for('boxlight_repair_detail', unit_id=u.id) }}">{{ u.serial_number or 'Not recorded' }}</a></td>
+                        <td>{{ u.model or '—' }}</td>
+                        <td>
+                            <span class="status {% if u.status in ['Completed','Delivered to MCPS','Shipped Back to MCPS'] %}good{% elif u.status == 'Scrapped' %}bad{% elif u.status in ['In Repair','Waiting on Parts'] %}info{% else %}warn{% endif %}">{{ u.status }}</span>
+                        </td>
+                        <td>{{ u.reported_issue|truncate(64) or '—' }}</td>
+                        <td>{{ u.updated_at.strftime('%b %d, %Y') if u.updated_at else '—' }}</td>
+                        <td><a href="{{ url_for('boxlight_repair_detail', unit_id=u.id) }}">View</a></td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+            <div class="empty">No repair records are available.</div>
+        {% endif %}
+    </section>
+
+    <aside class="flat-panel">
+        <div class="section-head">
+            <div>
+                <div class="section-title">Warranty replacement inventory</div>
+                <div class="section-caption">Boxlight replacement stock at Pierson</div>
+            </div>
+        </div>
+        <div class="summary-list">
+            <div class="summary-row"><div class="summary-row-label">Available for warranty fulfillment</div><div class="summary-row-value">{{ counts.stock_available }}</div></div>
+            <div class="summary-row"><div class="summary-row-label">Total stock history</div><div class="summary-row-value">{{ counts.stock_total }}</div></div>
+            <div class="summary-row"><div class="summary-row-label">Used / reserved history</div><div class="summary-row-value">{{ counts.stock_total - counts.stock_available }}</div></div>
+        </div>
+        <div style="padding-top:14px"><a href="{{ url_for('boxlight_stock') }}">Open replacement inventory →</a></div>
+    </aside>
+</div>
+
 {% endblock %}

@@ -1,0 +1,37 @@
+{% extends "boxlight/base.html" %}
+{% block title %}{{thread.subject}}{% endblock %}
+{% block page_title %}Service communications{% endblock %}
+{% block content %}
+<div class="detail-head">
+  <div>
+    <div class="eyebrow">Conversation #{{thread.id}}</div>
+    <h1>{{thread.subject}}</h1>
+    <p>{% if thread.unit %}Repair {{thread.unit.intake_id}} · SN {{thread.unit.serial_number|dash}}{% else %}General Boxlight service conversation{% endif %}</p>
+  </div>
+  <div><a class="btn" href="{{url_for('boxlight_messages')}}">Back to messages</a></div>
+</div>
+
+<section style="max-width:900px;border-top:1px solid var(--line);">
+  {% for m in thread.messages %}
+  <article style="padding:20px 0;border-bottom:1px solid var(--line-soft);display:grid;grid-template-columns:160px 1fr;gap:24px;">
+    <div>
+      <div style="font-weight:700;color:var(--ink);">{{m.sender_name|dash}}</div>
+      <div class="muted" style="font-size:11px;margin-top:3px;">{{'Pierson' if m.sender_type=='admin' else 'Boxlight'}}</div>
+      <div class="muted" style="font-size:11px;margin-top:6px;">{{m.created_at|dt}}</div>
+    </div>
+    <div style="white-space:pre-wrap;line-height:1.65;color:#263244;">{{m.body}}</div>
+  </article>
+  {% endfor %}
+</section>
+
+{% if not thread.is_closed %}
+<form method="post" action="{{url_for('boxlight_message_reply',thread_id=thread.id)}}" style="max-width:900px;padding-top:22px;">
+  <input type="hidden" name="csrf_token" value="{{csrf_token()}}">
+  <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:7px;">Reply to Pierson</label>
+  <textarea name="message" rows="5" required style="width:100%;border:1px solid var(--line);padding:12px;resize:vertical;margin-bottom:10px;"></textarea>
+  <button class="btn primary" type="submit">Send reply</button>
+</form>
+{% else %}
+<div style="margin-top:22px;padding:14px 0;border-top:1px solid var(--line);color:var(--muted);">This conversation has been closed by Pierson.</div>
+{% endif %}
+{% endblock %}

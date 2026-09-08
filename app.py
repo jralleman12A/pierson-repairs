@@ -334,6 +334,46 @@ class RepairNote(db.Model, RowLikeMixin):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class BoxlightMessageThread(db.Model, RowLikeMixin):
+    __tablename__ = "boxlight_message_threads"
+
+    id = db.Column(db.Integer, primary_key=True)
+    subject = db.Column(db.String(220), nullable=False)
+    unit_id = db.Column(db.Integer, db.ForeignKey("units.id"), nullable=True, index=True)
+    created_by_type = db.Column(db.String(20), nullable=False, default="boxlight")
+    created_by_name = db.Column(db.String(120), default="")
+    is_closed = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
+
+    unit = db.relationship("Unit", foreign_keys=[unit_id])
+    messages = db.relationship(
+        "BoxlightMessage",
+        backref="thread",
+        lazy=True,
+        cascade="all, delete-orphan",
+        order_by="BoxlightMessage.created_at.asc()",
+    )
+
+
+class BoxlightMessage(db.Model, RowLikeMixin):
+    __tablename__ = "boxlight_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    thread_id = db.Column(
+        db.Integer,
+        db.ForeignKey("boxlight_message_threads.id"),
+        nullable=False,
+        index=True,
+    )
+    sender_type = db.Column(db.String(20), nullable=False)  # admin | boxlight
+    sender_name = db.Column(db.String(120), default="")
+    body = db.Column(db.Text, nullable=False)
+    read_by_admin = db.Column(db.Boolean, nullable=False, default=False)
+    read_by_boxlight = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+
 class EmailSettings(db.Model, RowLikeMixin):
     __tablename__ = "email_settings"
 
@@ -635,12 +675,36 @@ def client_section_counts() -> dict[str, int]:
     }
 
 
+def boxlight_unread_count() -> int:
+    if current_boxlight() is None:
+        return 0
+    try:
+        return BoxlightMessage.query.filter_by(
+            sender_type="admin", read_by_boxlight=False
+        ).count()
+    except Exception:
+        return 0
+
+
+def admin_boxlight_unread_count() -> int:
+    if current_user() is None:
+        return 0
+    try:
+        return BoxlightMessage.query.filter_by(
+            sender_type="boxlight", read_by_admin=False
+        ).count()
+    except Exception:
+        return 0
+
+
 @app.context_processor
 def inject_globals():
     return {
         "current_user": current_user(),
         "current_client": current_client(),
         "current_boxlight": current_boxlight(),
+        "boxlight_unread": boxlight_unread_count(),
+        "admin_boxlight_unread": admin_boxlight_unread_count(),
         "STATUSES": STATUSES,
         "STATUS_BADGE_CLASSES": STATUS_BADGE_CLASSES,
         "logo_available": LOGO_PATH.exists(),
@@ -745,7 +809,7 @@ def sync_postgres_sequences() -> None:
     if db.engine.dialect.name != "postgresql":
         return
 
-    for table_name in ("units", "repair_notes", "replacement_panels", "boxlight_accounts"):
+    for table_name in ("units", "repair_notes", "replacement_panels", "boxlight_accounts", "boxlight_message_threads", "boxlight_messages"):
         try:
             db.session.execute(text(f"""
                 SELECT setval(
@@ -2371,6 +2435,174 @@ def boxlight_export_stock():
                     p.used_for_unit.serial_number if p.used_for_unit else "", p.notes])
     return Response(output.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=boxlight_replacement_stock.csv"})
+
+
+# ───────────────────────────────────────────────────────────
+# BOXLIGHT ↔ PIERSON SERVICE COMMUNICATIONS
+# ───────────────────────────────────────────────────────────
+
+def _mark_boxlight_messages_read(thread: BoxlightMessageThread) -> None:
+    changed = False
+    for message in thread.messages:
+        if message.sender_type == "admin" and not message.read_by_boxlight:
+            message.read_by_boxlight = True
+            changed = True
+    if changed:
+        db.session.commit()
+
+
+def _mark_admin_messages_read(thread: BoxlightMessageThread) -> None:
+    changed = False
+    for message in thread.messages:
+        if message.sender_type == "boxlight" and not message.read_by_admin:
+            message.read_by_admin = True
+            changed = True
+    if changed:
+        db.session.commit()
+
+
+@app.route("/boxlight/messages")
+@boxlight_login_required
+def boxlight_messages():
+    threads = BoxlightMessageThread.query.order_by(
+        BoxlightMessageThread.updated_at.desc(), BoxlightMessageThread.id.desc()
+    ).all()
+    units = Unit.query.filter(Unit.is_deleted.is_(False)).order_by(Unit.id.desc()).all()
+    return render_template("boxlight/messages.html", threads=threads, units=units)
+
+
+@app.route("/boxlight/messages/new", methods=["POST"])
+@boxlight_login_required
+def boxlight_message_new():
+    rep = current_boxlight()
+    subject = request.form.get("subject", "").strip()
+    body = request.form.get("message", "").strip()
+    unit_id_raw = request.form.get("unit_id", "").strip()
+
+    if not subject or not body:
+        flash("Add a subject and message before sending.", "warning")
+        return redirect(url_for("boxlight_messages"))
+
+    unit = None
+    if unit_id_raw:
+        try:
+            unit = Unit.query.filter_by(id=int(unit_id_raw), is_deleted=False).first()
+        except ValueError:
+            unit = None
+
+    sender_name = (rep.contact_name or rep.username or "Boxlight").strip()
+    thread = BoxlightMessageThread(
+        subject=subject[:220],
+        unit_id=unit.id if unit else None,
+        created_by_type="boxlight",
+        created_by_name=sender_name,
+    )
+    db.session.add(thread)
+    db.session.flush()
+    db.session.add(BoxlightMessage(
+        thread_id=thread.id,
+        sender_type="boxlight",
+        sender_name=sender_name,
+        body=body,
+        read_by_admin=False,
+        read_by_boxlight=True,
+    ))
+    thread.updated_at = datetime.utcnow()
+    db.session.commit()
+    flash("Message sent to Pierson service administration.", "success")
+    return redirect(url_for("boxlight_message_thread", thread_id=thread.id))
+
+
+@app.route("/boxlight/messages/<int:thread_id>")
+@boxlight_login_required
+def boxlight_message_thread(thread_id: int):
+    thread = BoxlightMessageThread.query.get_or_404(thread_id)
+    _mark_boxlight_messages_read(thread)
+    return render_template("boxlight/message_thread.html", thread=thread)
+
+
+@app.route("/boxlight/messages/<int:thread_id>/reply", methods=["POST"])
+@boxlight_login_required
+def boxlight_message_reply(thread_id: int):
+    thread = BoxlightMessageThread.query.get_or_404(thread_id)
+    if thread.is_closed:
+        flash("This conversation is closed.", "warning")
+        return redirect(url_for("boxlight_message_thread", thread_id=thread.id))
+
+    body = request.form.get("message", "").strip()
+    if not body:
+        flash("Type a message before sending.", "warning")
+        return redirect(url_for("boxlight_message_thread", thread_id=thread.id))
+
+    rep = current_boxlight()
+    sender_name = (rep.contact_name or rep.username or "Boxlight").strip()
+    db.session.add(BoxlightMessage(
+        thread_id=thread.id,
+        sender_type="boxlight",
+        sender_name=sender_name,
+        body=body,
+        read_by_admin=False,
+        read_by_boxlight=True,
+    ))
+    thread.updated_at = datetime.utcnow()
+    db.session.commit()
+    return redirect(url_for("boxlight_message_thread", thread_id=thread.id))
+
+
+@app.route("/boxlight-messages")
+@admin_login_required
+def admin_boxlight_messages():
+    threads = BoxlightMessageThread.query.order_by(
+        BoxlightMessageThread.updated_at.desc(), BoxlightMessageThread.id.desc()
+    ).all()
+    return render_template("boxlight/admin_messages.html", threads=threads)
+
+
+@app.route("/boxlight-messages/<int:thread_id>")
+@admin_login_required
+def admin_boxlight_message_thread(thread_id: int):
+    thread = BoxlightMessageThread.query.get_or_404(thread_id)
+    _mark_admin_messages_read(thread)
+    return render_template("boxlight/admin_message_thread.html", thread=thread)
+
+
+@app.route("/boxlight-messages/<int:thread_id>/reply", methods=["POST"])
+@admin_login_required
+def admin_boxlight_message_reply(thread_id: int):
+    thread = BoxlightMessageThread.query.get_or_404(thread_id)
+    if thread.is_closed:
+        flash("This conversation is closed. Reopen it before replying.", "warning")
+        return redirect(url_for("admin_boxlight_message_thread", thread_id=thread.id))
+
+    body = request.form.get("message", "").strip()
+    if not body:
+        flash("Type a message before sending.", "warning")
+        return redirect(url_for("admin_boxlight_message_thread", thread_id=thread.id))
+
+    admin = current_user()
+    sender_name = (admin.username if admin else "Pierson Admin")
+    db.session.add(BoxlightMessage(
+        thread_id=thread.id,
+        sender_type="admin",
+        sender_name=sender_name,
+        body=body,
+        read_by_admin=True,
+        read_by_boxlight=False,
+    ))
+    thread.updated_at = datetime.utcnow()
+    db.session.commit()
+    return redirect(url_for("admin_boxlight_message_thread", thread_id=thread.id))
+
+
+@app.route("/boxlight-messages/<int:thread_id>/toggle", methods=["POST"])
+@admin_login_required
+def admin_boxlight_message_toggle(thread_id: int):
+    thread = BoxlightMessageThread.query.get_or_404(thread_id)
+    thread.is_closed = not thread.is_closed
+    thread.updated_at = datetime.utcnow()
+    db.session.commit()
+    flash("Conversation reopened." if not thread.is_closed else "Conversation closed.", "success")
+    return redirect(url_for("admin_boxlight_message_thread", thread_id=thread.id))
 
 
 @app.route("/replacement-stock")

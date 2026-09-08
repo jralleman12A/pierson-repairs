@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+  <div>
+    <div class="small-label text-uppercase">Boxlight conversation #{{thread.id}}</div>
+    <h2 class="mb-1">{{thread.subject}}</h2>
+    {% if thread.unit %}<div class="text-muted">{{thread.unit.intake_id}} · SN {{thread.unit.serial_number|dash}} · {{thread.unit.model|dash}}</div>{% else %}<div class="text-muted">General service conversation</div>{% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{url_for('admin_boxlight_messages')}}">Back</a>
+    <form method="post" action="{{url_for('admin_boxlight_message_toggle',thread_id=thread.id)}}">
+      <input type="hidden" name="csrf_token" value="{{csrf_token()}}">
+      <button class="btn btn-outline-dark" type="submit">{{'Reopen' if thread.is_closed else 'Close conversation'}}</button>
+    </form>
+  </div>
+</div>
+
+<div style="max-width:900px;border-top:1px solid var(--border);">
+{% for m in thread.messages %}
+  <div style="display:grid;grid-template-columns:170px 1fr;gap:24px;padding:20px 0;border-bottom:1px solid var(--border);">
+    <div><strong>{{m.sender_name|dash}}</strong><div class="text-muted small">{{'Pierson' if m.sender_type=='admin' else 'Boxlight'}}</div><div class="text-muted small mt-1">{{m.created_at|dt}}</div></div>
+    <div style="white-space:pre-wrap;line-height:1.6;">{{m.body}}</div>
+  </div>
+{% endfor %}
+</div>
+
+{% if not thread.is_closed %}
+<form method="post" action="{{url_for('admin_boxlight_message_reply',thread_id=thread.id)}}" style="max-width:900px;padding-top:22px;">
+  <input type="hidden" name="csrf_token" value="{{csrf_token()}}">
+  <label class="small-label">Reply to Boxlight</label>
+  <textarea class="form-control mt-2" name="message" rows="5" required></textarea>
+  <button class="btn btn-primary mt-3" type="submit">Send Reply</button>
+</form>
+{% endif %}
+{% endblock %}

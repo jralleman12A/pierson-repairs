@@ -1,14 +1,46 @@
-{% extends 'boxlight/base.html' %}{% block title %}{{unit.serial_number}}{% endblock %}{% block page_title %}Repair detail{% endblock %}
+{% extends 'boxlight/base.html' %}
+{% block title %}{{ unit.serial_number or unit.intake_id }}{% endblock %}
+{% block page_title %}Repair detail{% endblock %}
 {% block content %}
-<div class="detail-head"><div><div class="detail-serial mono">{{unit.serial_number or 'No serial number'}}</div><div class="detail-sub">{{unit.intake_id}} &middot; {{unit.model or 'Model not recorded'}}</div></div><div class="actions"><a class="btn" href="{{url_for('boxlight_repairs')}}">Back to repairs</a><a class="btn" href="{{url_for('boxlight_export_repairs')}}">Export repairs</a></div></div>
+
+<div class="detail-head">
+    <div>
+        <div class="eyebrow">Original panel serial</div>
+        <div class="detail-serial mono">{{ unit.serial_number or 'Serial not recorded' }}</div>
+        <div class="detail-sub">{{ unit.intake_id }} · {{ unit.model or 'Model not recorded' }}</div>
+    </div>
+    <div class="actions">
+        <a class="btn" href="{{ url_for('boxlight_repairs') }}">Back to repairs</a>
+        <a class="btn primary" href="{{ url_for('boxlight_messages', unit_id=unit.id) }}">Message Pierson</a>
+        <a class="btn" href="{{ url_for('boxlight_export_repairs') }}">Export repairs</a>
+    </div>
+</div>
+
 <div class="detail-grid">
-<div class="detail-item"><div class="detail-label">Status</div><div class="detail-value"><span class="pill {% if unit.status in ['Completed','Delivered to MCPS','Shipped Back to MCPS'] %}good{% elif unit.status=='Scrapped' %}bad{% endif %}">{{unit.status}}</span></div></div>
-<div class="detail-item"><div class="detail-label">Date received</div><div class="detail-value">{{unit.date_received or '—'}}</div></div>
-<div class="detail-item"><div class="detail-label">Repaired date</div><div class="detail-value">{{unit.repaired_date or '—'}}</div></div>
-<div class="detail-item"><div class="detail-label">Delivery date</div><div class="detail-value">{{unit.delivery_date or '—'}}</div></div>
-<div class="detail-item"><div class="detail-label">School / location</div><div class="detail-value">{{unit.source or '—'}}</div></div>
-<div class="detail-item"><div class="detail-label">Check-off slip</div><div class="detail-value">{{unit.checkoff_status}}</div></div>
-<div class="detail-item" style="grid-column:1/-1"><div class="detail-label">Reported issue</div><div class="detail-value">{{unit.reported_issue or '—'}}</div></div>
-<div class="detail-item" style="grid-column:1/-1"><div class="detail-label">Final outcome</div><div class="detail-value">{{unit.final_outcome or '—'}}</div></div>
-<div class="detail-item" style="grid-column:1/-1"><div class="detail-label">Warranty replacement</div><div class="detail-value">{% if unit.replacement_panel %}<span class="mono"><strong>{{unit.replacement_panel[0].serial_number}}</strong></span> &middot; {{unit.replacement_panel[0].model or 'Model not recorded'}}{% else %}No replacement panel assigned{% endif %}</div></div>
-</div>{% endblock %}
+    <div class="detail-item">
+        <div class="detail-label">Current status</div>
+        <div class="detail-value"><span class="status {% if unit.status in ['Completed','Delivered to MCPS','Shipped Back to MCPS'] %}good{% elif unit.status=='Scrapped' %}bad{% elif unit.status in ['In Repair','Waiting on Parts'] %}info{% else %}warn{% endif %}">{{ unit.status }}</span></div>
+    </div>
+    <div class="detail-item"><div class="detail-label">Date received</div><div class="detail-value">{{ unit.date_received or '—' }}</div></div>
+    <div class="detail-item"><div class="detail-label">Repaired date</div><div class="detail-value">{{ unit.repaired_date or '—' }}</div></div>
+    <div class="detail-item"><div class="detail-label">Delivery / return date</div><div class="detail-value">{{ unit.delivery_date or unit.shipped_back_date or '—' }}</div></div>
+    <div class="detail-item"><div class="detail-label">School / location</div><div class="detail-value">{{ unit.source or '—' }}</div></div>
+    <div class="detail-item"><div class="detail-label">Technician check-off</div><div class="detail-value">{{ unit.checkoff_status }}</div></div>
+
+    <div class="detail-item detail-wide"><div class="detail-label">Reported issue</div><div class="detail-value">{{ unit.reported_issue or '—' }}</div></div>
+    <div class="detail-item detail-wide"><div class="detail-label">Final repair outcome</div><div class="detail-value">{{ unit.final_outcome or 'No final outcome has been entered.' }}</div></div>
+    <div class="detail-item detail-wide">
+        <div class="detail-label">Warranty replacement disposition</div>
+        <div class="detail-value">
+            {% if unit.replacement_panel %}
+                <span class="mono"><strong>{{ unit.replacement_panel[0].serial_number }}</strong></span>
+                · {{ unit.replacement_panel[0].model or 'Model not recorded' }}
+                · {{ unit.replacement_panel[0].status }}
+            {% else %}
+                No replacement panel assigned to this repair.
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
