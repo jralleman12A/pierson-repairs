@@ -84,7 +84,7 @@
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                     <div>
                         <div class="section-title mb-1">Parsed Panels ({{ records|length }})</div>
-                        <div class="import-note">School headings apply only to panels listed after that heading. Missing model/serial rows stay unchecked for review.</div>
+                        <div class="import-note">School headings apply only to panels listed after that heading. Incomplete rows are imported too and flagged for your team to review afterward.</div>
                     </div>
                     <button class="btn btn-success" type="submit">Import Selected Panels</button>
                 </div>
@@ -94,10 +94,10 @@
                     <div class="panel-card {% if r.needs_review %}needs-review{% endif %}">
                         <div class="panel-card-head">
                             <label class="panel-select">
-                                <input type="checkbox" name="include" value="{{ loop.index0 }}" {% if not r.needs_review %}checked{% endif %}>
+                                <input type="checkbox" name="include" value="{{ loop.index0 }}" checked>
                                 Import panel {{ loop.index }}
                             </label>
-                            {% if r.needs_review %}<span class="review-chip">Needs review</span>{% else %}<span class="ok-chip">Ready</span>{% endif %}
+                            {% if r.needs_review %}<span class="review-chip">Will import · Needs review</span>{% else %}<span class="ok-chip">Ready</span>{% endif %}
                         </div>
 
                         <div class="panel-grid">

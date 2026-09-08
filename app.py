@@ -1219,6 +1219,7 @@ def import_email_commit():
 
     imported = 0
     skipped = 0
+    review_imported = 0
     errors: list[str] = []
 
     for i in range(len(serials)):
@@ -1227,13 +1228,19 @@ def import_email_commit():
 
         serial_number = (serials[i] if i < len(serials) else "").strip()
         model = (models[i] if i < len(models) else "").strip()
-        if not serial_number or not model:
-            skipped += 1
-            errors.append(f"Row {i + 1}: model or serial number is missing; review it manually.")
-            continue
+        missing_fields = []
+        if not model:
+            missing_fields.append("model")
+        if not serial_number:
+            missing_fields.append("serial number")
 
-        # Avoid accidentally importing the same physical panel twice.
-        if Unit.query.filter(db.func.lower(Unit.serial_number) == serial_number.lower(), Unit.is_deleted.is_(False)).first():
+        # Incomplete Boxlight data is still useful intake data. Import it and
+        # clearly flag the record for the team instead of throwing it away.
+        needs_review = bool(missing_fields)
+
+        # Avoid accidentally importing the same physical panel twice when a
+        # serial was actually supplied. Blank serials are allowed for review.
+        if serial_number and Unit.query.filter(db.func.lower(Unit.serial_number) == serial_number.lower(), Unit.is_deleted.is_(False)).first():
             skipped += 1
             errors.append(f"{serial_number}: already exists in the tracker.")
             continue
@@ -1249,6 +1256,8 @@ def import_email_commit():
         source = " | ".join(source_bits)[:160]
 
         issue_bits = []
+        if needs_review:
+            issue_bits.append("IMPORT REVIEW: Missing " + " and ".join(missing_fields))
         if location:
             issue_bits.append(location)
         if issue:
@@ -1273,6 +1282,8 @@ def import_email_commit():
             db.session.add(unit)
             db.session.commit()
             imported += 1
+            if needs_review:
+                review_imported += 1
         except IntegrityError as exc:
             db.session.rollback()
             sync_postgres_sequences()
@@ -1280,7 +1291,14 @@ def import_email_commit():
             errors.append(f"{serial_number}: database rejected the row ({getattr(exc, 'orig', exc)}).")
 
     if imported:
-        flash(f"Imported {imported} panel{'s' if imported != 1 else ''} from the support email.", "success")
+        if review_imported:
+            flash(
+                f"Imported {imported} panel{'s' if imported != 1 else ''} from the support email. "
+                f"{review_imported} imported record{'s' if review_imported != 1 else ''} need review for missing model/serial data.",
+                "success",
+            )
+        else:
+            flash(f"Imported {imported} panel{'s' if imported != 1 else ''} from the support email.", "success")
     if skipped:
         flash(f"Skipped {skipped} row{'s' if skipped != 1 else ''}. " + " ".join(errors[:4]), "warning")
     return redirect(url_for("index"))
