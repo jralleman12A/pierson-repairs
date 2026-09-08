@@ -82,7 +82,7 @@
         <div class="cp-section-head">
             <div>
                 <div class="cp-section-title">Scheduled for pickup</div>
-                <div style="font-size:13px;color:var(--muted);margin-top:3px;">Panels your team is preparing for collection</div>
+                <div class="dashboard-subtitle">Panels your team is preparing for collection</div>
             </div>
             {% if cp_counts.pickups %}
                 <a href="{{ url_for('cp_pickups') }}" class="cp-section-meta">View all {{ cp_counts.pickups }}</a>
@@ -100,7 +100,7 @@
                 <div>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</div>
                 <div class="mono">{{ unit.serial_number|dash }}</div>
                 <div class="secondary">{{ unit.source|dash }}</div>
-                <div class="row-action"><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></div>
+                <div class="row-action"><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">Open</a></div>
             </div>
             {% endfor %}
         </div>
@@ -113,7 +113,7 @@
         <div class="cp-section-head">
             <div>
                 <div class="cp-section-title">Coming back to you</div>
-                <div style="font-size:13px;color:var(--muted);margin-top:3px;">Completed panels with a return delivery scheduled</div>
+                <div class="dashboard-subtitle">Completed panels with a return delivery scheduled</div>
             </div>
             {% if cp_counts.schedule %}
                 <a href="{{ url_for('cp_schedule') }}" class="cp-section-meta">View all {{ cp_counts.schedule }}</a>
@@ -121,17 +121,17 @@
         </div>
 
         {% if upcoming %}
-        <div class="dashboard-list-head" style="grid-template-columns:minmax(105px,.9fr) minmax(150px,1.25fr) minmax(120px,1fr) minmax(120px,1fr) 54px;">
+        <div class="dashboard-list-head dashboard-return-head">
             <div>Intake</div><div>Panel</div><div>Delivery</div><div>Status</div><div></div>
         </div>
         <div class="dashboard-list">
             {% for unit in upcoming %}
-            <div class="dashboard-row" style="grid-template-columns:minmax(105px,.9fr) minmax(150px,1.25fr) minmax(120px,1fr) minmax(120px,1fr) 54px;">
+            <div class="dashboard-row dashboard-return-row">
                 <div class="primary">{{ unit.intake_id }}</div>
                 <div>{{ (unit.brand ~ ' ' ~ unit.model)|trim|dash }}</div>
                 <div class="secondary">{{ unit.delivery_date|nicedate }}</div>
                 <div><span class="repair-pill {{ unit.badge_class }}">{{ unit.status }}</span></div>
-                <div class="row-action"><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">View</a></div>
+                <div class="row-action"><a href="{{ url_for('cp_repair_detail', unit_id=unit.id) }}">Open</a></div>
             </div>
             {% endfor %}
         </div>
@@ -145,7 +145,7 @@
     <div class="cp-section-head">
         <div>
             <div class="cp-section-title">Recent repairs</div>
-            <div style="font-size:13px;color:var(--muted);margin-top:3px;">Latest activity across your repair inventory</div>
+            <div class="dashboard-subtitle">Latest activity across your repair inventory</div>
         </div>
         {% if total_repairs > recent_repairs|length %}
             <a href="{{ url_for('cp_repairs') }}" class="cp-section-meta">View all {{ total_repairs }}</a>
