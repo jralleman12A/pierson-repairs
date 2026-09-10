@@ -21,9 +21,14 @@
     <a href="{{ url_for('new_story_intake') }}" class="{% if request.endpoint=='new_story_intake' %}active{% endif %}">Email Intake</a>
     <a href="{{ url_for('new_story_assets') }}" class="{% if request.endpoint=='new_story_assets' %}active{% endif %}">Assets</a>
     <a href="{{ url_for('new_story_receiving') }}" class="{% if request.endpoint=='new_story_receiving' %}active{% endif %}">Receiving</a>
+    <a href="{{ url_for('new_story_procurement') }}" class="{% if request.endpoint=='new_story_procurement' %}active{% endif %}">Procurement</a>
     <a href="{{ url_for('new_story_shipments') }}" class="{% if request.endpoint=='new_story_shipments' %}active{% endif %}">Shipments & Returns</a>
+    <a href="{{ url_for('new_story_service_history') }}" class="{% if request.endpoint=='new_story_service_history' %}active{% endif %}">Service History</a>
+    <a href="{{ url_for('new_story_installations') }}" class="{% if request.endpoint=='new_story_installations' %}active{% endif %}">Installations</a>
     <a href="{{ url_for('new_story_exceptions') }}" class="{% if request.endpoint=='new_story_exceptions' %}active{% endif %}">Exceptions</a>
     <a href="{{ url_for('new_story_locations') }}" class="{% if request.endpoint=='new_story_locations' %}active{% endif %}">Locations</a>
+    <a href="{{ url_for('new_story_domains') }}" class="{% if request.endpoint=='new_story_domains' %}active{% endif %}">Domains</a>
+    <a href="{{ url_for('new_story_legacy_import') }}" class="{% if request.endpoint=='new_story_legacy_import' %}active{% endif %}">Legacy Import</a>
   </nav>
   <div class="sidefoot"><a href="{{ url_for('index') }}">← Boxlight / MCPS</a><br><br><a href="{{ url_for('logout') }}">Sign out</a></div>
 </aside>

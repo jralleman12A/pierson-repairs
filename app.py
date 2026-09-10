@@ -644,6 +644,103 @@ class NewStoryActivity(db.Model, RowLikeMixin):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
 
+class NewStoryOrderLine(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_order_lines"
+
+    id = db.Column(db.Integer, primary_key=True)
+    status = db.Column(db.String(80), default="", index=True)
+    order_date = db.Column(db.DateTime, nullable=True)
+    order_date_raw = db.Column(db.String(80), default="")
+    customer_po = db.Column(db.String(120), default="", index=True)
+    project_name = db.Column(db.String(220), default="")
+    vendor_invoice = db.Column(db.String(120), default="")
+    vendor_order = db.Column(db.String(120), default="", index=True)
+    description = db.Column(db.String(260), default="", index=True)
+    tracking_number = db.Column(db.String(220), default="")
+    quantity_ordered = db.Column(db.Integer, nullable=False, default=0)
+    sales_order = db.Column(db.String(120), default="")
+    quantity_received = db.Column(db.Integer, nullable=False, default=0)
+    quantity_shipped = db.Column(db.Integer, nullable=False, default=0)
+    quantity_remaining = db.Column(db.Integer, nullable=False, default=0)
+    source = db.Column(db.String(80), default="Legacy Workbook")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class NewStoryServiceEvent(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_service_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey("new_story_requests.id"), nullable=True, index=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey("new_story_assets.id"), nullable=True, index=True)
+    person = db.Column(db.String(180), default="")
+    event_date = db.Column(db.DateTime, nullable=True, index=True)
+    event_date_raw = db.Column(db.String(80), default="")
+    device_type = db.Column(db.String(100), default="", index=True)
+    serial_number = db.Column(db.String(220), default="", index=True)
+    asset_tag = db.Column(db.String(160), default="", index=True)
+    issue_category = db.Column(db.String(180), default="", index=True)
+    tracking_number = db.Column(db.String(220), default="")
+    ticket_number = db.Column(db.String(120), default="", index=True)
+    outcome = db.Column(db.String(160), default="", index=True)
+    resolved = db.Column(db.Boolean, nullable=False, default=False)
+    comments = db.Column(db.Text, default="")
+    customer_update = db.Column(db.Text, default="")
+    source = db.Column(db.String(80), default="Legacy Workbook")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    request = db.relationship("NewStoryRequest", backref="service_events")
+    asset = db.relationship("NewStoryAsset", backref="service_events")
+
+
+class NewStoryInstallation(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_installations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    location_id = db.Column(db.Integer, db.ForeignKey("new_story_locations.id"), nullable=True, index=True)
+    install_date = db.Column(db.DateTime, nullable=True, index=True)
+    install_date_raw = db.Column(db.String(80), default="")
+    arrival_time = db.Column(db.String(80), default="")
+    availability = db.Column(db.String(220), default="")
+    school_name = db.Column(db.String(180), default="", index=True)
+    address = db.Column(db.String(500), default="")
+    contact = db.Column(db.String(260), default="")
+    phone = db.Column(db.String(120), default="")
+    panel_count = db.Column(db.Integer, nullable=False, default=0)
+    rooms = db.Column(db.Text, default="")
+    customer_po = db.Column(db.String(120), default="", index=True)
+    status = db.Column(db.String(100), default="", index=True)
+    expected_range = db.Column(db.String(180), default="")
+    notes = db.Column(db.Text, default="")
+    floor_plan = db.Column(db.String(220), default="")
+    source = db.Column(db.String(80), default="Legacy Workbook")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    location = db.relationship("NewStoryLocation", backref="installations")
+
+
+class NewStoryDomain(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_domains"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(160), nullable=False, default="", index=True)
+    tenant = db.Column(db.String(180), default="")
+    domain = db.Column(db.String(180), default="")
+    parent_ou = db.Column(db.String(220), default="")
+    notes = db.Column(db.Text, default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class NewStoryLegacyImport(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_legacy_imports"
+
+    id = db.Column(db.Integer, primary_key=True)
+    source_name = db.Column(db.String(260), nullable=False)
+    source_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    counts_json = db.Column(db.Text, default="{}")
+    imported_by = db.Column(db.String(120), default="Pierson")
+    imported_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 # ═══════════════════════════════════════════════════════════
 # TEMPLATE HELPERS
 # ═══════════════════════════════════════════════════════════
@@ -3019,6 +3116,9 @@ def new_story_dashboard():
     ).count()
     available_assets = NewStoryAsset.query.filter_by(status="Available").count()
     awaiting_return = NewStoryRequest.query.filter_by(status="Awaiting Return").count()
+    open_order_lines = NewStoryOrderLine.query.filter(NewStoryOrderLine.quantity_remaining > 0).count()
+    service_events = NewStoryServiceEvent.query.count()
+    active_installs = NewStoryInstallation.query.filter(~NewStoryInstallation.status.ilike("%complete%")).count()
     recent = NewStoryRequest.query.order_by(NewStoryRequest.updated_at.desc()).limit(15).all()
     status_counts = {
         status: NewStoryRequest.query.filter_by(status=status).count()
@@ -3030,6 +3130,9 @@ def new_story_dashboard():
         needs_attention=needs_attention,
         available_assets=available_assets,
         awaiting_return=awaiting_return,
+        open_order_lines=open_order_lines,
+        service_events=service_events,
+        active_installs=active_installs,
         recent=recent,
         status_counts=status_counts,
     )
@@ -3451,6 +3554,272 @@ def new_story_locations():
         return redirect(url_for("new_story_locations"))
     rows = NewStoryLocation.query.order_by(NewStoryLocation.name).all()
     return render_template("new_story/locations.html", rows=rows)
+
+
+def _legacy_date(value: dict[str, str] | None) -> datetime | None:
+    iso = (value or {}).get("iso", "")
+    if not iso:
+        return None
+    try:
+        return datetime.strptime(iso, "%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def _legacy_date_raw(value: dict[str, str] | None) -> str:
+    return (value or {}).get("raw", "")
+
+
+@app.route("/new-story/procurement")
+@admin_login_required
+def new_story_procurement():
+    q = request.args.get("q", "").strip()
+    outstanding = request.args.get("outstanding", "").strip()
+    query = NewStoryOrderLine.query
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(
+            NewStoryOrderLine.customer_po.ilike(like),
+            NewStoryOrderLine.vendor_order.ilike(like),
+            NewStoryOrderLine.vendor_invoice.ilike(like),
+            NewStoryOrderLine.description.ilike(like),
+            NewStoryOrderLine.project_name.ilike(like),
+        ))
+    if outstanding == "1":
+        query = query.filter(NewStoryOrderLine.quantity_remaining > 0)
+    rows = query.order_by(NewStoryOrderLine.order_date.desc(), NewStoryOrderLine.id.desc()).limit(1000).all()
+    totals = db.session.query(
+        db.func.coalesce(db.func.sum(NewStoryOrderLine.quantity_ordered), 0),
+        db.func.coalesce(db.func.sum(NewStoryOrderLine.quantity_received), 0),
+        db.func.coalesce(db.func.sum(NewStoryOrderLine.quantity_shipped), 0),
+        db.func.coalesce(db.func.sum(NewStoryOrderLine.quantity_remaining), 0),
+    ).first()
+    return render_template("new_story/procurement.html", rows=rows, q=q, outstanding=outstanding, totals=totals)
+
+
+@app.route("/new-story/service-history")
+@admin_login_required
+def new_story_service_history():
+    q = request.args.get("q", "").strip()
+    outcome = request.args.get("outcome", "").strip()
+    query = NewStoryServiceEvent.query
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(
+            NewStoryServiceEvent.ticket_number.ilike(like),
+            NewStoryServiceEvent.serial_number.ilike(like),
+            NewStoryServiceEvent.asset_tag.ilike(like),
+            NewStoryServiceEvent.person.ilike(like),
+            NewStoryServiceEvent.issue_category.ilike(like),
+        ))
+    if outcome:
+        query = query.filter(NewStoryServiceEvent.outcome == outcome)
+    rows = query.order_by(NewStoryServiceEvent.event_date.desc(), NewStoryServiceEvent.id.desc()).limit(1000).all()
+    outcomes = [r[0] for r in db.session.query(NewStoryServiceEvent.outcome).distinct().order_by(NewStoryServiceEvent.outcome).all() if r[0]]
+    return render_template("new_story/service_history.html", rows=rows, q=q, outcome=outcome, outcomes=outcomes)
+
+
+@app.route("/new-story/installations")
+@admin_login_required
+def new_story_installations():
+    q = request.args.get("q", "").strip()
+    query = NewStoryInstallation.query
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(
+            NewStoryInstallation.school_name.ilike(like),
+            NewStoryInstallation.customer_po.ilike(like),
+            NewStoryInstallation.contact.ilike(like),
+            NewStoryInstallation.rooms.ilike(like),
+        ))
+    rows = query.order_by(NewStoryInstallation.install_date.desc(), NewStoryInstallation.id.desc()).limit(750).all()
+    return render_template("new_story/installations.html", rows=rows, q=q)
+
+
+@app.route("/new-story/domains")
+@admin_login_required
+def new_story_domains():
+    rows = NewStoryDomain.query.order_by(NewStoryDomain.name).all()
+    return render_template("new_story/domains.html", rows=rows)
+
+
+@app.route("/new-story/legacy-import", methods=["GET", "POST"])
+@admin_login_required
+def new_story_legacy_import():
+    seed_path = BASE_DIR / "data" / "new_story_legacy_seed.json"
+    if not seed_path.exists():
+        abort(404)
+    payload = json.loads(seed_path.read_text(encoding="utf-8"))
+    source = payload.get("source", {})
+    source_hash = source.get("sha256", "")
+    prior = NewStoryLegacyImport.query.filter_by(source_hash=source_hash).first() if source_hash else None
+
+    if request.method == "POST":
+        if prior:
+            flash("This workbook snapshot has already been imported. Nothing was duplicated.", "warning")
+            return redirect(url_for("new_story_legacy_import"))
+
+        # Locations first so imported requests/installations can link to them.
+        location_map = {r.name.strip().lower(): r for r in NewStoryLocation.query.all() if r.name}
+        pending_locations = {}
+        for r in payload.get("requests", []):
+            name = (r.get("school_name") or "").strip()
+            if name and name.lower() not in location_map:
+                pending_locations.setdefault(name.lower(), NewStoryLocation(
+                    name=name, street=r.get("street", ""), city=r.get("city", ""),
+                    state=r.get("state", ""), zip_code=r.get("zip_code", ""), location_type="School"
+                ))
+        for row in payload.get("installations", []):
+            name = (row.get("school_name") or "").strip()
+            if name and name.lower() not in location_map and name.lower() not in pending_locations:
+                pending_locations[name.lower()] = NewStoryLocation(name=name, location_type="School")
+        if pending_locations:
+            db.session.add_all(list(pending_locations.values()))
+            db.session.flush()
+            location_map.update(pending_locations)
+
+        request_map = {}
+        ticket_map = {}
+        request_objs = []
+        for row in payload.get("requests", []):
+            loc = location_map.get((row.get("school_name") or "").strip().lower())
+            obj = NewStoryRequest(
+                ticket_number=row.get("ticket_number", ""), customer_po=row.get("customer_po", ""),
+                project_name=row.get("project_name", ""), service_type=row.get("service_type", "Order") or "Order",
+                status=row.get("status", "Incoming") or "Incoming", location_id=loc.id if loc else None,
+                school_name=row.get("school_name", ""), requester=row.get("requester", ""), recipient=row.get("recipient", ""),
+                street=row.get("street", ""), city=row.get("city", ""), state=row.get("state", ""), zip_code=row.get("zip_code", ""),
+                return_kit_required=bool(row.get("return_kit_required")), attention_reason=row.get("attention_reason", ""),
+                source="Legacy Workbook", notes=row.get("notes", "")
+            )
+            request_objs.append(obj)
+            request_map[row.get("legacy_key", "")] = obj
+            if row.get("ticket_number"):
+                ticket_map.setdefault(str(row.get("ticket_number")), obj)
+        db.session.add_all(request_objs)
+        db.session.flush()
+
+        item_objs = []
+        asset_objs = []
+        asset_map = {}
+        serial_map = {}
+        shipment_specs = []
+        for row in payload.get("requests", []):
+            req = request_map[row.get("legacy_key", "")]
+            for item in row.get("items", []):
+                item_objs.append(NewStoryRequestItem(
+                    request_id=req.id, category=item.get("category", "Other"), description=item.get("description", ""),
+                    model=item.get("model", ""), quantity_requested=int(item.get("quantity_requested") or 0),
+                    quantity_fulfilled=int(item.get("quantity_fulfilled") or 0), requirement_type=item.get("requirement_type", "Equipment"),
+                    shortage_reason=item.get("shortage_reason", "")
+                ))
+            for a in row.get("assets", []):
+                obj = NewStoryAsset(
+                    category=a.get("category", "Other"), description=a.get("description", ""), model=a.get("model", ""),
+                    raw_serial=a.get("raw_serial", ""), serial_number=a.get("serial_number", ""), asset_tag=a.get("asset_tag", ""),
+                    customer_po=a.get("customer_po", ""), vendor_order=a.get("vendor_order", ""), status=a.get("status", "Available") or "Available",
+                    assigned_request_id=req.id
+                )
+                asset_objs.append(obj)
+                asset_map[a.get("legacy_key", "")] = obj
+                if a.get("serial_number"):
+                    serial_map.setdefault(a.get("serial_number").strip().lower(), obj)
+            for sh in row.get("shipments", []):
+                shipment_specs.append((req, sh))
+        for a in payload.get("standalone_inventory", []):
+            obj = NewStoryAsset(
+                category=a.get("category", "Other"), description=a.get("description", ""), model=a.get("model", ""),
+                raw_serial=a.get("raw_serial", ""), serial_number=a.get("serial_number", ""), asset_tag=a.get("asset_tag", ""),
+                customer_po=a.get("customer_po", ""), vendor_order=a.get("vendor_order", ""), status=a.get("status", "Available") or "Available",
+                received_at=_legacy_date(a.get("received_date"))
+            )
+            asset_objs.append(obj)
+            asset_map[a.get("legacy_key", "")] = obj
+            if a.get("serial_number"):
+                serial_map.setdefault(a.get("serial_number").strip().lower(), obj)
+        db.session.add_all(item_objs + asset_objs)
+        db.session.flush()
+
+        shipment_objs = []
+        shipment_links = []
+        for req, sh in shipment_specs:
+            sobj = NewStoryShipment(
+                request_id=req.id, direction=sh.get("direction", "Outbound"), method=sh.get("method", "Legacy shipment"),
+                tracking_number=sh.get("tracking_number", ""), shipped_at=_legacy_date(sh.get("shipped_date")), notes=sh.get("notes", "")
+            )
+            shipment_objs.append(sobj)
+            shipment_links.append((sobj, sh.get("asset_keys", [])))
+        db.session.add_all(shipment_objs)
+        db.session.flush()
+        ship_item_objs = []
+        for sobj, keys in shipment_links:
+            for key in keys:
+                asset = asset_map.get(key)
+                if asset:
+                    ship_item_objs.append(NewStoryShipmentItem(shipment_id=sobj.id, asset_id=asset.id))
+        db.session.add_all(ship_item_objs)
+
+        order_objs = [NewStoryOrderLine(
+            status=r.get("status", ""), order_date=_legacy_date(r.get("order_date")), order_date_raw=_legacy_date_raw(r.get("order_date")),
+            customer_po=r.get("customer_po", ""), project_name=r.get("project_name", ""), vendor_invoice=r.get("vendor_invoice", ""),
+            vendor_order=r.get("vendor_order", ""), description=r.get("description", ""), tracking_number=r.get("tracking_number", ""),
+            quantity_ordered=int(r.get("quantity_ordered") or 0), sales_order=r.get("sales_order", ""), quantity_received=int(r.get("quantity_received") or 0),
+            quantity_shipped=int(r.get("quantity_shipped") or 0), quantity_remaining=int(r.get("quantity_remaining") or 0)
+        ) for r in payload.get("order_lines", [])]
+        db.session.add_all(order_objs)
+
+        service_objs = []
+        for r in payload.get("service_events", []):
+            req = ticket_map.get(str(r.get("ticket_number", "")))
+            serial = normalize_new_story_serial(r.get("device_type", ""), r.get("serial_number", ""))
+            asset = serial_map.get(serial.strip().lower()) if serial else None
+            service_objs.append(NewStoryServiceEvent(
+                request_id=req.id if req else None, asset_id=asset.id if asset else None, person=r.get("person", ""),
+                event_date=_legacy_date(r.get("event_date")), event_date_raw=_legacy_date_raw(r.get("event_date")),
+                device_type=r.get("device_type", ""), serial_number=r.get("serial_number", ""), asset_tag=r.get("asset_tag", ""),
+                issue_category=r.get("issue_category", ""), tracking_number=r.get("tracking_number", ""), ticket_number=r.get("ticket_number", ""),
+                outcome=r.get("outcome", ""), resolved=bool(r.get("resolved")), comments=r.get("comments", ""), customer_update=r.get("customer_update", "")
+            ))
+        db.session.add_all(service_objs)
+
+        install_objs = []
+        for r in payload.get("installations", []):
+            loc = location_map.get((r.get("school_name") or "").strip().lower())
+            install_objs.append(NewStoryInstallation(
+                location_id=loc.id if loc else None, install_date=_legacy_date(r.get("install_date")), install_date_raw=_legacy_date_raw(r.get("install_date")),
+                arrival_time=r.get("arrival_time", ""), availability=r.get("availability", ""), school_name=r.get("school_name", ""),
+                address=r.get("address", ""), contact=r.get("contact", ""), phone=r.get("phone", ""), panel_count=int(r.get("panel_count") or 0),
+                rooms=r.get("rooms", ""), customer_po=r.get("customer_po", ""), status=r.get("status", ""), expected_range=r.get("expected_range", ""),
+                notes=r.get("notes", ""), floor_plan=r.get("floor_plan", "")
+            ))
+        db.session.add_all(install_objs)
+
+        db.session.add_all([NewStoryDomain(
+            name=r.get("name", ""), tenant=r.get("tenant", ""), domain=r.get("domain", ""), parent_ou=r.get("parent_ou", ""), notes=r.get("notes", "")
+        ) for r in payload.get("domains", [])])
+
+        # Preserve the small CY operational list as request activity when a ticket match exists.
+        matched_notes = 0
+        for r in payload.get("operational_notes", []):
+            req = ticket_map.get(str(r.get("ticket_number", "")))
+            if not req:
+                continue
+            detail = " | ".join(x for x in [r.get("notes", ""), r.get("status", ""), r.get("resolution", "")] if x)
+            db.session.add(NewStoryActivity(request_id=req.id, event_type="Legacy Note", summary=r.get("issue", "Legacy operational note") or "Legacy operational note", detail=detail, actor="Legacy Workbook", created_at=_legacy_date(r.get("event_date")) or datetime.utcnow()))
+            matched_notes += 1
+
+        counts = dict(payload.get("counts", {}))
+        counts["locations_created"] = len(pending_locations)
+        counts["operational_notes_matched"] = matched_notes
+        db.session.add(NewStoryLegacyImport(
+            source_name=source.get("filename", "New Story legacy workbook"), source_hash=source_hash,
+            counts_json=json.dumps(counts), imported_by=current_user().username if current_user() else "Pierson"
+        ))
+        db.session.commit()
+        flash(f"Legacy New Story data imported: {len(request_objs):,} requests and {len(asset_objs):,} assets are now live.", "success")
+        return redirect(url_for("new_story_dashboard"))
+
+    return render_template("new_story/legacy_import.html", source=source, counts=payload.get("counts", {}), prior=prior)
 
 
 # ═══════════════════════════════════════════════════════════

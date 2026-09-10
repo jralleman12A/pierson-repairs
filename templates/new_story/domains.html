@@ -1,0 +1,5 @@
+{% extends 'new_story/base.html' %}
+{% block heading %}Domains & Enrollment{% endblock %}
+{% block content %}
+<div class="section"><div class="section-head"><h2>New Story domain reference</h2></div><div class="table-wrap"><table><thead><tr><th>Group</th><th>Tenant / OU</th><th>Google Domain</th><th>Parent OU</th><th>Notes</th></tr></thead><tbody>{% for r in rows %}<tr><td><strong>{{r.name}}</strong></td><td>{{r.tenant|dash}}</td><td class="mono">{{r.domain|dash}}</td><td>{{r.parent_ou|dash}}</td><td>{{r.notes|dash}}</td></tr>{% else %}<tr><td colspan="5" class="empty">No domain reference data yet.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

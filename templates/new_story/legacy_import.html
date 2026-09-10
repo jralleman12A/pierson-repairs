@@ -1,0 +1,40 @@
+{% extends 'new_story/base.html' %}
+{% block heading %}Legacy Data Import{% endblock %}
+{% block content %}
+<div class="section">
+  <div class="section-head"><h2>New Story Device Tracker migration</h2></div>
+  <div class="pad">
+    <p style="margin-top:0;max-width:850px">This is a one-time migration snapshot from the legacy workbook. After import, these records live in PostgreSQL and the portal does not depend on the spreadsheet.</p>
+    <div class="grid grid-4" style="margin:18px 0">
+      <div><div class="small muted">Requests</div><div style="font-size:22px;font-weight:650">{{'{:,}'.format(counts.requests or 0)}}</div></div>
+      <div><div class="small muted">Request assets</div><div style="font-size:22px;font-weight:650">{{'{:,}'.format(counts.request_assets or 0)}}</div></div>
+      <div><div class="small muted">Service events</div><div style="font-size:22px;font-weight:650">{{'{:,}'.format(counts.service_events or 0)}}</div></div>
+      <div><div class="small muted">Procurement lines</div><div style="font-size:22px;font-weight:650">{{'{:,}'.format(counts.order_lines or 0)}}</div></div>
+      <div><div class="small muted">Additional inventory</div><div style="font-size:22px;font-weight:650">{{'{:,}'.format(counts.standalone_inventory or 0)}}</div></div>
+      <div><div class="small muted">Shipments</div><div style="font-size:22px;font-weight:650">{{'{:,}'.format(counts.request_shipments or 0)}}</div></div>
+      <div><div class="small muted">Installations</div><div style="font-size:22px;font-weight:650">{{'{:,}'.format(counts.installations or 0)}}</div></div>
+      <div><div class="small muted">Domain references</div><div style="font-size:22px;font-weight:650">{{'{:,}'.format(counts.domains or 0)}}</div></div>
+    </div>
+    <div class="kv" style="max-width:850px">
+      <div class="key">Source</div><div>{{source.filename}}</div>
+      <div class="key">Snapshot hash</div><div class="mono small">{{source.sha256}}</div>
+    </div>
+    <div style="margin-top:18px">
+      {% if prior %}
+        <span class="badge good">Imported {{prior.imported_at|dt}}</span>
+        <span class="small muted" style="margin-left:8px">Imported by {{prior.imported_by}}</span>
+      {% else %}
+        <form method="post" onsubmit="return confirm('Import the legacy New Story workbook snapshot into the live database? This is designed to run once.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-primary" type="submit">Import legacy data now</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<div class="section"><div class="section-head"><h2>Migration rules</h2></div><div class="pad small">
+  <p>Device tabs are converted into requests, assets, and outbound/inbound shipments. Duplicate serials already represented in those ledgers are not duplicated from New Inventory.</p>
+  <p>Incoming Items becomes procurement history. Returned Devices becomes service history. On-site Install becomes installation history. NSS DOMAINS becomes reference data.</p>
+  <p style="margin-bottom:0">Messy historical values are preserved where possible. New records created in the portal use the cleaner database workflow instead of legacy spreadsheet rules.</p>
+</div></div>
+{% endblock %}

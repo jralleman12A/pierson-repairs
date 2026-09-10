@@ -1,0 +1,6 @@
+{% extends 'new_story/base.html' %}
+{% block heading %}Installations{% endblock %}
+{% block content %}
+<div class="section"><div class="section-head"><h2>On-site Installation History</h2><form class="toolbar" method="get"><input name="q" value="{{q}}" placeholder="School, PO, contact, room..."><button class="btn" type="submit">Search</button></form></div>
+<div class="table-wrap"><table><thead><tr><th>Date</th><th>Site</th><th>PO</th><th>Panels</th><th>Rooms</th><th>Status</th><th>Contact</th><th>Notes</th></tr></thead><tbody>{% for r in rows %}<tr><td>{{r.install_date|nicedate or r.install_date_raw|dash}}</td><td><strong>{{r.school_name|dash}}</strong><div class="small muted">{{r.address|dash}}</div></td><td class="mono">{{r.customer_po|dash}}</td><td>{{r.panel_count}}</td><td>{{r.rooms|dash}}</td><td><span class="badge {% if 'complete' in (r.status or '')|lower %}good{% else %}blue{% endif %}">{{r.status|dash}}</span></td><td>{{r.contact|dash}}{% if r.phone %}<div class="small muted">{{r.phone}}</div>{% endif %}</td><td class="small">{{r.notes|dash}}</td></tr>{% else %}<tr><td colspan="8" class="empty">No installation data yet.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}
