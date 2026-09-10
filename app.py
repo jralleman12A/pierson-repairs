@@ -3461,6 +3461,60 @@ def new_story_locations():
 @new_story_login_required
 def new_story_portal_dashboard():
     q = request.args.get("q", "").strip()
+    open_statuses = [s for s in NEW_STORY_REQUEST_STATUSES if s not in {"Complete", "Cancelled"}]
+
+    request_query = NewStoryRequest.query
+    if q:
+        like = f"%{q}%"
+        request_query = request_query.filter(or_(
+            NewStoryRequest.ticket_number.ilike(like),
+            NewStoryRequest.school_name.ilike(like),
+            NewStoryRequest.customer_po.ilike(like),
+            NewStoryRequest.requester.ilike(like),
+            NewStoryRequest.recipient.ilike(like),
+        ))
+
+    recent_requests = request_query.order_by(NewStoryRequest.updated_at.desc()).limit(12).all()
+    open_requests = NewStoryRequest.query.filter(NewStoryRequest.status.in_(open_statuses)).count()
+    awaiting_return = NewStoryRequest.query.filter_by(status="Awaiting Return").count()
+    needs_attention = NewStoryRequest.query.filter(or_(
+        NewStoryRequest.status == "Needs Review",
+        NewStoryRequest.attention_reason != "",
+    )).count()
+    total_assets = NewStoryAsset.query.count()
+    deployed_assets = NewStoryAsset.query.filter(NewStoryAsset.status.in_(["Shipped", "Deployed", "In Use"])).count()
+    available_assets = NewStoryAsset.query.filter(NewStoryAsset.status.in_(["Available", "Received"])).count()
+
+    recent_shipments = NewStoryShipment.query.order_by(NewStoryShipment.created_at.desc()).limit(8).all()
+    recent_activity = NewStoryActivity.query.filter(NewStoryActivity.event_type != "Internal").order_by(NewStoryActivity.created_at.desc()).limit(10).all()
+    status_counts = {
+        status: NewStoryRequest.query.filter_by(status=status).count()
+        for status in NEW_STORY_REQUEST_STATUSES
+        if NewStoryRequest.query.filter_by(status=status).count()
+    }
+
+    return render_template(
+        "new_story/portal_dashboard.html",
+        q=q,
+        recent_requests=recent_requests,
+        recent_shipments=recent_shipments,
+        recent_activity=recent_activity,
+        open_requests=open_requests,
+        awaiting_return=awaiting_return,
+        needs_attention=needs_attention,
+        total_assets=total_assets,
+        deployed_assets=deployed_assets,
+        available_assets=available_assets,
+        status_counts=status_counts,
+    )
+
+
+@app.route("/new-story/portal/requests")
+@new_story_login_required
+def new_story_portal_requests():
+    q = request.args.get("q", "").strip()
+    status = request.args.get("status", "").strip()
+    service = request.args.get("service", "").strip()
     query = NewStoryRequest.query
     if q:
         like = f"%{q}%"
@@ -3468,9 +3522,60 @@ def new_story_portal_dashboard():
             NewStoryRequest.ticket_number.ilike(like),
             NewStoryRequest.school_name.ilike(like),
             NewStoryRequest.customer_po.ilike(like),
+            NewStoryRequest.requester.ilike(like),
+            NewStoryRequest.recipient.ilike(like),
         ))
-    rows = query.order_by(NewStoryRequest.updated_at.desc()).limit(250).all()
-    return render_template("new_story/portal_dashboard.html", rows=rows, q=q)
+    if status:
+        query = query.filter_by(status=status)
+    if service:
+        query = query.filter_by(service_type=service)
+    rows = query.order_by(NewStoryRequest.updated_at.desc()).limit(500).all()
+    services = [r[0] for r in db.session.query(NewStoryRequest.service_type).distinct().order_by(NewStoryRequest.service_type).all() if r[0]]
+    return render_template("new_story/portal_requests.html", rows=rows, q=q, status=status, service=service, services=services, statuses=NEW_STORY_REQUEST_STATUSES)
+
+
+@app.route("/new-story/portal/assets")
+@new_story_login_required
+def new_story_portal_assets():
+    q = request.args.get("q", "").strip()
+    status = request.args.get("status", "").strip()
+    category = request.args.get("category", "").strip()
+    query = NewStoryAsset.query
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(
+            NewStoryAsset.serial_number.ilike(like),
+            NewStoryAsset.asset_tag.ilike(like),
+            NewStoryAsset.model.ilike(like),
+            NewStoryAsset.customer_po.ilike(like),
+        ))
+    if status:
+        query = query.filter_by(status=status)
+    if category:
+        query = query.filter_by(category=category)
+    rows = query.order_by(NewStoryAsset.updated_at.desc()).limit(750).all()
+    categories = [r[0] for r in db.session.query(NewStoryAsset.category).distinct().order_by(NewStoryAsset.category).all() if r[0]]
+    statuses = [r[0] for r in db.session.query(NewStoryAsset.status).distinct().order_by(NewStoryAsset.status).all() if r[0]]
+    return render_template("new_story/portal_assets.html", rows=rows, q=q, status=status, category=category, categories=categories, statuses=statuses)
+
+
+@app.route("/new-story/portal/shipments")
+@new_story_login_required
+def new_story_portal_shipments():
+    q = request.args.get("q", "").strip()
+    direction = request.args.get("direction", "").strip()
+    query = NewStoryShipment.query.join(NewStoryRequest)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(
+            NewStoryShipment.tracking_number.ilike(like),
+            NewStoryRequest.ticket_number.ilike(like),
+            NewStoryRequest.school_name.ilike(like),
+        ))
+    if direction:
+        query = query.filter(NewStoryShipment.direction == direction)
+    rows = query.order_by(NewStoryShipment.created_at.desc()).limit(500).all()
+    return render_template("new_story/portal_shipments.html", rows=rows, q=q, direction=direction)
 
 
 @app.route("/new-story/portal/requests/<int:request_id>")

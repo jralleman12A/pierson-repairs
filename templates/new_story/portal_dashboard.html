@@ -1,1 +1,42 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>New Story Service Portal</title><style>body{font-family:system-ui;margin:0;background:#f6f7f8;color:#17202a}header{background:#0a2540;color:white;padding:20px 28px;display:flex;justify-content:space-between}header a{color:white}.wrap{padding:24px 28px}.bar{display:flex;gap:8px;margin-bottom:18px}input,button{font:inherit;padding:8px 10px;border:1px solid #ccd3da}button{background:#0a2540;color:#fff}table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #d8dee5}th,td{padding:10px;border-bottom:1px solid #e9edf0;text-align:left}th{font-size:11px;text-transform:uppercase;background:#f7f9fa;color:#607080}a{color:#174f7c;text-decoration:none;font-weight:600}.badge{border:1px solid #ccd3da;padding:3px 6px;font-size:11px}</style></head><body><header><div><strong>New Story</strong> · Pierson IT Service Portal</div><a href="{{url_for('new_story_logout')}}">Sign out</a></header><div class="wrap"><form class="bar"><input name="q" value="{{q}}" placeholder="Search ticket, PO, school…"><button>Search</button></form><table><thead><tr><th>Ticket</th><th>Service</th><th>School / Site</th><th>PO</th><th>Requested</th><th>Status</th><th>Updated</th></tr></thead><tbody>{% for r in rows %}<tr><td><a href="{{url_for('new_story_portal_request',request_id=r.id)}}">{{r.ticket_number}}</a></td><td>{{r.service_type}}</td><td>{{r.school_name|dash}}</td><td>{{r.customer_po|dash}}</td><td>{{r.requested_qty}}</td><td><span class="badge">{{r.status}}</span></td><td>{{r.updated_at|dt}}</td></tr>{% else %}<tr><td colspan="7">No requests found.</td></tr>{% endfor %}</tbody></table></div></body></html>
+{% extends 'new_story/portal_base.html' %}
+{% block title %}Overview · New Story IT{% endblock %}
+{% block heading %}IT Service Overview{% endblock %}
+{% block subheading %}Requests, devices, shipments and return activity in one place{% endblock %}
+{% block content %}
+<form class="searchhero" action="{{ url_for('new_story_portal_requests') }}" method="get">
+  <div style="font-weight:680;margin-bottom:7px">Search New Story IT records</div>
+  <div class="searchline"><input name="q" value="{{ q }}" placeholder="Ticket, PO, school, requester, recipient…"><button class="btn btn-dark" type="submit">Search requests</button></div>
+</form>
+
+<div class="metrics">
+  <div class="metric"><div class="label">Open Requests</div><div class="value">{{ open_requests }}</div><div class="note">Active service work</div></div>
+  <div class="metric"><div class="label">Awaiting Return</div><div class="value">{{ awaiting_return }}</div><div class="note">Return workflow active</div></div>
+  <div class="metric"><div class="label">Needs Attention</div><div class="value">{{ needs_attention }}</div><div class="note">Review or exception</div></div>
+  <div class="metric"><div class="label">Available Assets</div><div class="value">{{ available_assets }}</div><div class="note">Ready / received stock</div></div>
+  <div class="metric"><div class="label">Tracked Assets</div><div class="value">{{ total_assets }}</div><div class="note">{{ deployed_assets }} shipped / deployed</div></div>
+</div>
+
+{% if status_counts %}
+<div class="section"><div class="section-head"><h2>Request Status</h2><span class="hint">Live operational counts</span></div><div class="pad"><div class="statusbar">{% for status,count in status_counts.items() %}<a class="statuspill link" href="{{ url_for('new_story_portal_requests', status=status) }}">{{ status }} <b>{{ count }}</b></a>{% endfor %}</div></div></div>
+{% endif %}
+
+<div class="two">
+  <div class="section">
+    <div class="section-head"><h2>Recent Requests</h2><a class="link small" href="{{ url_for('new_story_portal_requests') }}">View all requests →</a></div>
+    <div class="table-wrap"><table><thead><tr><th>Ticket</th><th>Service</th><th>School / Site</th><th>Requested</th><th>Status</th><th>Updated</th></tr></thead><tbody>
+    {% for r in recent_requests %}<tr><td><a class="link mono" href="{{ url_for('new_story_portal_request', request_id=r.id) }}">{{ r.ticket_number }}</a></td><td>{{ r.service_type }}</td><td>{{ r.school_name|dash }}</td><td>{{ r.requested_qty }}</td><td><span class="badge {% if r.status in ['Complete','Shipped','Delivered'] %}good{% elif r.status in ['Needs Review','Awaiting Return'] %}warn{% else %}blue{% endif %}">{{ r.status }}</span></td><td class="small muted">{{ r.updated_at|dt }}</td></tr>{% else %}<tr><td colspan="6" class="empty">No requests yet.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </div>
+  <div class="section">
+    <div class="section-head"><h2>Recent Activity</h2></div>
+    <div class="pad"><ul class="activity">{% for a in recent_activity %}<li><a class="link" href="{{ url_for('new_story_portal_request', request_id=a.request_id) }}">{{ a.request.ticket_number }}</a> · {{ a.summary }}{% if a.detail %}<div class="small muted" style="margin-top:3px">{{ a.detail|truncate(90) }}</div>{% endif %}<div class="when">{{ a.created_at|dt }}</div></li>{% else %}<li class="empty">No activity posted.</li>{% endfor %}</ul></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-head"><h2>Recent Shipments</h2><a class="link small" href="{{ url_for('new_story_portal_shipments') }}">View shipment history →</a></div>
+  <div class="table-wrap"><table><thead><tr><th>Ticket</th><th>Direction</th><th>School / Site</th><th>Method</th><th>Tracking / Delivery</th><th>Shipped</th></tr></thead><tbody>
+  {% for s in recent_shipments %}<tr><td><a class="link mono" href="{{ url_for('new_story_portal_request', request_id=s.request_id) }}">{{ s.request.ticket_number }}</a></td><td><span class="badge {{ 'blue' if s.direction == 'Outbound' else 'warn' }}">{{ s.direction }}</span></td><td>{{ s.request.school_name|dash }}</td><td>{{ s.method|dash }}</td><td class="mono">{{ s.tracking_number|dash }}</td><td class="small muted">{{ s.shipped_at|dt|dash }}</td></tr>{% else %}<tr><td colspan="6" class="empty">No shipments posted yet.</td></tr>{% endfor %}
+  </tbody></table></div>
+</div>
+{% endblock %}
