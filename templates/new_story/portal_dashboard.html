@@ -12,8 +12,8 @@
   <div class="metric"><div class="label">Open Requests</div><div class="value">{{ open_requests }}</div><div class="note">Active service work</div></div>
   <div class="metric"><div class="label">Awaiting Return</div><div class="value">{{ awaiting_return }}</div><div class="note">Return workflow active</div></div>
   <div class="metric"><div class="label">Needs Attention</div><div class="value">{{ needs_attention }}</div><div class="note">Review or exception</div></div>
-  <div class="metric"><div class="label">Available Assets</div><div class="value">{{ available_assets }}</div><div class="note">Ready / received stock</div></div>
-  <div class="metric"><div class="label">Tracked Assets</div><div class="value">{{ total_assets }}</div><div class="note">{{ deployed_assets }} shipped / deployed</div></div>
+  <a class="metric metric-link" href="{{ url_for('new_story_portal_assets', view='pierson') }}"><div class="label">At Pierson</div><div class="value">{{ available_assets }}</div><div class="note">Stock / processing / repair</div></a>
+  <a class="metric metric-link" href="{{ url_for('new_story_portal_assets') }}"><div class="label">Total Owned</div><div class="value">{{ total_assets }}</div><div class="note">{{ deployed_assets }} shipped / deployed</div></a>
 </div>
 
 {% if status_counts %}

@@ -1,8 +1,89 @@
 {% extends 'new_story/portal_base.html' %}
-{% block title %}Assets · New Story IT{% endblock %}{% block heading %}Asset Inventory{% endblock %}{% block subheading %}Current equipment ownership, location and lifecycle history{% endblock %}
+{% block title %}Inventory · New Story IT{% endblock %}
+{% block heading %}Asset Inventory{% endblock %}
+{% block subheading %}Owned equipment, Pierson stock, deployments and device lifecycle{% endblock %}
 {% block content %}
-<div class="metrics"><div class="metric"><div class="label">Total Assets</div><div class="value">{{status_counts.values()|sum}}</div><div class="note">Serialized equipment</div></div><div class="metric"><div class="label">Available</div><div class="value">{{status_counts.get('Available',0)+status_counts.get('Received',0)}}</div><div class="note">At Pierson / ready</div></div><div class="metric"><div class="label">Deployed</div><div class="value">{{status_counts.get('Deployed',0)+status_counts.get('In Use',0)}}</div><div class="note">In the field</div></div><div class="metric"><div class="label">Return Pending</div><div class="value">{{status_counts.get('Return Pending',0)}}</div><div class="note">Expected back</div></div><div class="metric"><div class="label">Repair / Lost</div><div class="value">{{status_counts.get('Repair',0)+status_counts.get('Lost',0)}}</div><div class="note">Needs attention</div></div></div>
-<div class="section"><div class="section-head"><h2>Search Assets</h2></div><div class="pad"><form class="toolbar"><input style="min-width:320px;flex:1" name="q" value="{{q}}" placeholder="Serial, asset tag, model, PO, user or room…"><select name="category"><option value="">All categories</option>{% for x in categories %}<option value="{{x}}" {% if category==x %}selected{% endif %}>{{x}}</option>{% endfor %}</select><select name="status"><option value="">All statuses</option>{% for x in statuses %}<option value="{{x}}" {% if status==x %}selected{% endif %}>{{x}}</option>{% endfor %}</select><button class="btn btn-dark">Filter</button>{% if q or category or status %}<a class="btn" href="{{url_for('new_story_portal_assets')}}">Clear</a>{% endif %}</form></div></div>
-<div class="two"><div class="section"><div class="section-head"><h2>{{rows|length}} Matching Asset{{'' if rows|length==1 else 's'}}</h2><span class="hint">Click a serial for full history</span></div><div class="table-wrap"><table><thead><tr><th>Category</th><th>Serial</th><th>Asset Tag</th><th>Model</th><th>Status</th><th>Current Location</th><th>Assigned To / Room</th><th>Request</th></tr></thead><tbody>{% for a in rows %}<tr><td>{{a.category}}</td><td><a class="link mono" href="{{url_for('new_story_portal_asset',asset_id=a.id)}}">{{a.serial_number|dash}}</a></td><td class="mono">{{a.asset_tag|dash}}</td><td>{{a.model|dash}}</td><td><span class="badge {% if a.status in ['Available','Received'] %}good{% elif a.status in ['Shipped','Deployed','In Use'] %}blue{% elif a.status in ['Lost','Repair'] %}bad{% else %}warn{% endif %}">{{a.status}}</span></td><td>{{a.current_location.name if a.current_location else 'Pierson / unassigned'}}</td><td>{{a.assigned_to|dash}}{% if a.room %}<div class="small muted">{{a.room}}</div>{% endif %}</td><td>{% if a.assigned_request %}<a class="link mono" href="{{url_for('new_story_portal_request',request_id=a.assigned_request.id)}}">{{a.assigned_request.ticket_number}}</a>{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="8" class="empty">No matching assets.</td></tr>{% endfor %}</tbody></table></div></div>
-<div><div class="section"><div class="section-head"><h2>By Category</h2></div><div class="pad">{% for cat,count in category_counts %}<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line2)"><a class="link" href="{{url_for('new_story_portal_assets',category=cat)}}">{{cat}}</a><b>{{count}}</b></div>{% endfor %}</div></div><div class="section"><div class="section-head"><h2>Top Locations</h2></div><div class="pad">{% for loc,count in location_counts %}<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line2)"><span>{{loc}}</span><b>{{count}}</b></div>{% else %}<div class="muted">Location assignments will appear as assets are deployed.</div>{% endfor %}</div></div></div></div>
+<div class="metrics asset-metrics">
+  <a class="metric metric-link" href="{{ url_for('new_story_portal_assets') }}"><div class="label">Total Owned</div><div class="value">{{ total_assets }}</div><div class="note">Serialized assets</div></a>
+  <a class="metric metric-link" href="{{ url_for('new_story_portal_assets', view='pierson') }}"><div class="label">At Pierson</div><div class="value">{{ at_pierson }}</div><div class="note">Physical custody / work in progress</div></a>
+  <a class="metric metric-link" href="{{ url_for('new_story_portal_assets', view='available') }}"><div class="label">Available</div><div class="value">{{ available_assets }}</div><div class="note">Ready inventory</div></a>
+  <a class="metric metric-link" href="{{ url_for('new_story_portal_assets', view='deployed') }}"><div class="label">Deployed / Out</div><div class="value">{{ deployed_assets }}</div><div class="note">Shipped or in use</div></a>
+  <a class="metric metric-link" href="{{ url_for('new_story_portal_assets', view='return_pending') }}"><div class="label">Return Pending</div><div class="value">{{ return_pending_assets }}</div><div class="note">Expected back to Pierson</div></a>
+  <a class="metric metric-link" href="{{ url_for('new_story_portal_assets', view='repair') }}"><div class="label">In Repair</div><div class="value">{{ repair_assets }}</div><div class="note">Currently being serviced</div></a>
+</div>
+
+<div class="section">
+  <div class="section-head">
+    <div><h2>Inventory by Category</h2><div class="hint" style="margin-top:3px">The same operational view Pierson uses, simplified for New Story.</div></div>
+    <span class="hint">Click any number to open the matching assets</span>
+  </div>
+  <div class="table-wrap inventory-summary"><table>
+    <thead><tr><th>Category</th><th class="num">Total Owned</th><th class="num pierson-col">At Pierson</th><th class="num">Available</th><th class="num">Reserved / Staging</th><th class="num">Deployed / Out</th><th class="num">Return Pending</th><th class="num">Repair</th></tr></thead>
+    <tbody>
+      {% for r in category_rows %}
+      <tr>
+        <td><a class="link" href="{{ url_for('new_story_portal_assets', category=r.category) }}">{{ r.category }}</a></td>
+        <td class="num"><a class="count-link" href="{{ url_for('new_story_portal_assets', category=r.category) }}">{{ r.total }}</a></td>
+        <td class="num pierson-col"><a class="count-link strong" href="{{ url_for('new_story_portal_assets', category=r.category, view='pierson') }}">{{ r.pierson }}</a></td>
+        <td class="num"><a class="count-link" href="{{ url_for('new_story_portal_assets', category=r.category, view='available') }}">{{ r.available }}</a></td>
+        <td class="num"><a class="count-link" href="{{ url_for('new_story_portal_assets', category=r.category, view='reserved') }}">{{ r.reserved }}</a></td>
+        <td class="num"><a class="count-link" href="{{ url_for('new_story_portal_assets', category=r.category, view='deployed') }}">{{ r.deployed }}</a></td>
+        <td class="num"><a class="count-link" href="{{ url_for('new_story_portal_assets', category=r.category, view='return_pending') }}">{{ r.return_pending }}</a></td>
+        <td class="num"><a class="count-link" href="{{ url_for('new_story_portal_assets', category=r.category, view='repair') }}">{{ r.repair }}</a></td>
+      </tr>
+      {% else %}<tr><td colspan="8" class="empty">No inventory has been loaded yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+<div class="section">
+  <div class="section-head"><div><h2>Asset Detail</h2><div class="hint" style="margin-top:3px">Search serials, asset tags, models, PO numbers, people, rooms or locations.</div></div>{% if view or category or status or q %}<a class="link small" href="{{ url_for('new_story_portal_assets') }}">Clear all filters</a>{% endif %}</div>
+  <div class="pad filter-pad">
+    <form class="toolbar">
+      <input style="min-width:300px;flex:1" name="q" value="{{ q }}" placeholder="Serial, asset tag, model, PO, user, room or location…">
+      <select name="category"><option value="">All categories</option>{% for x in categories %}<option value="{{ x }}" {% if category==x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select>
+      <select name="view">
+        <option value="">All lifecycle states</option>
+        <option value="pierson" {% if view=='pierson' %}selected{% endif %}>At Pierson</option>
+        <option value="available" {% if view=='available' %}selected{% endif %}>Available</option>
+        <option value="reserved" {% if view=='reserved' %}selected{% endif %}>Reserved / Staging</option>
+        <option value="deployed" {% if view=='deployed' %}selected{% endif %}>Deployed / Out</option>
+        <option value="return_pending" {% if view=='return_pending' %}selected{% endif %}>Return Pending</option>
+        <option value="repair" {% if view=='repair' %}selected{% endif %}>Repair</option>
+      </select>
+      <select name="status"><option value="">Exact status (any)</option>{% for x in statuses %}<option value="{{ x }}" {% if status==x %}selected{% endif %}>{{ x }}</option>{% endfor %}</select>
+      <button class="btn btn-dark">Filter</button>
+    </form>
+  </div>
+  {% if view or category or status or q %}
+  <div class="active-filter"><strong>{{ rows|length }}</strong> matching asset{{ '' if rows|length==1 else 's' }}{% if rows|length >= 1000 %} <span class="muted">(showing first 1,000)</span>{% endif %}</div>
+  {% endif %}
+  <div class="table-wrap"><table class="asset-table"><thead><tr><th>Category</th><th>Serial</th><th>Asset Tag</th><th>Model</th><th>Status</th><th>Current Location</th><th>Assigned To / Room</th><th>PO</th><th>Request</th><th>Last Activity</th></tr></thead><tbody>
+    {% for a in rows %}<tr>
+      <td>{{ a.category }}</td>
+      <td><a class="link mono" href="{{ url_for('new_story_portal_asset', asset_id=a.id) }}">{{ a.serial_number|dash }}</a></td>
+      <td class="mono">{{ a.asset_tag|dash }}</td>
+      <td>{{ a.model|dash }}</td>
+      <td><span class="badge {% if a.status in ['Available','Received'] %}good{% elif a.status in ['Shipped','Deployed','In Use'] %}blue{% elif a.status in ['Lost','Repair'] %}bad{% else %}warn{% endif %}">{{ a.status }}</span></td>
+      <td>{% if a.current_location %}{{ a.current_location.name }}{% elif a.status in ['Received','Available','Reserved','Allocated','Processing','Ready to Ship','Returned','Repair'] %}<strong>Pierson</strong>{% else %}<span class="muted">Unassigned</span>{% endif %}</td>
+      <td>{{ a.assigned_to|dash }}{% if a.room %}<div class="small muted">{{ a.room }}</div>{% endif %}</td>
+      <td class="mono">{{ a.customer_po|dash }}</td>
+      <td>{% if a.assigned_request %}<a class="link mono" href="{{ url_for('new_story_portal_request', request_id=a.assigned_request.id) }}">{{ a.assigned_request.ticket_number }}</a>{% else %}—{% endif %}</td>
+      <td class="small muted">{{ a.updated_at|dt }}</td>
+    </tr>{% else %}<tr><td colspan="10" class="empty">No matching assets.</td></tr>{% endfor %}
+  </tbody></table></div>
+</div>
+
+{% if stock_rows %}
+<div class="section">
+  <div class="section-head"><div><h2>Bulk / Non-Serialized Stock at Pierson</h2><div class="hint" style="margin-top:3px">Accessories and quantity-managed inventory are kept separate from serialized asset totals.</div></div><span class="hint">{{ bulk_on_hand }} on hand · {{ bulk_available }} available</span></div>
+  <div class="table-wrap"><table><thead><tr><th>Category</th><th>Description</th><th>Model</th><th>PO</th><th>Pierson Location</th><th class="num">On Hand</th><th class="num">Reserved</th><th class="num">Available</th></tr></thead><tbody>
+  {% for s in stock_rows %}<tr><td>{{ s.category }}</td><td>{{ s.description|dash }}</td><td>{{ s.model|dash }}</td><td class="mono">{{ s.customer_po|dash }}</td><td>{{ s.location.name if s.location else 'Pierson' }}</td><td class="num"><b>{{ s.quantity_on_hand }}</b></td><td class="num">{{ s.quantity_reserved }}</td><td class="num"><b>{{ s.quantity_available }}</b></td></tr>{% endfor %}
+  </tbody></table></div>
+</div>
+{% endif %}
+
+{% if location_counts %}
+<div class="section"><div class="section-head"><h2>Top Deployed Locations</h2><span class="hint">Assets currently shipped, deployed, in use or return pending</span></div><div class="location-grid">{% for loc,count in location_counts %}<div class="location-row"><span>{{ loc }}</span><b>{{ count }}</b></div>{% endfor %}</div></div>
+{% endif %}
 {% endblock %}

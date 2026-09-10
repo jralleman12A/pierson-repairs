@@ -4194,7 +4194,7 @@ def new_story_portal_dashboard():
     )).count()
     total_assets = NewStoryAsset.query.count()
     deployed_assets = NewStoryAsset.query.filter(NewStoryAsset.status.in_(["Shipped", "Deployed", "In Use"])).count()
-    available_assets = NewStoryAsset.query.filter(NewStoryAsset.status.in_(["Available", "Received"])).count()
+    available_assets = NewStoryAsset.query.filter(NewStoryAsset.status.in_(["Received", "Available", "Reserved", "Allocated", "Processing", "Ready to Ship", "Returned", "Repair"])).count()
 
     recent_shipments = NewStoryShipment.query.order_by(NewStoryShipment.created_at.desc()).limit(8).all()
     recent_activity = NewStoryActivity.query.filter(NewStoryActivity.event_type != "Internal").order_by(NewStoryActivity.created_at.desc()).limit(10).all()
@@ -4251,26 +4251,94 @@ def new_story_portal_assets():
     q = request.args.get("q", "").strip()
     status = request.args.get("status", "").strip()
     category = request.args.get("category", "").strip()
+    view = request.args.get("view", "").strip()
+
+    # Customer-facing custody buckets.  These intentionally describe where the
+    # equipment is in its lifecycle rather than relying on a spreadsheet color.
+    pierson_statuses = ["Received", "Available", "Reserved", "Allocated", "Processing", "Ready to Ship", "Returned", "Repair"]
+    available_statuses = ["Received", "Available"]
+    reserved_statuses = ["Reserved", "Allocated", "Processing", "Ready to Ship"]
+    deployed_statuses = ["Shipped", "Deployed", "In Use"]
+    return_pending_statuses = ["Return Pending"]
+    repair_statuses = ["Repair"]
+
+    view_statuses = {
+        "pierson": pierson_statuses,
+        "available": available_statuses,
+        "reserved": reserved_statuses,
+        "deployed": deployed_statuses,
+        "return_pending": return_pending_statuses,
+        "repair": repair_statuses,
+    }
+
     query = NewStoryAsset.query
     if q:
         like = f"%{q}%"
-        query = query.filter(or_(
+        query = query.outerjoin(NewStoryLocation, NewStoryAsset.current_location_id == NewStoryLocation.id).filter(or_(
             NewStoryAsset.serial_number.ilike(like),
             NewStoryAsset.asset_tag.ilike(like),
             NewStoryAsset.model.ilike(like),
             NewStoryAsset.customer_po.ilike(like),
+            NewStoryAsset.assigned_to.ilike(like),
+            NewStoryAsset.room.ilike(like),
+            NewStoryLocation.name.ilike(like),
         ))
     if status:
-        query = query.filter_by(status=status)
+        query = query.filter(NewStoryAsset.status == status)
+    elif view in view_statuses:
+        query = query.filter(NewStoryAsset.status.in_(view_statuses[view]))
     if category:
-        query = query.filter_by(category=category)
+        query = query.filter(NewStoryAsset.category == category)
+
     rows = query.order_by(NewStoryAsset.updated_at.desc()).limit(1000).all()
     categories = [r[0] for r in db.session.query(NewStoryAsset.category).distinct().order_by(NewStoryAsset.category).all() if r[0]]
     statuses = [r[0] for r in db.session.query(NewStoryAsset.status).distinct().order_by(NewStoryAsset.status).all() if r[0]]
-    category_counts = db.session.query(NewStoryAsset.category, db.func.count(NewStoryAsset.id)).group_by(NewStoryAsset.category).order_by(NewStoryAsset.category).all()
+
+    category_rows = []
+    for cat in categories:
+        base = NewStoryAsset.query.filter(NewStoryAsset.category == cat)
+        category_rows.append({
+            "category": cat,
+            "total": base.count(),
+            "pierson": base.filter(NewStoryAsset.status.in_(pierson_statuses)).count(),
+            "available": base.filter(NewStoryAsset.status.in_(available_statuses)).count(),
+            "reserved": base.filter(NewStoryAsset.status.in_(reserved_statuses)).count(),
+            "deployed": base.filter(NewStoryAsset.status.in_(deployed_statuses)).count(),
+            "return_pending": base.filter(NewStoryAsset.status.in_(return_pending_statuses)).count(),
+            "repair": base.filter(NewStoryAsset.status.in_(repair_statuses)).count(),
+        })
+
     status_counts = dict(db.session.query(NewStoryAsset.status, db.func.count(NewStoryAsset.id)).group_by(NewStoryAsset.status).all())
-    location_counts = db.session.query(NewStoryLocation.name, db.func.count(NewStoryAsset.id)).join(NewStoryAsset, NewStoryAsset.current_location_id == NewStoryLocation.id).group_by(NewStoryLocation.name).order_by(db.func.count(NewStoryAsset.id).desc()).limit(20).all()
-    return render_template("new_story/portal_assets.html", rows=rows, q=q, status=status, category=category, categories=categories, statuses=statuses, category_counts=category_counts, status_counts=status_counts, location_counts=location_counts)
+    total_assets = sum(status_counts.values())
+    at_pierson = sum(status_counts.get(x, 0) for x in pierson_statuses)
+    available_assets = sum(status_counts.get(x, 0) for x in available_statuses)
+    deployed_assets = sum(status_counts.get(x, 0) for x in deployed_statuses)
+    return_pending_assets = sum(status_counts.get(x, 0) for x in return_pending_statuses)
+    repair_assets = sum(status_counts.get(x, 0) for x in repair_statuses)
+
+    # Non-serialized stock is shown separately so it never inflates serialized
+    # ownership totals or double-counts devices.
+    stock_rows = (NewStoryStockItem.query
+                  .filter_by(active=True)
+                  .order_by(NewStoryStockItem.category.asc(), NewStoryStockItem.description.asc())
+                  .all())
+    bulk_on_hand = sum(max(x.quantity_on_hand or 0, 0) for x in stock_rows)
+    bulk_available = sum(x.quantity_available for x in stock_rows)
+
+    location_counts = (db.session.query(NewStoryLocation.name, db.func.count(NewStoryAsset.id))
+                       .join(NewStoryAsset, NewStoryAsset.current_location_id == NewStoryLocation.id)
+                       .filter(NewStoryAsset.status.in_(deployed_statuses + return_pending_statuses))
+                       .group_by(NewStoryLocation.name)
+                       .order_by(db.func.count(NewStoryAsset.id).desc())
+                       .limit(12).all())
+
+    return render_template(
+        "new_story/portal_assets.html", rows=rows, q=q, status=status, category=category, view=view,
+        categories=categories, statuses=statuses, category_rows=category_rows, status_counts=status_counts,
+        total_assets=total_assets, at_pierson=at_pierson, available_assets=available_assets,
+        deployed_assets=deployed_assets, return_pending_assets=return_pending_assets, repair_assets=repair_assets,
+        stock_rows=stock_rows, bulk_on_hand=bulk_on_hand, bulk_available=bulk_available, location_counts=location_counts,
+    )
 
 
 @app.route("/new-story/portal/assets/<int:asset_id>")
