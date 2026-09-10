@@ -64,3 +64,6 @@ python app.py
 ```
 
 Falls back to SQLite (`repair_tracker_local.db`) when `DATABASE_URL` is unset.
+
+## New Story Phase 4
+Operational inventory management is available at `/new-story/inventory`, with scanner workflows at `/new-story/inventory/scan`. Serialized assets have lifecycle records and non-serialized accessories can be tracked as quantity stock. Shipment batches now require exact asset scanning before closure.

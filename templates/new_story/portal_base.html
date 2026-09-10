@@ -18,7 +18,7 @@
     <nav class="nav">
       <a href="{{ url_for('new_story_portal_dashboard') }}" class="{% if request.endpoint=='new_story_portal_dashboard' %}active{% endif %}"><span class="ico">⌂</span>Overview</a>
       <a href="{{ url_for('new_story_portal_requests') }}" class="{% if request.endpoint in ['new_story_portal_requests','new_story_portal_request'] %}active{% endif %}"><span class="ico">≣</span>Requests</a>
-      <a href="{{ url_for('new_story_portal_assets') }}" class="{% if request.endpoint=='new_story_portal_assets' %}active{% endif %}"><span class="ico">▣</span>Assets</a>
+      <a href="{{ url_for('new_story_portal_assets') }}" class="{% if request.endpoint in ['new_story_portal_assets','new_story_portal_asset'] %}active{% endif %}"><span class="ico">▣</span>Assets</a>
       <a href="{{ url_for('new_story_portal_shipments') }}" class="{% if request.endpoint=='new_story_portal_shipments' %}active{% endif %}"><span class="ico">⇄</span>Shipments</a>
     </nav>
     <div class="foot">Signed in as <strong>{{ current_new_story.contact_name or current_new_story.username }}</strong><br><br><a href="{{ url_for('new_story_logout') }}">Sign out</a></div>

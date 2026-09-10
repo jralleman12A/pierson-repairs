@@ -482,14 +482,17 @@ NEW_STORY_ASSET_STATUSES = [
     "Expected",
     "Received",
     "Available",
+    "Reserved",
     "Allocated",
     "Processing",
     "Ready to Ship",
     "Shipped",
     "Deployed",
+    "In Use",
     "Return Pending",
     "Returned",
     "Repair",
+    "Lost",
     "Retired",
     "Scrapped",
 ]
@@ -597,12 +600,66 @@ class NewStoryAsset(db.Model, RowLikeMixin):
     status = db.Column(db.String(80), nullable=False, default="Available", index=True)
     current_location_id = db.Column(db.Integer, db.ForeignKey("new_story_locations.id"), nullable=True, index=True)
     assigned_request_id = db.Column(db.Integer, db.ForeignKey("new_story_requests.id"), nullable=True, index=True)
+    assigned_to = db.Column(db.String(180), default="", index=True)
+    room = db.Column(db.String(120), default="")
     received_at = db.Column(db.DateTime, nullable=True)
+    deployed_at = db.Column(db.DateTime, nullable=True)
+    retired_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     current_location = db.relationship("NewStoryLocation", foreign_keys=[current_location_id])
     assigned_request = db.relationship("NewStoryRequest", foreign_keys=[assigned_request_id], backref="assets")
+
+
+class NewStoryStockItem(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_stock_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    category = db.Column(db.String(100), nullable=False, default="Other", index=True)
+    description = db.Column(db.String(240), default="")
+    model = db.Column(db.String(160), default="", index=True)
+    customer_po = db.Column(db.String(120), default="", index=True)
+    vendor_order = db.Column(db.String(120), default="")
+    location_id = db.Column(db.Integer, db.ForeignKey("new_story_locations.id"), nullable=True, index=True)
+    quantity_on_hand = db.Column(db.Integer, nullable=False, default=0)
+    quantity_reserved = db.Column(db.Integer, nullable=False, default=0)
+    reorder_level = db.Column(db.Integer, nullable=False, default=0)
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    location = db.relationship("NewStoryLocation")
+
+    @property
+    def quantity_available(self) -> int:
+        return max((self.quantity_on_hand or 0) - (self.quantity_reserved or 0), 0)
+
+
+class NewStoryInventoryMovement(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_inventory_movements"
+
+    id = db.Column(db.Integer, primary_key=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey("new_story_assets.id"), nullable=True, index=True)
+    stock_item_id = db.Column(db.Integer, db.ForeignKey("new_story_stock_items.id"), nullable=True, index=True)
+    request_id = db.Column(db.Integer, db.ForeignKey("new_story_requests.id"), nullable=True, index=True)
+    shipment_id = db.Column(db.Integer, db.ForeignKey("new_story_shipments.id"), nullable=True, index=True)
+    action = db.Column(db.String(80), nullable=False, index=True)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    from_status = db.Column(db.String(80), default="")
+    to_status = db.Column(db.String(80), default="")
+    from_location_id = db.Column(db.Integer, db.ForeignKey("new_story_locations.id"), nullable=True)
+    to_location_id = db.Column(db.Integer, db.ForeignKey("new_story_locations.id"), nullable=True)
+    actor = db.Column(db.String(120), default="Pierson")
+    notes = db.Column(db.Text, default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    asset = db.relationship("NewStoryAsset", foreign_keys=[asset_id], backref=db.backref("inventory_movements", lazy=True, order_by="NewStoryInventoryMovement.created_at.desc()"))
+    stock_item = db.relationship("NewStoryStockItem", foreign_keys=[stock_item_id], backref=db.backref("movements", lazy=True, order_by="NewStoryInventoryMovement.created_at.desc()"))
+    request = db.relationship("NewStoryRequest", foreign_keys=[request_id])
+    shipment = db.relationship("NewStoryShipment", foreign_keys=[shipment_id])
+    from_location = db.relationship("NewStoryLocation", foreign_keys=[from_location_id])
+    to_location = db.relationship("NewStoryLocation", foreign_keys=[to_location_id])
 
 
 class NewStoryShipment(db.Model, RowLikeMixin):
@@ -1142,6 +1199,14 @@ def run_migrations() -> None:
         )
     if db.engine.dialect.name == "postgresql" and _column_exists("new_story_activity", "summary"):
         statements.append("ALTER TABLE new_story_activity ALTER COLUMN summary TYPE TEXT")
+    if not _column_exists("new_story_assets", "assigned_to"):
+        statements.append("ALTER TABLE new_story_assets ADD COLUMN assigned_to VARCHAR(180) DEFAULT ''")
+    if not _column_exists("new_story_assets", "room"):
+        statements.append("ALTER TABLE new_story_assets ADD COLUMN room VARCHAR(120) DEFAULT ''")
+    if not _column_exists("new_story_assets", "deployed_at"):
+        statements.append("ALTER TABLE new_story_assets ADD COLUMN deployed_at TIMESTAMP")
+    if not _column_exists("new_story_assets", "retired_at"):
+        statements.append("ALTER TABLE new_story_assets ADD COLUMN retired_at TIMESTAMP")
     for stmt in statements:
         try:
             db.session.execute(text(stmt))
@@ -1161,7 +1226,7 @@ def sync_postgres_sequences() -> None:
     if db.engine.dialect.name != "postgresql":
         return
 
-    for table_name in ("units", "repair_notes", "replacement_panels", "boxlight_accounts", "boxlight_message_threads", "boxlight_messages", "new_story_accounts", "new_story_locations", "new_story_requests", "new_story_request_items", "new_story_assets", "new_story_shipments", "new_story_shipment_items", "new_story_activity"):
+    for table_name in ("units", "repair_notes", "replacement_panels", "boxlight_accounts", "boxlight_message_threads", "boxlight_messages", "new_story_accounts", "new_story_locations", "new_story_requests", "new_story_request_items", "new_story_assets", "new_story_shipments", "new_story_shipment_items", "new_story_activity", "new_story_stock_items", "new_story_inventory_movements"):
         try:
             db.session.execute(text(f"""
                 SELECT setval(
@@ -3108,6 +3173,35 @@ def next_new_story_ticket() -> str:
     return f"{prefix}{highest + 1:06d}"
 
 
+def _ns_actor() -> str:
+    user = current_user()
+    return user.username if user else "Pierson"
+
+
+def record_inventory_movement(asset: NewStoryAsset | None = None, *, stock_item: NewStoryStockItem | None = None, action: str, quantity: int = 1, request_obj: NewStoryRequest | None = None, shipment: NewStoryShipment | None = None, from_status: str = "", to_status: str = "", from_location_id: int | None = None, to_location_id: int | None = None, notes: str = "") -> None:
+    db.session.add(NewStoryInventoryMovement(
+        asset_id=asset.id if asset else None,
+        stock_item_id=stock_item.id if stock_item else None,
+        request_id=request_obj.id if request_obj else None,
+        shipment_id=shipment.id if shipment else None,
+        action=action, quantity=max(int(quantity or 1), 1),
+        from_status=from_status or "", to_status=to_status or "",
+        from_location_id=from_location_id, to_location_id=to_location_id,
+        actor=_ns_actor(), notes=notes or "",
+    ))
+
+
+def find_new_story_asset(scan_value: str) -> NewStoryAsset | None:
+    value = (scan_value or "").strip()
+    if not value:
+        return None
+    return NewStoryAsset.query.filter(or_(
+        db.func.lower(NewStoryAsset.serial_number) == value.lower(),
+        db.func.lower(NewStoryAsset.raw_serial) == value.lower(),
+        db.func.lower(NewStoryAsset.asset_tag) == value.lower(),
+    )).first()
+
+
 @app.route("/new-story")
 @admin_login_required
 def new_story_dashboard():
@@ -3396,9 +3490,11 @@ def new_story_allocate_asset(request_id: int):
     if asset.status not in {"Available", "Received"}:
         flash("That asset is not currently available.", "warning")
         return redirect(url_for("new_story_request_detail", request_id=req.id))
+    old_status = asset.status
     asset.assigned_request_id = req.id
     asset.status = "Allocated"
     label = asset.serial_number or asset.asset_tag or f"Asset #{asset.id}"
+    record_inventory_movement(asset, action="Allocate", request_obj=req, from_status=old_status, to_status="Allocated")
     new_story_activity(req, f"Allocated {asset.category}: {label}", "Allocation")
     db.session.commit()
     return redirect(url_for("new_story_request_detail", request_id=req.id))
@@ -3410,6 +3506,7 @@ def new_story_assets():
     q = request.args.get("q", "").strip()
     status = request.args.get("status", "").strip()
     category = request.args.get("category", "").strip()
+    location_id = request.args.get("location_id", "").strip()
     query = NewStoryAsset.query
     if q:
         like = f"%{q}%"
@@ -3419,13 +3516,87 @@ def new_story_assets():
             NewStoryAsset.asset_tag.ilike(like),
             NewStoryAsset.customer_po.ilike(like),
             NewStoryAsset.model.ilike(like),
+            NewStoryAsset.assigned_to.ilike(like),
+            NewStoryAsset.room.ilike(like),
         ))
     if status:
         query = query.filter_by(status=status)
     if category:
         query = query.filter_by(category=category)
-    rows = query.order_by(NewStoryAsset.updated_at.desc()).limit(1000).all()
-    return render_template("new_story/assets.html", rows=rows, q=q, status=status, category=category)
+    if location_id.isdigit():
+        query = query.filter_by(current_location_id=int(location_id))
+    rows = query.order_by(NewStoryAsset.updated_at.desc()).limit(1500).all()
+    locations = NewStoryLocation.query.filter_by(active=True).order_by(NewStoryLocation.name).all()
+    status_counts = dict(db.session.query(NewStoryAsset.status, db.func.count(NewStoryAsset.id)).group_by(NewStoryAsset.status).all())
+    category_counts = db.session.query(NewStoryAsset.category, db.func.count(NewStoryAsset.id)).group_by(NewStoryAsset.category).order_by(NewStoryAsset.category).all()
+    return render_template("new_story/assets.html", rows=rows, q=q, status=status, category=category, location_id=location_id, locations=locations, status_counts=status_counts, category_counts=category_counts)
+
+
+@app.route("/new-story/assets/<int:asset_id>")
+@admin_login_required
+def new_story_asset_detail(asset_id: int):
+    asset = db.session.get(NewStoryAsset, asset_id) or abort(404)
+    locations = NewStoryLocation.query.filter_by(active=True).order_by(NewStoryLocation.name).all()
+    open_requests = NewStoryRequest.query.filter(~NewStoryRequest.status.in_(["Complete", "Cancelled"])).order_by(NewStoryRequest.updated_at.desc()).limit(500).all()
+    return render_template("new_story/asset_detail.html", asset=asset, locations=locations, open_requests=open_requests)
+
+
+@app.route("/new-story/assets/<int:asset_id>/update", methods=["POST"])
+@admin_login_required
+def new_story_asset_update(asset_id: int):
+    asset = db.session.get(NewStoryAsset, asset_id) or abort(404)
+    old_status, old_loc = asset.status, asset.current_location_id
+    status = request.form.get("status", asset.status).strip() or asset.status
+    if status not in NEW_STORY_ASSET_STATUSES:
+        flash("Invalid asset status.", "danger")
+        return redirect(url_for("new_story_asset_detail", asset_id=asset.id))
+    loc_raw = request.form.get("location_id", "").strip()
+    new_loc = int(loc_raw) if loc_raw.isdigit() else None
+    req_raw = request.form.get("request_id", "").strip()
+    new_req = int(req_raw) if req_raw.isdigit() else None
+    asset.status = status
+    asset.current_location_id = new_loc
+    asset.assigned_request_id = new_req
+    asset.assigned_to = request.form.get("assigned_to", "").strip()
+    asset.room = request.form.get("room", "").strip()
+    asset.model = request.form.get("model", asset.model).strip()
+    asset.description = request.form.get("description", asset.description).strip()
+    if status in {"Deployed", "In Use"} and not asset.deployed_at:
+        asset.deployed_at = datetime.utcnow()
+    if status in {"Retired", "Scrapped"} and not asset.retired_at:
+        asset.retired_at = datetime.utcnow()
+    if status != old_status or new_loc != old_loc:
+        record_inventory_movement(asset, action="Asset Update", request_obj=asset.assigned_request, from_status=old_status, to_status=status, from_location_id=old_loc, to_location_id=new_loc, notes=request.form.get("notes", "").strip())
+    db.session.commit()
+    flash("Asset updated.", "success")
+    return redirect(url_for("new_story_asset_detail", asset_id=asset.id))
+
+
+@app.route("/new-story/assets/bulk", methods=["POST"])
+@admin_login_required
+def new_story_assets_bulk():
+    ids = [int(x) for x in request.form.getlist("asset_ids") if x.isdigit()]
+    if not ids:
+        flash("Select at least one asset.", "warning")
+        return redirect(url_for("new_story_assets"))
+    action = request.form.get("bulk_action", "").strip()
+    status = request.form.get("bulk_status", "").strip()
+    loc_raw = request.form.get("bulk_location_id", "").strip()
+    location_id = int(loc_raw) if loc_raw.isdigit() else None
+    assets = NewStoryAsset.query.filter(NewStoryAsset.id.in_(ids)).all()
+    for asset in assets:
+        old_status, old_loc = asset.status, asset.current_location_id
+        if action == "status" and status in NEW_STORY_ASSET_STATUSES:
+            asset.status = status
+        elif action == "location":
+            asset.current_location_id = location_id
+        elif action == "clear_request":
+            asset.assigned_request_id = None
+            if asset.status in {"Allocated", "Reserved"}: asset.status = "Available"
+        record_inventory_movement(asset, action="Bulk Update", request_obj=asset.assigned_request, from_status=old_status, to_status=asset.status, from_location_id=old_loc, to_location_id=asset.current_location_id)
+    db.session.commit()
+    flash(f"Updated {len(assets)} asset(s).", "success")
+    return redirect(url_for("new_story_assets"))
 
 
 @app.route("/new-story/assets/add", methods=["POST"])
@@ -3450,9 +3621,115 @@ def new_story_asset_add():
         received_at=datetime.utcnow(),
     )
     db.session.add(asset)
+    db.session.flush()
+    record_inventory_movement(asset, action="Manual Add", from_status="", to_status=asset.status, notes="Asset created manually")
     db.session.commit()
     flash("Asset added to New Story inventory.", "success")
     return redirect(url_for("new_story_assets"))
+
+
+@app.route("/new-story/inventory")
+@admin_login_required
+def new_story_inventory():
+    serialized_total = NewStoryAsset.query.count()
+    on_hand_statuses = ["Received", "Available", "Reserved", "Allocated", "Processing", "Ready to Ship", "Returned", "Repair"]
+    on_hand = NewStoryAsset.query.filter(NewStoryAsset.status.in_(on_hand_statuses)).count()
+    deployed = NewStoryAsset.query.filter(NewStoryAsset.status.in_(["Shipped", "Deployed", "In Use", "Return Pending"])).count()
+    exceptions = NewStoryAsset.query.filter(NewStoryAsset.status.in_(["Lost", "Repair"])).count()
+    by_category = db.session.query(NewStoryAsset.category, db.func.count(NewStoryAsset.id)).group_by(NewStoryAsset.category).order_by(NewStoryAsset.category).all()
+    by_status = db.session.query(NewStoryAsset.status, db.func.count(NewStoryAsset.id)).group_by(NewStoryAsset.status).order_by(NewStoryAsset.status).all()
+    stock = NewStoryStockItem.query.filter_by(active=True).order_by(NewStoryStockItem.category, NewStoryStockItem.description).all()
+    recent = NewStoryInventoryMovement.query.order_by(NewStoryInventoryMovement.created_at.desc()).limit(40).all()
+    return render_template("new_story/inventory.html", serialized_total=serialized_total, on_hand=on_hand, deployed=deployed, exceptions=exceptions, by_category=by_category, by_status=by_status, stock=stock, recent=recent)
+
+
+@app.route("/new-story/inventory/scan", methods=["GET", "POST"])
+@admin_login_required
+def new_story_inventory_scan():
+    locations = NewStoryLocation.query.filter_by(active=True).order_by(NewStoryLocation.name).all()
+    open_requests = NewStoryRequest.query.filter(~NewStoryRequest.status.in_(["Complete", "Cancelled"])).order_by(NewStoryRequest.updated_at.desc()).limit(600).all()
+    result = None
+    if request.method == "POST":
+        value = request.form.get("scan_value", "").strip()
+        action = request.form.get("action", "Lookup").strip()
+        asset = find_new_story_asset(value)
+        if not asset and action == "Receive New":
+            category = request.form.get("category", "Other").strip() or "Other"
+            serial = normalize_new_story_serial(category, value)
+            if serial and NewStoryAsset.query.filter(db.func.lower(NewStoryAsset.serial_number) == serial.lower()).first():
+                flash("That normalized serial already exists.", "warning")
+            else:
+                asset = NewStoryAsset(category=category, raw_serial=value, serial_number=serial, model=request.form.get("model", "").strip(), customer_po=request.form.get("customer_po", "").strip(), vendor_order=request.form.get("vendor_order", "").strip(), status="Available", received_at=datetime.utcnow())
+                db.session.add(asset); db.session.flush()
+                record_inventory_movement(asset, action="Receive", from_status="", to_status="Available", notes="Scanner receive")
+                db.session.commit(); flash(f"Received {serial or value}.", "success")
+        elif not asset:
+            flash("Serial / asset tag not found.", "danger")
+        else:
+            old_status, old_loc = asset.status, asset.current_location_id
+            req_raw = request.form.get("request_id", "").strip()
+            req = db.session.get(NewStoryRequest, int(req_raw)) if req_raw.isdigit() else asset.assigned_request
+            loc_raw = request.form.get("location_id", "").strip()
+            loc = int(loc_raw) if loc_raw.isdigit() else asset.current_location_id
+            if action == "Lookup":
+                pass
+            elif action == "Make Available":
+                asset.status = "Available"; asset.assigned_request_id = None
+            elif action == "Reserve":
+                asset.status = "Reserved"; asset.assigned_request_id = req.id if req else None
+            elif action == "Allocate":
+                if not req: flash("Choose a request before allocating.", "warning")
+                else: asset.status = "Allocated"; asset.assigned_request_id = req.id
+            elif action == "Stage":
+                asset.status = "Ready to Ship"; asset.assigned_request_id = req.id if req else asset.assigned_request_id
+            elif action == "Deploy":
+                asset.status = "Deployed"; asset.current_location_id = loc; asset.assigned_to = request.form.get("assigned_to", asset.assigned_to).strip(); asset.room = request.form.get("room", asset.room).strip(); asset.deployed_at = asset.deployed_at or datetime.utcnow()
+            elif action == "Receive Return":
+                asset.status = "Returned"; asset.current_location_id = loc; asset.assigned_request_id = req.id if req else asset.assigned_request_id
+            elif action == "Send to Repair":
+                asset.status = "Repair"
+            elif action == "Scrap":
+                asset.status = "Scrapped"; asset.retired_at = datetime.utcnow()
+            elif action == "Lost":
+                asset.status = "Lost"
+            if action != "Lookup" and (asset.status != old_status or asset.current_location_id != old_loc or asset.assigned_request_id != (req.id if req else asset.assigned_request_id)):
+                record_inventory_movement(asset, action=action, request_obj=req, from_status=old_status, to_status=asset.status, from_location_id=old_loc, to_location_id=asset.current_location_id, notes=request.form.get("notes", "").strip())
+                if req: new_story_activity(req, f"{action}: {asset.serial_number or asset.asset_tag or 'asset'}", "Inventory")
+                db.session.commit(); flash(f"{asset.serial_number or asset.asset_tag or 'Asset'} → {asset.status}", "success")
+            result = asset
+    recent = NewStoryInventoryMovement.query.order_by(NewStoryInventoryMovement.created_at.desc()).limit(20).all()
+    return render_template("new_story/scan.html", locations=locations, open_requests=open_requests, result=result, recent=recent)
+
+
+@app.route("/new-story/inventory/stock/add", methods=["POST"])
+@admin_login_required
+def new_story_stock_add():
+    try: qty=max(int(request.form.get("quantity", "0")),0)
+    except ValueError: qty=0
+    try: reorder=max(int(request.form.get("reorder_level", "0")),0)
+    except ValueError: reorder=0
+    loc_raw=request.form.get("location_id", "").strip()
+    item=NewStoryStockItem(category=request.form.get("category","Other").strip() or "Other", description=request.form.get("description","").strip(), model=request.form.get("model","").strip(), customer_po=request.form.get("customer_po","").strip(), vendor_order=request.form.get("vendor_order","").strip(), location_id=int(loc_raw) if loc_raw.isdigit() else None, quantity_on_hand=qty, reorder_level=reorder)
+    db.session.add(item); db.session.flush()
+    if qty: record_inventory_movement(stock_item=item, action="Initial Stock", quantity=qty, notes="Stock item created")
+    db.session.commit(); flash("Stock item added.", "success")
+    return redirect(url_for("new_story_inventory"))
+
+
+@app.route("/new-story/inventory/stock/<int:stock_id>/adjust", methods=["POST"])
+@admin_login_required
+def new_story_stock_adjust(stock_id: int):
+    item=db.session.get(NewStoryStockItem, stock_id) or abort(404)
+    try: qty=int(request.form.get("quantity", "0"))
+    except ValueError: qty=0
+    mode=request.form.get("mode", "adjust")
+    old=item.quantity_on_hand
+    if mode == "set": item.quantity_on_hand=max(qty,0); delta=item.quantity_on_hand-old
+    else: item.quantity_on_hand=max(item.quantity_on_hand+qty,0); delta=item.quantity_on_hand-old
+    if item.quantity_reserved > item.quantity_on_hand: item.quantity_reserved=item.quantity_on_hand
+    if delta: record_inventory_movement(stock_item=item, action="Stock Adjustment", quantity=abs(delta), notes=("+" if delta>0 else "-")+str(abs(delta))+" | "+request.form.get("notes","").strip())
+    db.session.commit(); flash("Stock quantity updated.", "success")
+    return redirect(url_for("new_story_inventory"))
 
 
 @app.route("/new-story/receiving", methods=["GET", "POST"])
@@ -3472,16 +3749,18 @@ def new_story_receiving():
         model = request.form.get("model", "").strip()
         desc = request.form.get("description", "").strip()
         serialized = request.form.get("serialized") == "on"
-        for _ in range(qty):
-            db.session.add(NewStoryAsset(
-                category=category,
-                description=desc,
-                model=model,
-                customer_po=po,
-                vendor_order=vendor,
-                status="Received" if serialized else "Available",
-                received_at=datetime.utcnow(),
-            ))
+        if serialized:
+            for _ in range(qty):
+                asset = NewStoryAsset(category=category, description=desc, model=model, customer_po=po, vendor_order=vendor, status="Received", received_at=datetime.utcnow())
+                db.session.add(asset); db.session.flush()
+                record_inventory_movement(asset, action="Receive", from_status="", to_status="Received", notes=f"Bulk receipt {po} {vendor}".strip())
+        else:
+            stock = NewStoryStockItem.query.filter_by(category=category, description=desc, model=model, customer_po=po, vendor_order=vendor).first()
+            if not stock:
+                stock = NewStoryStockItem(category=category, description=desc, model=model, customer_po=po, vendor_order=vendor, quantity_on_hand=0)
+                db.session.add(stock); db.session.flush()
+            stock.quantity_on_hand += qty
+            record_inventory_movement(stock_item=stock, action="Receive", quantity=qty, notes=f"Bulk receipt {po} {vendor}".strip())
         db.session.commit()
         flash(f"Received {qty} {category} item(s).", "success")
         return redirect(url_for("new_story_receiving"))
@@ -3507,21 +3786,82 @@ def new_story_shipments():
             shipped_at=datetime.utcnow() if request.form.get("mark_shipped") == "on" else None,
             notes=request.form.get("notes", "").strip(),
         )
+        # Shipments are built explicitly by scanning assets into the batch.
+        # Never auto-attach every allocated asset on a ticket; that can ship the wrong hardware.
+        shipment.shipped_at = None
         db.session.add(shipment)
         db.session.flush()
-        if shipment.shipped_at:
-            for asset in req.assets:
-                if asset.status in {"Allocated", "Processing", "Ready to Ship"}:
-                    asset.status = "Shipped"
-                    db.session.add(NewStoryShipmentItem(shipment_id=shipment.id, asset_id=asset.id))
-            req.status = "Awaiting Return" if req.return_kit_required else "Shipped"
-        new_story_activity(req, f"{shipment.direction} shipment created" + (f": {shipment.tracking_number}" if shipment.tracking_number else ""), "Shipment")
+        new_story_activity(req, f"{shipment.direction} shipment batch created" + (f": {shipment.tracking_number}" if shipment.tracking_number else ""), "Shipment")
         db.session.commit()
-        flash("Shipment created.", "success")
-        return redirect(url_for("new_story_request_detail", request_id=req.id))
+        flash("Shipment batch created. Scan the exact assets into it before marking it shipped.", "success")
+        return redirect(url_for("new_story_shipment_detail", shipment_id=shipment.id))
     rows = NewStoryShipment.query.order_by(NewStoryShipment.created_at.desc()).limit(250).all()
     open_requests = NewStoryRequest.query.filter(~NewStoryRequest.status.in_(["Complete", "Cancelled"])).order_by(NewStoryRequest.updated_at.desc()).all()
     return render_template("new_story/shipments.html", rows=rows, open_requests=open_requests)
+
+
+@app.route("/new-story/shipments/<int:shipment_id>", methods=["GET", "POST"])
+@admin_login_required
+def new_story_shipment_detail(shipment_id: int):
+    shipment=db.session.get(NewStoryShipment, shipment_id) or abort(404)
+    if request.method == "POST":
+        value=request.form.get("scan_value", "").strip()
+        asset=find_new_story_asset(value)
+        if not asset:
+            flash("Serial / asset tag not found.", "danger")
+        elif NewStoryShipmentItem.query.filter_by(shipment_id=shipment.id, asset_id=asset.id).first():
+            flash("Asset is already on this shipment.", "warning")
+        else:
+            old=asset.status
+            target_status = "Return Pending" if shipment.direction.lower().startswith("in") else "Ready to Ship"
+            asset.status=target_status; asset.assigned_request_id=shipment.request_id
+            db.session.add(NewStoryShipmentItem(shipment_id=shipment.id, asset_id=asset.id))
+            record_inventory_movement(asset, action="Add to Return" if target_status == "Return Pending" else "Add to Shipment", request_obj=shipment.request, shipment=shipment, from_status=old, to_status=target_status)
+            new_story_activity(shipment.request, f"Added {asset.serial_number or asset.asset_tag or 'asset'} to shipment", "Shipment")
+            db.session.commit(); flash("Asset added to shipment.", "success")
+    return render_template("new_story/shipment_detail.html", shipment=shipment)
+
+
+@app.route("/new-story/shipments/<int:shipment_id>/remove/<int:asset_id>", methods=["POST"])
+@admin_login_required
+def new_story_shipment_remove_asset(shipment_id: int, asset_id: int):
+    shipment=db.session.get(NewStoryShipment, shipment_id) or abort(404)
+    link=NewStoryShipmentItem.query.filter_by(shipment_id=shipment.id, asset_id=asset_id).first() or abort(404)
+    asset=link.asset; old=asset.status
+    db.session.delete(link); asset.status="Allocated" if asset.assigned_request_id else "Available"
+    record_inventory_movement(asset, action="Remove from Shipment", request_obj=shipment.request, shipment=shipment, from_status=old, to_status=asset.status)
+    db.session.commit(); flash("Asset removed from shipment.", "success")
+    return redirect(url_for("new_story_shipment_detail", shipment_id=shipment.id))
+
+
+@app.route("/new-story/shipments/<int:shipment_id>/ship", methods=["POST"])
+@admin_login_required
+def new_story_shipment_ship(shipment_id: int):
+    shipment=db.session.get(NewStoryShipment, shipment_id) or abort(404)
+    if not shipment.items:
+        flash("Add at least one asset before shipping.", "warning")
+        return redirect(url_for("new_story_shipment_detail", shipment_id=shipment.id))
+    shipment.tracking_number=request.form.get("tracking_number", shipment.tracking_number).strip()
+    shipment.method=request.form.get("method", shipment.method).strip() or shipment.method
+    inbound = shipment.direction.lower().startswith("in")
+    if inbound:
+        shipment.delivered_at = shipment.delivered_at or datetime.utcnow()
+        for link in shipment.items:
+            a=link.asset; old=a.status; a.status="Returned"; a.current_location_id=None
+            record_inventory_movement(a, action="Receive Return", request_obj=shipment.request, shipment=shipment, from_status=old, to_status="Returned", notes=shipment.tracking_number)
+        shipment.request.status="Processing"
+        new_story_activity(shipment.request, f"Return received: {shipment.tracking_number or shipment.method}", "Return")
+        message="Return marked received."
+    else:
+        shipment.shipped_at=shipment.shipped_at or datetime.utcnow()
+        for link in shipment.items:
+            a=link.asset; old=a.status; a.status="Shipped"
+            record_inventory_movement(a, action="Ship", request_obj=shipment.request, shipment=shipment, from_status=old, to_status="Shipped", notes=shipment.tracking_number)
+        shipment.request.status="Awaiting Return" if shipment.request.return_kit_required else "Shipped"
+        new_story_activity(shipment.request, f"Shipment sent: {shipment.tracking_number or shipment.method}", "Shipment")
+        message="Shipment marked shipped."
+    db.session.commit(); flash(message, "success")
+    return redirect(url_for("new_story_shipment_detail", shipment_id=shipment.id))
 
 
 @app.route("/new-story/exceptions")
@@ -3924,10 +4264,20 @@ def new_story_portal_assets():
         query = query.filter_by(status=status)
     if category:
         query = query.filter_by(category=category)
-    rows = query.order_by(NewStoryAsset.updated_at.desc()).limit(750).all()
+    rows = query.order_by(NewStoryAsset.updated_at.desc()).limit(1000).all()
     categories = [r[0] for r in db.session.query(NewStoryAsset.category).distinct().order_by(NewStoryAsset.category).all() if r[0]]
     statuses = [r[0] for r in db.session.query(NewStoryAsset.status).distinct().order_by(NewStoryAsset.status).all() if r[0]]
-    return render_template("new_story/portal_assets.html", rows=rows, q=q, status=status, category=category, categories=categories, statuses=statuses)
+    category_counts = db.session.query(NewStoryAsset.category, db.func.count(NewStoryAsset.id)).group_by(NewStoryAsset.category).order_by(NewStoryAsset.category).all()
+    status_counts = dict(db.session.query(NewStoryAsset.status, db.func.count(NewStoryAsset.id)).group_by(NewStoryAsset.status).all())
+    location_counts = db.session.query(NewStoryLocation.name, db.func.count(NewStoryAsset.id)).join(NewStoryAsset, NewStoryAsset.current_location_id == NewStoryLocation.id).group_by(NewStoryLocation.name).order_by(db.func.count(NewStoryAsset.id).desc()).limit(20).all()
+    return render_template("new_story/portal_assets.html", rows=rows, q=q, status=status, category=category, categories=categories, statuses=statuses, category_counts=category_counts, status_counts=status_counts, location_counts=location_counts)
+
+
+@app.route("/new-story/portal/assets/<int:asset_id>")
+@new_story_login_required
+def new_story_portal_asset(asset_id: int):
+    asset = db.session.get(NewStoryAsset, asset_id) or abort(404)
+    return render_template("new_story/portal_asset.html", asset=asset)
 
 
 @app.route("/new-story/portal/shipments")

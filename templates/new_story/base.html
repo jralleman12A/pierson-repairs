@@ -19,7 +19,8 @@
     <a href="{{ url_for('new_story_dashboard') }}" class="{% if request.endpoint=='new_story_dashboard' %}active{% endif %}">Overview</a>
     <a href="{{ url_for('new_story_requests') }}" class="{% if 'new_story_request' in request.endpoint|default('') %}active{% endif %}">Requests</a>
     <a href="{{ url_for('new_story_intake') }}" class="{% if request.endpoint=='new_story_intake' %}active{% endif %}">Email Intake</a>
-    <a href="{{ url_for('new_story_assets') }}" class="{% if request.endpoint=='new_story_assets' %}active{% endif %}">Assets</a>
+    <a href="{{ url_for('new_story_inventory') }}" class="{% if request.endpoint in ['new_story_inventory','new_story_inventory_scan'] %}active{% endif %}">Inventory</a>
+    <a href="{{ url_for('new_story_assets') }}" class="{% if request.endpoint in ['new_story_assets','new_story_asset_detail'] %}active{% endif %}">Assets</a>
     <a href="{{ url_for('new_story_receiving') }}" class="{% if request.endpoint=='new_story_receiving' %}active{% endif %}">Receiving</a>
     <a href="{{ url_for('new_story_procurement') }}" class="{% if request.endpoint=='new_story_procurement' %}active{% endif %}">Procurement</a>
     <a href="{{ url_for('new_story_shipments') }}" class="{% if request.endpoint=='new_story_shipments' %}active{% endif %}">Shipments & Returns</a>
