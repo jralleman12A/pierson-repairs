@@ -29,3 +29,8 @@ After deployment, sign into the Pierson admin side and open:
 `/new-story/legacy-import`
 
 Review the counts and click **Import legacy data now**. The workbook hash is recorded so the same snapshot cannot be imported twice.
+
+
+## Import hotfix
+- Changed `new_story_activity.summary` from `VARCHAR(300)` to `TEXT` so long legacy operational notes do not abort the PostgreSQL import.
+- PostgreSQL startup migration now widens the existing column automatically.

@@ -638,7 +638,7 @@ class NewStoryActivity(db.Model, RowLikeMixin):
     id = db.Column(db.Integer, primary_key=True)
     request_id = db.Column(db.Integer, db.ForeignKey("new_story_requests.id"), nullable=False, index=True)
     event_type = db.Column(db.String(80), nullable=False, default="Note")
-    summary = db.Column(db.String(300), nullable=False)
+    summary = db.Column(db.Text, nullable=False)
     detail = db.Column(db.Text, default="")
     actor = db.Column(db.String(120), default="Pierson")
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
@@ -1140,6 +1140,8 @@ def run_migrations() -> None:
         statements.append(
             f"ALTER TABLE repair_notes ADD COLUMN is_internal BOOLEAN NOT NULL DEFAULT {default}"
         )
+    if db.engine.dialect.name == "postgresql" and _column_exists("new_story_activity", "summary"):
+        statements.append("ALTER TABLE new_story_activity ALTER COLUMN summary TYPE TEXT")
     for stmt in statements:
         try:
             db.session.execute(text(stmt))
