@@ -139,6 +139,11 @@ BOOTSTRAP_CLIENT_PASSWORD = os.getenv("BOOTSTRAP_CLIENT_PASSWORD", "")
 BOOTSTRAP_BOXLIGHT_USERNAME = os.getenv("BOXLIGHT_USERNAME", "")
 BOOTSTRAP_BOXLIGHT_PASSWORD = os.getenv("BOXLIGHT_PASSWORD", "")
 
+# Optional first-run New Story customer account.
+BOOTSTRAP_NEW_STORY_USERNAME = os.getenv("NEW_STORY_USERNAME", "")
+BOOTSTRAP_NEW_STORY_PASSWORD = os.getenv("NEW_STORY_PASSWORD", "")
+BOOTSTRAP_NEW_STORY_CONTACT = os.getenv("NEW_STORY_CONTACT", "")
+
 db = SQLAlchemy(app)
 
 # The landing page shows the real logo once static/pierson-logo.png exists,
@@ -427,6 +432,219 @@ class ClientFile(db.Model, RowLikeMixin):
 
 
 # ═══════════════════════════════════════════════════════════
+# NEW STORY — IT MANAGEMENT
+# Separate data model from Boxlight/MCPS repairs. The two programs share
+# authentication infrastructure only; operational records never overlap.
+# ═══════════════════════════════════════════════════════════
+
+NEW_STORY_REQUEST_STATUSES = [
+    "Incoming",
+    "Needs Review",
+    "Awaiting Inventory",
+    "Processing",
+    "Ready to Ship",
+    "Shipped",
+    "Awaiting Return",
+    "Complete",
+    "Cancelled",
+]
+
+NEW_STORY_SERVICE_TYPES = [
+    "Order",
+    "New Hire",
+    "Break/Fix",
+    "Config Only B/F",
+    "Aux Fund",
+    "OPS",
+    "Installation",
+    "Other",
+]
+
+NEW_STORY_CATEGORIES = [
+    "Chromebook",
+    "Windows",
+    "iPad",
+    "Monitor",
+    "Keyboard",
+    "Docking Station",
+    "Jabra / Headset",
+    "Web Cam",
+    "Interactive Panel",
+    "Wall Mount",
+    "Mobile Stand",
+    "PCM11",
+    "PCM13",
+    "License",
+    "Other",
+]
+
+NEW_STORY_ASSET_STATUSES = [
+    "Expected",
+    "Received",
+    "Available",
+    "Allocated",
+    "Processing",
+    "Ready to Ship",
+    "Shipped",
+    "Deployed",
+    "Return Pending",
+    "Returned",
+    "Repair",
+    "Retired",
+    "Scrapped",
+]
+
+
+class NewStoryAccount(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_accounts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    contact_name = db.Column(db.String(120), default="")
+    email = db.Column(db.String(160), default="")
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def set_password(self, pw: str) -> None:
+        self.password_hash = generate_password_hash(pw)
+
+    def check_password(self, pw: str) -> bool:
+        return check_password_hash(self.password_hash, pw)
+
+
+class NewStoryLocation(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_locations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(180), nullable=False, index=True)
+    street = db.Column(db.String(220), default="")
+    city = db.Column(db.String(120), default="")
+    state = db.Column(db.String(40), default="")
+    zip_code = db.Column(db.String(20), default="")
+    location_type = db.Column(db.String(50), default="School")
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class NewStoryRequest(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    ticket_number = db.Column(db.String(120), nullable=False, index=True)
+    customer_po = db.Column(db.String(120), default="", index=True)
+    project_name = db.Column(db.String(220), default="")
+    service_type = db.Column(db.String(80), nullable=False, default="Order", index=True)
+    status = db.Column(db.String(80), nullable=False, default="Incoming", index=True)
+    location_id = db.Column(db.Integer, db.ForeignKey("new_story_locations.id"), nullable=True, index=True)
+    school_name = db.Column(db.String(180), default="", index=True)
+    requester = db.Column(db.String(160), default="")
+    recipient = db.Column(db.String(160), default="")
+    street = db.Column(db.String(220), default="")
+    city = db.Column(db.String(120), default="")
+    state = db.Column(db.String(40), default="")
+    zip_code = db.Column(db.String(20), default="")
+    return_kit_required = db.Column(db.Boolean, nullable=False, default=False)
+    attention_reason = db.Column(db.String(220), default="")
+    source = db.Column(db.String(80), default="Manual")
+    source_subject = db.Column(db.String(500), default="")
+    source_raw = db.Column(db.Text, default="")
+    notes = db.Column(db.Text, default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    location = db.relationship("NewStoryLocation", backref="requests")
+    items = db.relationship("NewStoryRequestItem", backref="request", lazy=True, cascade="all, delete-orphan")
+    activities = db.relationship("NewStoryActivity", backref="request", lazy=True, cascade="all, delete-orphan", order_by="NewStoryActivity.created_at.desc()")
+    shipments = db.relationship("NewStoryShipment", backref="request", lazy=True, cascade="all, delete-orphan")
+
+    @property
+    def address_text(self) -> str:
+        return ", ".join(x for x in [self.street, self.city, self.state, self.zip_code] if x)
+
+    @property
+    def requested_qty(self) -> int:
+        return sum(max(i.quantity_requested or 0, 0) for i in self.items)
+
+
+class NewStoryRequestItem(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_request_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey("new_story_requests.id"), nullable=False, index=True)
+    category = db.Column(db.String(100), nullable=False, default="Other", index=True)
+    description = db.Column(db.String(240), default="")
+    model = db.Column(db.String(160), default="")
+    quantity_requested = db.Column(db.Integer, nullable=False, default=1)
+    quantity_fulfilled = db.Column(db.Integer, nullable=False, default=0)
+    requirement_type = db.Column(db.String(80), default="Equipment")
+    shortage_reason = db.Column(db.String(220), default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class NewStoryAsset(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_assets"
+
+    id = db.Column(db.Integer, primary_key=True)
+    category = db.Column(db.String(100), nullable=False, default="Other", index=True)
+    description = db.Column(db.String(240), default="")
+    model = db.Column(db.String(160), default="")
+    raw_serial = db.Column(db.String(220), default="")
+    serial_number = db.Column(db.String(220), default="", index=True)
+    asset_tag = db.Column(db.String(160), default="", index=True)
+    customer_po = db.Column(db.String(120), default="", index=True)
+    vendor_order = db.Column(db.String(120), default="")
+    status = db.Column(db.String(80), nullable=False, default="Available", index=True)
+    current_location_id = db.Column(db.Integer, db.ForeignKey("new_story_locations.id"), nullable=True, index=True)
+    assigned_request_id = db.Column(db.Integer, db.ForeignKey("new_story_requests.id"), nullable=True, index=True)
+    received_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    current_location = db.relationship("NewStoryLocation", foreign_keys=[current_location_id])
+    assigned_request = db.relationship("NewStoryRequest", foreign_keys=[assigned_request_id], backref="assets")
+
+
+class NewStoryShipment(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_shipments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey("new_story_requests.id"), nullable=False, index=True)
+    direction = db.Column(db.String(20), nullable=False, default="Outbound")
+    method = db.Column(db.String(80), default="FedEx Ground")
+    tracking_number = db.Column(db.String(180), default="", index=True)
+    shipped_at = db.Column(db.DateTime, nullable=True)
+    delivered_at = db.Column(db.DateTime, nullable=True)
+    notes = db.Column(db.Text, default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    items = db.relationship("NewStoryShipmentItem", backref="shipment", lazy=True, cascade="all, delete-orphan")
+
+
+class NewStoryShipmentItem(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_shipment_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    shipment_id = db.Column(db.Integer, db.ForeignKey("new_story_shipments.id"), nullable=False, index=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey("new_story_assets.id"), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    asset = db.relationship("NewStoryAsset")
+
+
+class NewStoryActivity(db.Model, RowLikeMixin):
+    __tablename__ = "new_story_activity"
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey("new_story_requests.id"), nullable=False, index=True)
+    event_type = db.Column(db.String(80), nullable=False, default="Note")
+    summary = db.Column(db.String(300), nullable=False)
+    detail = db.Column(db.Text, default="")
+    actor = db.Column(db.String(120), default="Pierson")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+
+# ═══════════════════════════════════════════════════════════
 # TEMPLATE HELPERS
 # ═══════════════════════════════════════════════════════════
 
@@ -493,6 +711,17 @@ def current_boxlight() -> BoxlightAccount | None:
     if not account_id:
         return None
     account = db.session.get(BoxlightAccount, account_id)
+    if account and not account.active:
+        return None
+    return account
+
+
+
+def current_new_story() -> NewStoryAccount | None:
+    account_id = session.get("new_story_account_id")
+    if not account_id:
+        return None
+    account = db.session.get(NewStoryAccount, account_id)
     if account and not account.active:
         return None
     return account
@@ -635,8 +864,15 @@ def client_repair_stats(client_id: int) -> dict:
         "returned": counts.get("Returned", 0),
         "active": counts.get("Received", 0) + counts.get("In repair", 0),
         "avg_turnaround": round(sum(spans) / len(spans)) if spans else None,
-        "repaired": total - scrapped,
-        "repair_rate": round(100 * (total - scrapped) / total) if total else None,
+        # Only count panels that have actually reached a completed/returned stage.
+        # Open repairs must not be reported as "repaired" just because they are not scrapped.
+        "repaired": counts.get("Completed", 0) + counts.get("Returned", 0),
+        "repair_rate": (
+            round(100 * (counts.get("Completed", 0) + counts.get("Returned", 0))
+                  / (counts.get("Completed", 0) + counts.get("Returned", 0) + scrapped))
+            if (counts.get("Completed", 0) + counts.get("Returned", 0) + scrapped)
+            else None
+        ),
         "fastest": min(spans) if spans else None,
         "measured": len(spans),
     }
@@ -703,6 +939,11 @@ def inject_globals():
         "current_user": current_user(),
         "current_client": current_client(),
         "current_boxlight": current_boxlight(),
+        "current_new_story": current_new_story(),
+        "NEW_STORY_REQUEST_STATUSES": NEW_STORY_REQUEST_STATUSES,
+        "NEW_STORY_SERVICE_TYPES": NEW_STORY_SERVICE_TYPES,
+        "NEW_STORY_CATEGORIES": NEW_STORY_CATEGORIES,
+        "NEW_STORY_ASSET_STATUSES": NEW_STORY_ASSET_STATUSES,
         "boxlight_unread": boxlight_unread_count(),
         "admin_boxlight_unread": admin_boxlight_unread_count(),
         "STATUSES": STATUSES,
@@ -762,6 +1003,17 @@ def boxlight_login_required(view_func):
     return wrapped
 
 
+
+def new_story_login_required(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if current_new_story() is None:
+            session.pop("new_story_account_id", None)
+            return redirect(url_for("cp_login", next=request.full_path))
+        return view_func(*args, **kwargs)
+    return wrapped
+
+
 def safe_next(target: str | None, fallback_endpoint: str) -> str:
     """Only allow same-site relative redirects."""
     if target and target.startswith("/") and not target.startswith("//"):
@@ -797,6 +1049,7 @@ def run_migrations() -> None:
             db.session.commit()
         except Exception:
             db.session.rollback()
+            app.logger.exception("Database migration statement failed: %s", stmt)
 
 
 def sync_postgres_sequences() -> None:
@@ -809,7 +1062,7 @@ def sync_postgres_sequences() -> None:
     if db.engine.dialect.name != "postgresql":
         return
 
-    for table_name in ("units", "repair_notes", "replacement_panels", "boxlight_accounts", "boxlight_message_threads", "boxlight_messages"):
+    for table_name in ("units", "repair_notes", "replacement_panels", "boxlight_accounts", "boxlight_message_threads", "boxlight_messages", "new_story_accounts", "new_story_locations", "new_story_requests", "new_story_request_items", "new_story_assets", "new_story_shipments", "new_story_shipment_items", "new_story_activity"):
         try:
             db.session.execute(text(f"""
                 SELECT setval(
@@ -825,16 +1078,29 @@ def sync_postgres_sequences() -> None:
 
 
 def backfill_unit_clients() -> None:
-    """Attach orphaned units to the only client, if there is exactly one."""
+    """One-time migration helper for legacy unassigned units.
+
+    IMPORTANT: this is opt-in. New/unassigned repair records must stay unassigned
+    unless an admin explicitly chooses a client. Automatically assigning them on
+    every app restart can expose records in a client portal.
+    """
+    enabled = os.getenv("BACKFILL_UNASSIGNED_UNITS", "false").lower() in {"1", "true", "yes"}
+    if not enabled:
+        return
     if not Unit.query.filter(Unit.client_id.is_(None)).count():
         return
     clients = ClientAccount.query.all()
     if len(clients) != 1:
+        app.logger.warning(
+            "BACKFILL_UNASSIGNED_UNITS requested, but expected exactly one client and found %s; skipping.",
+            len(clients),
+        )
         return
-    Unit.query.filter(Unit.client_id.is_(None)).update(
+    updated = Unit.query.filter(Unit.client_id.is_(None)).update(
         {Unit.client_id: clients[0].id}, synchronize_session=False
     )
     db.session.commit()
+    app.logger.warning("Backfilled %s unassigned unit(s) to client id %s.", updated, clients[0].id)
 
 
 def init_database() -> None:
@@ -868,6 +1134,20 @@ def init_database() -> None:
                 rep = BoxlightAccount(username=BOOTSTRAP_BOXLIGHT_USERNAME.strip())
                 rep.set_password(BOOTSTRAP_BOXLIGHT_PASSWORD)
                 db.session.add(rep)
+                db.session.commit()
+
+
+        if BOOTSTRAP_NEW_STORY_USERNAME and BOOTSTRAP_NEW_STORY_PASSWORD:
+            existing_ns = NewStoryAccount.query.filter(
+                db.func.lower(NewStoryAccount.username) == BOOTSTRAP_NEW_STORY_USERNAME.strip().lower()
+            ).first()
+            if not existing_ns:
+                ns_account = NewStoryAccount(
+                    username=BOOTSTRAP_NEW_STORY_USERNAME.strip(),
+                    contact_name=BOOTSTRAP_NEW_STORY_CONTACT.strip(),
+                )
+                ns_account.set_password(BOOTSTRAP_NEW_STORY_PASSWORD)
+                db.session.add(ns_account)
                 db.session.commit()
 
         backfill_unit_clients()
@@ -1097,7 +1377,13 @@ def parse_boxlight_support_email(raw_text: str) -> list[dict[str, str]]:
 
 @app.route("/health")
 def health():
-    return {"status": "ok", "app": "pierson-repairs"}, 200
+    try:
+        db.session.execute(text("SELECT 1"))
+        return {"status": "ok", "app": "pierson-repairs", "database": "ok"}, 200
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Health check failed: database unavailable")
+        return {"status": "error", "app": "pierson-repairs", "database": "unavailable"}, 503
 
 
 @app.errorhandler(404)
@@ -1494,9 +1780,13 @@ def edit_unit(unit_id: int):
             db.session.commit()
             flash(f"Unit {intake_id} updated successfully.", "success")
             return redirect(url_for("unit_detail", unit_id=unit_id))
+        except IntegrityError:
+            db.session.rollback()
+            flash("Could not save that unit because the Intake ID already exists.", "danger")
         except Exception:
             db.session.rollback()
-            flash("Could not save that unit — the Intake ID may already exist.", "danger")
+            app.logger.exception("Unexpected error while updating unit %s", unit_id)
+            flash("Could not save that unit because of a database error. Check the Render logs for details.", "danger")
 
     return render_template(
         "edit_unit.html",
@@ -1878,6 +2168,8 @@ def cp_login():
             return redirect(safe_next(request.args.get("next"), "cp_dashboard"))
         if current_boxlight():
             return redirect(safe_next(request.args.get("next"), "boxlight_dashboard"))
+        if current_new_story():
+            return redirect(safe_next(request.args.get("next"), "new_story_portal_dashboard"))
 
     if request.method == "POST":
         if is_throttled("public_portal"):
@@ -1892,6 +2184,7 @@ def cp_login():
         if client and client.check_password(password):
             clear_failures("public_portal")
             session.pop("boxlight_account_id", None)
+            session.pop("new_story_account_id", None)
             session["client_portal_id"] = client.id
             session["client_portal_company"] = client.company
             session.permanent = True
@@ -1907,8 +2200,23 @@ def cp_login():
             session.pop("client_portal_id", None)
             session.pop("client_portal_company", None)
             session["boxlight_account_id"] = boxlight.id
+            session.pop("new_story_account_id", None)
             session.permanent = True
             return redirect(safe_next(request.args.get("next"), "boxlight_dashboard"))
+
+        # New Story IT management account
+        new_story = NewStoryAccount.query.filter(
+            db.func.lower(NewStoryAccount.username) == username.lower(),
+            NewStoryAccount.active.is_(True),
+        ).first()
+        if new_story and new_story.check_password(password):
+            clear_failures("public_portal")
+            session.pop("client_portal_id", None)
+            session.pop("client_portal_company", None)
+            session.pop("boxlight_account_id", None)
+            session["new_story_account_id"] = new_story.id
+            session.permanent = True
+            return redirect(safe_next(request.args.get("next"), "new_story_portal_dashboard"))
 
         record_failure("public_portal")
 
@@ -2642,14 +2950,542 @@ def replacement_stock_assign(panel_id: int):
         panel.used_for_unit_id = None
         panel.status = "Available"
     else:
-        unit = get_active_unit(int(unit_id))
+        try:
+            parsed_unit_id = int(unit_id)
+        except (TypeError, ValueError):
+            flash("That repair selection is invalid.", "danger")
+            return redirect(url_for("replacement_stock_admin"))
+        unit = get_active_unit(parsed_unit_id)
         if not unit:
-            abort(404)
+            flash("That repair record could not be found.", "danger")
+            return redirect(url_for("replacement_stock_admin"))
         panel.used_for_unit_id = unit.id
         panel.status = "Used"
     db.session.commit()
     flash("Replacement stock assignment updated.", "success")
     return redirect(url_for("replacement_stock_admin"))
+
+
+
+# ═══════════════════════════════════════════════════════════
+# NEW STORY — IT MANAGEMENT ADMIN
+# ═══════════════════════════════════════════════════════════
+
+
+def normalize_new_story_serial(category: str, raw: str) -> str:
+    """Preserve the original serial while applying the legacy tracker rules."""
+    value = (raw or "").strip()
+    if not value:
+        return ""
+    if category == "Chromebook" and len(value) > 8:
+        return value[:8]
+    if category == "Windows" and len(value) > 8:
+        last9 = value[-9:]
+        if last9.upper().startswith("SS"):
+            return last9[1:]
+        return value[-8:]
+    return value
+
+
+def new_story_activity(req: NewStoryRequest, summary: str, event_type: str = "Update", detail: str = "") -> None:
+    actor = current_user().username if current_user() else "Pierson"
+    db.session.add(NewStoryActivity(
+        request_id=req.id,
+        event_type=event_type,
+        summary=summary,
+        detail=detail,
+        actor=actor,
+    ))
+
+
+def next_new_story_ticket() -> str:
+    prefix = "NS-"
+    highest = 0
+    for row in NewStoryRequest.query.filter(NewStoryRequest.ticket_number.like(f"{prefix}%")).all():
+        try:
+            highest = max(highest, int(row.ticket_number.split("-")[-1]))
+        except (ValueError, IndexError):
+            pass
+    return f"{prefix}{highest + 1:06d}"
+
+
+@app.route("/new-story")
+@admin_login_required
+def new_story_dashboard():
+    open_statuses = [s for s in NEW_STORY_REQUEST_STATUSES if s not in {"Complete", "Cancelled"}]
+    open_requests = NewStoryRequest.query.filter(NewStoryRequest.status.in_(open_statuses)).count()
+    needs_attention = NewStoryRequest.query.filter(
+        or_(NewStoryRequest.status == "Needs Review", NewStoryRequest.attention_reason != "")
+    ).count()
+    available_assets = NewStoryAsset.query.filter_by(status="Available").count()
+    awaiting_return = NewStoryRequest.query.filter_by(status="Awaiting Return").count()
+    recent = NewStoryRequest.query.order_by(NewStoryRequest.updated_at.desc()).limit(15).all()
+    status_counts = {
+        status: NewStoryRequest.query.filter_by(status=status).count()
+        for status in NEW_STORY_REQUEST_STATUSES
+    }
+    return render_template(
+        "new_story/dashboard.html",
+        open_requests=open_requests,
+        needs_attention=needs_attention,
+        available_assets=available_assets,
+        awaiting_return=awaiting_return,
+        recent=recent,
+        status_counts=status_counts,
+    )
+
+
+
+
+def _ns_email_field(body: str, labels: list[str], anchored: bool = True) -> str:
+    parsing = not anchored
+    for line in (body or "").splitlines():
+        if re.match(r"^\s*Order\s*Type\s*:", line, re.I):
+            parsing = True
+        if not parsing:
+            continue
+        for label in labels:
+            match = re.match(r"^\s*" + re.escape(label) + r"\s*:?\s*(.*)$", line, re.I)
+            if match and match.group(1).strip():
+                return match.group(1).strip()
+    return ""
+
+
+def _ns_route_equipment(raw: str) -> str:
+    e = (raw or "").lower()
+    e = re.sub(r"\(.*?\)", "", e)
+    e = re.sub(r"\bqty\b|\bx\b|\d+", "", e)
+    e = re.sub(r"[^a-z\s]", "", e)
+    e = re.sub(r"\s+", " ", e).strip()
+    if "ipad" in e: return "iPad"
+    if "chromebook" in e: return "Chromebook"
+    if any(x in e for x in ("laptop", "windows", " pc ")) or e == "pc": return "Windows"
+    if "monitor" in e: return "Monitor"
+    if "keyboard" in e: return "Keyboard"
+    if "dock" in e: return "Docking Station"
+    if "jabra" in e or "headset" in e: return "Jabra / Headset"
+    if "webcam" in e or "web cam" in e: return "Web Cam"
+    if "panel" in e or "smartboard" in e or "smart board" in e: return "Interactive Panel"
+    return "Other"
+
+
+def parse_new_story_manageengine_email(subject: str, body: str) -> dict[str, Any]:
+    ticket_match = re.search(r"##\s*(\d+)\s*##", subject or "")
+    requester = _ns_email_field(body, ["Request submitted by"])
+    recipient = (
+        _ns_email_field(body, ["Name of Person Using Device"])
+        or _ns_email_field(body, ["Delivery Recipient Name"])
+    )
+    if not recipient:
+        m = re.search(r"(?:equipment\s+)?request\s+for\s+(.+?)\s+has\s+been\s+approved", body or "", re.I | re.S)
+        if m:
+            recipient = re.sub(r"\s{2,}", " ", m.group(1).strip())
+    recipient = recipient or requester
+    equipment = _ns_email_field(body, ["Equipment"], anchored=False)
+    qty_raw = _ns_email_field(body, ["Quantity"], anchored=False)
+    qty_match = re.search(r"\d+", qty_raw or "")
+    qty = max(int(qty_match.group(0)), 1) if qty_match else 1
+    return {
+        "ticket_number": ticket_match.group(1) if ticket_match else (subject or "").strip(),
+        "service_type": _ns_email_field(body, ["Order Type"]) or "Other",
+        "school_name": _ns_email_field(body, ["Company"]),
+        "requester": requester,
+        "recipient": recipient,
+        "equipment_raw": equipment,
+        "category": _ns_route_equipment(equipment),
+        "quantity": qty,
+        "street": _ns_email_field(body, ["Shipping Address - Street # and Name", "Shipping Address - Street"]),
+        "city": _ns_email_field(body, ["Shipping Address - City"]),
+        "state": _ns_email_field(body, ["Shipping address - State"]),
+        "zip_code": _ns_email_field(body, ["Shipping address - Zip"]),
+    }
+
+
+@app.route("/new-story/intake", methods=["GET", "POST"])
+@admin_login_required
+def new_story_intake():
+    preview = None
+    subject = request.form.get("subject", "").strip() if request.method == "POST" else ""
+    body = request.form.get("body", "") if request.method == "POST" else ""
+    action = request.form.get("action", "preview") if request.method == "POST" else "preview"
+    if request.method == "POST":
+        preview = parse_new_story_manageengine_email(subject, body)
+        if action == "import":
+            missing = []
+            if not preview["ticket_number"]: missing.append("ticket")
+            if not preview["school_name"]: missing.append("school/company")
+            if not preview["equipment_raw"]: missing.append("equipment")
+            status = "Needs Review" if missing or preview["category"] == "Other" else "Incoming"
+            attention = "Import review: missing " + ", ".join(missing) if missing else ("Import review: unclassified equipment" if preview["category"] == "Other" else "")
+            req = NewStoryRequest(
+                ticket_number=preview["ticket_number"] or next_new_story_ticket(),
+                service_type=preview["service_type"],
+                status=status,
+                school_name=preview["school_name"],
+                requester=preview["requester"],
+                recipient=preview["recipient"],
+                street=preview["street"], city=preview["city"], state=preview["state"], zip_code=preview["zip_code"],
+                return_kit_required=preview["service_type"].lower().replace("/", "") == "breakfix",
+                attention_reason=attention,
+                source="ManageEngine Email",
+                source_subject=subject,
+                source_raw=body,
+            )
+            db.session.add(req)
+            db.session.flush()
+            db.session.add(NewStoryRequestItem(
+                request_id=req.id,
+                category=preview["category"],
+                description=preview["equipment_raw"],
+                quantity_requested=preview["quantity"],
+            ))
+            new_story_activity(req, "Imported from ManageEngine email", "Created")
+            db.session.commit()
+            flash(f"Imported ticket {req.ticket_number}." + (" Review required." if status == "Needs Review" else ""), "warning" if status == "Needs Review" else "success")
+            return redirect(url_for("new_story_request_detail", request_id=req.id))
+    return render_template("new_story/intake.html", preview=preview, subject=subject, body=body)
+
+
+@app.route("/new-story/requests")
+@admin_login_required
+def new_story_requests():
+    q = request.args.get("q", "").strip()
+    status = request.args.get("status", "").strip()
+    service = request.args.get("service", "").strip()
+    query = NewStoryRequest.query
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(
+            NewStoryRequest.ticket_number.ilike(like),
+            NewStoryRequest.customer_po.ilike(like),
+            NewStoryRequest.school_name.ilike(like),
+            NewStoryRequest.requester.ilike(like),
+            NewStoryRequest.recipient.ilike(like),
+        ))
+    if status:
+        query = query.filter_by(status=status)
+    if service:
+        query = query.filter_by(service_type=service)
+    rows = query.order_by(NewStoryRequest.updated_at.desc()).limit(500).all()
+    return render_template("new_story/requests.html", rows=rows, q=q, status=status, service=service)
+
+
+@app.route("/new-story/requests/new", methods=["GET", "POST"])
+@admin_login_required
+def new_story_request_new():
+    if request.method == "POST":
+        ticket = request.form.get("ticket_number", "").strip() or next_new_story_ticket()
+        req = NewStoryRequest(
+            ticket_number=ticket,
+            customer_po=request.form.get("customer_po", "").strip(),
+            project_name=request.form.get("project_name", "").strip(),
+            service_type=request.form.get("service_type", "Order").strip() or "Order",
+            status=request.form.get("status", "Incoming").strip() or "Incoming",
+            school_name=request.form.get("school_name", "").strip(),
+            requester=request.form.get("requester", "").strip(),
+            recipient=request.form.get("recipient", "").strip(),
+            street=request.form.get("street", "").strip(),
+            city=request.form.get("city", "").strip(),
+            state=request.form.get("state", "").strip(),
+            zip_code=request.form.get("zip_code", "").strip(),
+            return_kit_required=request.form.get("return_kit_required") == "on",
+            source="Manual",
+            notes=request.form.get("notes", "").strip(),
+        )
+        db.session.add(req)
+        db.session.flush()
+        category = request.form.get("category", "").strip()
+        qty_raw = request.form.get("quantity", "1").strip()
+        try:
+            qty = max(int(qty_raw), 1)
+        except ValueError:
+            qty = 1
+        if category:
+            db.session.add(NewStoryRequestItem(
+                request_id=req.id,
+                category=category,
+                description=request.form.get("item_description", "").strip(),
+                model=request.form.get("model", "").strip(),
+                quantity_requested=qty,
+            ))
+        new_story_activity(req, "Request created", "Created")
+        db.session.commit()
+        flash(f"New Story request {ticket} created.", "success")
+        return redirect(url_for("new_story_request_detail", request_id=req.id))
+    return render_template("new_story/request_form.html", ticket_number=next_new_story_ticket())
+
+
+@app.route("/new-story/requests/<int:request_id>")
+@admin_login_required
+def new_story_request_detail(request_id: int):
+    req = db.session.get(NewStoryRequest, request_id) or abort(404)
+    available_assets = NewStoryAsset.query.filter(
+        NewStoryAsset.status.in_(["Available", "Received"])
+    ).order_by(NewStoryAsset.category, NewStoryAsset.serial_number).limit(300).all()
+    return render_template("new_story/request_detail.html", req=req, available_assets=available_assets)
+
+
+@app.route("/new-story/requests/<int:request_id>/status", methods=["POST"])
+@admin_login_required
+def new_story_request_status(request_id: int):
+    req = db.session.get(NewStoryRequest, request_id) or abort(404)
+    new_status = request.form.get("status", "").strip()
+    if new_status not in NEW_STORY_REQUEST_STATUSES:
+        flash("Invalid request status.", "danger")
+        return redirect(url_for("new_story_request_detail", request_id=req.id))
+    old = req.status
+    req.status = new_status
+    if new_status != "Needs Review" and request.form.get("clear_attention") == "1":
+        req.attention_reason = ""
+    new_story_activity(req, f"Status changed: {old} → {new_status}", "Status")
+    db.session.commit()
+    return redirect(url_for("new_story_request_detail", request_id=req.id))
+
+
+@app.route("/new-story/requests/<int:request_id>/items/add", methods=["POST"])
+@admin_login_required
+def new_story_request_item_add(request_id: int):
+    req = db.session.get(NewStoryRequest, request_id) or abort(404)
+    try:
+        qty = max(int(request.form.get("quantity", "1")), 1)
+    except ValueError:
+        qty = 1
+    item = NewStoryRequestItem(
+        request_id=req.id,
+        category=request.form.get("category", "Other").strip() or "Other",
+        description=request.form.get("description", "").strip(),
+        model=request.form.get("model", "").strip(),
+        quantity_requested=qty,
+        requirement_type=request.form.get("requirement_type", "Equipment").strip() or "Equipment",
+        shortage_reason=request.form.get("shortage_reason", "").strip(),
+    )
+    db.session.add(item)
+    if item.shortage_reason:
+        req.attention_reason = item.shortage_reason
+    new_story_activity(req, f"Added request item: {item.category} × {qty}", "Item")
+    db.session.commit()
+    return redirect(url_for("new_story_request_detail", request_id=req.id))
+
+
+@app.route("/new-story/requests/<int:request_id>/note", methods=["POST"])
+@admin_login_required
+def new_story_request_note(request_id: int):
+    req = db.session.get(NewStoryRequest, request_id) or abort(404)
+    note = request.form.get("note", "").strip()
+    if note:
+        new_story_activity(req, "Note added", "Note", note)
+        db.session.commit()
+    return redirect(url_for("new_story_request_detail", request_id=req.id))
+
+
+@app.route("/new-story/requests/<int:request_id>/allocate", methods=["POST"])
+@admin_login_required
+def new_story_allocate_asset(request_id: int):
+    req = db.session.get(NewStoryRequest, request_id) or abort(404)
+    try:
+        asset_id = int(request.form.get("asset_id", ""))
+    except ValueError:
+        flash("Choose a valid asset.", "danger")
+        return redirect(url_for("new_story_request_detail", request_id=req.id))
+    asset = db.session.get(NewStoryAsset, asset_id) or abort(404)
+    if asset.status not in {"Available", "Received"}:
+        flash("That asset is not currently available.", "warning")
+        return redirect(url_for("new_story_request_detail", request_id=req.id))
+    asset.assigned_request_id = req.id
+    asset.status = "Allocated"
+    label = asset.serial_number or asset.asset_tag or f"Asset #{asset.id}"
+    new_story_activity(req, f"Allocated {asset.category}: {label}", "Allocation")
+    db.session.commit()
+    return redirect(url_for("new_story_request_detail", request_id=req.id))
+
+
+@app.route("/new-story/assets")
+@admin_login_required
+def new_story_assets():
+    q = request.args.get("q", "").strip()
+    status = request.args.get("status", "").strip()
+    category = request.args.get("category", "").strip()
+    query = NewStoryAsset.query
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(
+            NewStoryAsset.serial_number.ilike(like),
+            NewStoryAsset.raw_serial.ilike(like),
+            NewStoryAsset.asset_tag.ilike(like),
+            NewStoryAsset.customer_po.ilike(like),
+            NewStoryAsset.model.ilike(like),
+        ))
+    if status:
+        query = query.filter_by(status=status)
+    if category:
+        query = query.filter_by(category=category)
+    rows = query.order_by(NewStoryAsset.updated_at.desc()).limit(1000).all()
+    return render_template("new_story/assets.html", rows=rows, q=q, status=status, category=category)
+
+
+@app.route("/new-story/assets/add", methods=["POST"])
+@admin_login_required
+def new_story_asset_add():
+    category = request.form.get("category", "Other").strip() or "Other"
+    raw_serial = request.form.get("serial_number", "").strip()
+    serial = normalize_new_story_serial(category, raw_serial)
+    if serial and NewStoryAsset.query.filter(db.func.lower(NewStoryAsset.serial_number) == serial.lower()).first():
+        flash("That normalized serial already exists in New Story inventory.", "warning")
+        return redirect(url_for("new_story_assets"))
+    asset = NewStoryAsset(
+        category=category,
+        description=request.form.get("description", "").strip(),
+        model=request.form.get("model", "").strip(),
+        raw_serial=raw_serial,
+        serial_number=serial,
+        asset_tag=request.form.get("asset_tag", "").strip(),
+        customer_po=request.form.get("customer_po", "").strip(),
+        vendor_order=request.form.get("vendor_order", "").strip(),
+        status=request.form.get("status", "Available").strip() or "Available",
+        received_at=datetime.utcnow(),
+    )
+    db.session.add(asset)
+    db.session.commit()
+    flash("Asset added to New Story inventory.", "success")
+    return redirect(url_for("new_story_assets"))
+
+
+@app.route("/new-story/receiving", methods=["GET", "POST"])
+@admin_login_required
+def new_story_receiving():
+    if request.method == "POST":
+        category = request.form.get("category", "Other").strip() or "Other"
+        try:
+            qty = max(int(request.form.get("quantity", "1")), 1)
+        except ValueError:
+            qty = 1
+        if qty > 1000:
+            flash("Receive batches of 1,000 or fewer at a time.", "warning")
+            return redirect(url_for("new_story_receiving"))
+        po = request.form.get("customer_po", "").strip()
+        vendor = request.form.get("vendor_order", "").strip()
+        model = request.form.get("model", "").strip()
+        desc = request.form.get("description", "").strip()
+        serialized = request.form.get("serialized") == "on"
+        for _ in range(qty):
+            db.session.add(NewStoryAsset(
+                category=category,
+                description=desc,
+                model=model,
+                customer_po=po,
+                vendor_order=vendor,
+                status="Received" if serialized else "Available",
+                received_at=datetime.utcnow(),
+            ))
+        db.session.commit()
+        flash(f"Received {qty} {category} item(s).", "success")
+        return redirect(url_for("new_story_receiving"))
+    recent = NewStoryAsset.query.filter(NewStoryAsset.received_at.isnot(None)).order_by(NewStoryAsset.received_at.desc()).limit(30).all()
+    return render_template("new_story/receiving.html", recent=recent)
+
+
+@app.route("/new-story/shipments", methods=["GET", "POST"])
+@admin_login_required
+def new_story_shipments():
+    if request.method == "POST":
+        try:
+            req_id = int(request.form.get("request_id", ""))
+        except ValueError:
+            flash("Select a request.", "danger")
+            return redirect(url_for("new_story_shipments"))
+        req = db.session.get(NewStoryRequest, req_id) or abort(404)
+        shipment = NewStoryShipment(
+            request_id=req.id,
+            direction=request.form.get("direction", "Outbound"),
+            method=request.form.get("method", "FedEx Ground").strip(),
+            tracking_number=request.form.get("tracking_number", "").strip(),
+            shipped_at=datetime.utcnow() if request.form.get("mark_shipped") == "on" else None,
+            notes=request.form.get("notes", "").strip(),
+        )
+        db.session.add(shipment)
+        db.session.flush()
+        if shipment.shipped_at:
+            for asset in req.assets:
+                if asset.status in {"Allocated", "Processing", "Ready to Ship"}:
+                    asset.status = "Shipped"
+                    db.session.add(NewStoryShipmentItem(shipment_id=shipment.id, asset_id=asset.id))
+            req.status = "Awaiting Return" if req.return_kit_required else "Shipped"
+        new_story_activity(req, f"{shipment.direction} shipment created" + (f": {shipment.tracking_number}" if shipment.tracking_number else ""), "Shipment")
+        db.session.commit()
+        flash("Shipment created.", "success")
+        return redirect(url_for("new_story_request_detail", request_id=req.id))
+    rows = NewStoryShipment.query.order_by(NewStoryShipment.created_at.desc()).limit(250).all()
+    open_requests = NewStoryRequest.query.filter(~NewStoryRequest.status.in_(["Complete", "Cancelled"])).order_by(NewStoryRequest.updated_at.desc()).all()
+    return render_template("new_story/shipments.html", rows=rows, open_requests=open_requests)
+
+
+@app.route("/new-story/exceptions")
+@admin_login_required
+def new_story_exceptions():
+    requests = NewStoryRequest.query.filter(or_(
+        NewStoryRequest.status == "Needs Review",
+        NewStoryRequest.attention_reason != "",
+    )).order_by(NewStoryRequest.updated_at.desc()).all()
+    shortage_items = NewStoryRequestItem.query.filter(NewStoryRequestItem.shortage_reason != "").order_by(NewStoryRequestItem.created_at.desc()).all()
+    return render_template("new_story/exceptions.html", requests=requests, shortage_items=shortage_items)
+
+
+@app.route("/new-story/locations", methods=["GET", "POST"])
+@admin_login_required
+def new_story_locations():
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if not name:
+            flash("Location name is required.", "danger")
+            return redirect(url_for("new_story_locations"))
+        db.session.add(NewStoryLocation(
+            name=name,
+            street=request.form.get("street", "").strip(),
+            city=request.form.get("city", "").strip(),
+            state=request.form.get("state", "").strip(),
+            zip_code=request.form.get("zip_code", "").strip(),
+            location_type=request.form.get("location_type", "School").strip() or "School",
+        ))
+        db.session.commit()
+        flash("Location added.", "success")
+        return redirect(url_for("new_story_locations"))
+    rows = NewStoryLocation.query.order_by(NewStoryLocation.name).all()
+    return render_template("new_story/locations.html", rows=rows)
+
+
+# ═══════════════════════════════════════════════════════════
+# NEW STORY — CUSTOMER PORTAL (READ-ONLY PHASE 1)
+# ═══════════════════════════════════════════════════════════
+
+@app.route("/new-story/portal")
+@new_story_login_required
+def new_story_portal_dashboard():
+    q = request.args.get("q", "").strip()
+    query = NewStoryRequest.query
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(
+            NewStoryRequest.ticket_number.ilike(like),
+            NewStoryRequest.school_name.ilike(like),
+            NewStoryRequest.customer_po.ilike(like),
+        ))
+    rows = query.order_by(NewStoryRequest.updated_at.desc()).limit(250).all()
+    return render_template("new_story/portal_dashboard.html", rows=rows, q=q)
+
+
+@app.route("/new-story/portal/requests/<int:request_id>")
+@new_story_login_required
+def new_story_portal_request(request_id: int):
+    req = db.session.get(NewStoryRequest, request_id) or abort(404)
+    public_activity = [a for a in req.activities if a.event_type != "Internal"]
+    return render_template("new_story/portal_request.html", req=req, public_activity=public_activity)
+
+
+@app.route("/new-story/logout")
+def new_story_logout():
+    session.pop("new_story_account_id", None)
+    flash("You have been logged out.", "success")
+    return redirect(url_for("cp_login"))
 
 
 # ═══════════════════════════════════════════════════════════

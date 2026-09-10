@@ -35,10 +35,24 @@ services:
       - key: BOOTSTRAP_CLIENT_PASSWORD
         sync: false
 
+      # First-run Boxlight rep account
+      - key: BOXLIGHT_USERNAME
+        sync: false
+      - key: BOXLIGHT_PASSWORD
+        sync: false
+
       # Gmail SMTP for CSV reports
       - key: GMAIL_USER
         sync: false
       - key: GMAIL_APP_PASSWORD
+        sync: false
+
+      # Optional first-run New Story portal account
+      - key: NEW_STORY_USERNAME
+        sync: false
+      - key: NEW_STORY_PASSWORD
+        sync: false
+      - key: NEW_STORY_CONTACT
         sync: false
 
       - key: DATABASE_URL

@@ -54,7 +54,7 @@
                         <td>
                             <span class="status {% if u.status in ['Completed','Delivered to MCPS','Shipped Back to MCPS'] %}good{% elif u.status == 'Scrapped' %}bad{% elif u.status in ['In Repair','Waiting on Parts'] %}info{% else %}warn{% endif %}">{{ u.status }}</span>
                         </td>
-                        <td>{{ u.reported_issue|truncate(64) or '—' }}</td>
+                        <td>{{ (u.reported_issue or '')|truncate(64) or '—' }}</td>
                         <td>{{ u.updated_at.strftime('%b %d, %Y') if u.updated_at else '—' }}</td>
                         <td><a href="{{ url_for('boxlight_repair_detail', unit_id=u.id) }}">View</a></td>
                     </tr>

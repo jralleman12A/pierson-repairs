@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}New Story IT Management{% endblock %}</title>
+<style>
+:root{--navy:#0a2540;--orange:#ef4e24;--bg:#f5f7f9;--panel:#fff;--text:#17202a;--muted:#687582;--line:#d8dee5;--line2:#edf0f3;--green:#157347;--amber:#9a6700;--red:#b42318;--blue:#1f5f99}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px}.shell{display:grid;grid-template-columns:228px minmax(0,1fr);min-height:100vh}.side{background:var(--navy);color:#fff;padding:22px 0;position:sticky;top:0;height:100vh}.logo{padding:0 20px 18px;border-bottom:1px solid rgba(255,255,255,.12)}.logo img{height:27px;width:auto}.product{padding:18px 20px 10px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:#9fb2c3}.nav a{display:flex;gap:9px;align-items:center;padding:10px 20px;color:#dce5ed;text-decoration:none;border-left:3px solid transparent}.nav a:hover,.nav a.active{background:rgba(255,255,255,.08);border-left-color:var(--orange);color:#fff}.sidefoot{position:absolute;bottom:18px;left:20px;right:20px;border-top:1px solid rgba(255,255,255,.12);padding-top:14px;font-size:12px;color:#aebdca}.sidefoot a{color:#fff;text-decoration:none}.main{min-width:0}.top{height:66px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 28px}.top h1{font-size:19px;margin:0;font-weight:650;letter-spacing:-.2px}.top .sub{color:var(--muted);font-size:12px;margin-top:2px}.content{padding:24px 28px 40px}.metric-strip{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border:1px solid var(--line);margin-bottom:20px}.metric{padding:15px 18px;border-right:1px solid var(--line)}.metric:last-child{border-right:0}.metric .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}.metric .v{font-size:25px;font-weight:650;margin-top:3px}.section{background:#fff;border:1px solid var(--line);margin-bottom:20px}.section-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px}.section-head h2{font-size:14px;margin:0;font-weight:650}.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 11px;border:1px solid var(--line);background:#fff;color:var(--text);text-decoration:none;border-radius:3px;font:inherit;font-weight:600;cursor:pointer}.btn:hover{background:#f5f7f9}.btn-primary{background:var(--orange);border-color:var(--orange);color:#fff}.btn-dark{background:var(--navy);border-color:var(--navy);color:#fff}.btn-danger{color:var(--red)}input,select,textarea{font:inherit;color:var(--text);background:#fff;border:1px solid #cbd3da;border-radius:3px;padding:8px 9px;min-height:34px}textarea{min-height:84px;resize:vertical}label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:650;display:block;margin-bottom:5px}.grid{display:grid;gap:14px}.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-4{grid-template-columns:repeat(4,minmax(0,1fr))}.field input,.field select,.field textarea{width:100%}.pad{padding:15px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;background:#fff}th{position:sticky;top:0;background:#f7f9fa;color:#52606d;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;border-bottom:1px solid var(--line);padding:9px 10px;white-space:nowrap}td{border-bottom:1px solid var(--line2);padding:9px 10px;vertical-align:middle}tbody tr:hover td{background:#fafbfc}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.muted{color:var(--muted)}.small{font-size:12px}.badge{display:inline-block;padding:3px 7px;border:1px solid var(--line);border-radius:2px;background:#f7f9fa;font-size:11px;font-weight:650;white-space:nowrap}.badge.good{color:var(--green);border-color:#b8d9c8;background:#f2fbf6}.badge.warn{color:var(--amber);border-color:#ead8a7;background:#fffbec}.badge.bad{color:var(--red);border-color:#efc0bb;background:#fff4f2}.badge.blue{color:var(--blue);border-color:#bfd2e3;background:#f3f8fc}.flash{padding:10px 12px;margin-bottom:14px;border:1px solid var(--line);background:#fff}.flash.success{border-left:4px solid var(--green)}.flash.warning{border-left:4px solid var(--amber)}.flash.danger{border-left:4px solid var(--red)}.split{display:grid;grid-template-columns:minmax(0,2fr) minmax(300px,1fr);gap:18px}.kv{display:grid;grid-template-columns:130px 1fr;gap:0;border-top:1px solid var(--line2)}.kv>div{padding:8px 10px;border-bottom:1px solid var(--line2)}.kv .key{color:var(--muted);font-size:12px;background:#fafbfc}.timeline{padding:0;margin:0;list-style:none}.timeline li{padding:11px 0;border-bottom:1px solid var(--line2)}.timeline .when{font-size:11px;color:var(--muted)}.empty{padding:28px;text-align:center;color:var(--muted)}a.link{color:#174f7c;text-decoration:none;font-weight:600}a.link:hover{text-decoration:underline}
+@media(max-width:980px){.shell{grid-template-columns:1fr}.side{position:relative;height:auto}.sidefoot{display:none}.nav{display:flex;overflow:auto}.nav a{border-left:0;border-bottom:3px solid transparent;white-space:nowrap}.nav a.active{border-bottom-color:var(--orange)}.content{padding:16px}.top{padding:0 16px}.metric-strip{grid-template-columns:repeat(2,1fr)}.metric:nth-child(2){border-right:0}.metric:nth-child(-n+2){border-bottom:1px solid var(--line)}.split,.grid-3,.grid-4{grid-template-columns:1fr}.grid-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="side">
+  <div class="logo"><img src="{{ url_for('static', filename='pierson-logo-white.png') }}" alt="Pierson"></div>
+  <div class="product">New Story IT Management</div>
+  <nav class="nav">
+    <a href="{{ url_for('new_story_dashboard') }}" class="{% if request.endpoint=='new_story_dashboard' %}active{% endif %}">Overview</a>
+    <a href="{{ url_for('new_story_requests') }}" class="{% if 'new_story_request' in request.endpoint|default('') %}active{% endif %}">Requests</a>
+    <a href="{{ url_for('new_story_intake') }}" class="{% if request.endpoint=='new_story_intake' %}active{% endif %}">Email Intake</a>
+    <a href="{{ url_for('new_story_assets') }}" class="{% if request.endpoint=='new_story_assets' %}active{% endif %}">Assets</a>
+    <a href="{{ url_for('new_story_receiving') }}" class="{% if request.endpoint=='new_story_receiving' %}active{% endif %}">Receiving</a>
+    <a href="{{ url_for('new_story_shipments') }}" class="{% if request.endpoint=='new_story_shipments' %}active{% endif %}">Shipments & Returns</a>
+    <a href="{{ url_for('new_story_exceptions') }}" class="{% if request.endpoint=='new_story_exceptions' %}active{% endif %}">Exceptions</a>
+    <a href="{{ url_for('new_story_locations') }}" class="{% if request.endpoint=='new_story_locations' %}active{% endif %}">Locations</a>
+  </nav>
+  <div class="sidefoot"><a href="{{ url_for('index') }}">← Boxlight / MCPS</a><br><br><a href="{{ url_for('logout') }}">Sign out</a></div>
+</aside>
+<main class="main">
+  <div class="top"><div><h1>{% block heading %}New Story{% endblock %}</h1><div class="sub">Pierson operational workspace</div></div><div class="toolbar">{% block top_actions %}{% endblock %}</div></div>
+  <div class="content">
+    {% with messages=get_flashed_messages(with_categories=true) %}{% for cat,msg in messages %}<div class="flash {{cat}}">{{msg}}</div>{% endfor %}{% endwith %}
+    {% block content %}{% endblock %}
+  </div>
+</main>
+</div>
+</body>
+</html>

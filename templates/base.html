@@ -420,6 +420,7 @@
             <div class="toolbar">
                 {% if current_user %}
                     <a href="{{ url_for('index') }}" class="btn btn-light btn-sm">Home</a>
+                    <a href="{{ url_for('new_story_dashboard') }}" class="btn btn-warning btn-sm">New Story IT</a>
                     <a href="{{ url_for('archived_units') }}" class="btn btn-outline-light btn-sm">Archived</a>
                     <a href="{{ url_for('cp_admin') }}" class="btn btn-outline-light btn-sm">Clients</a>
                     <a href="{{ url_for('replacement_stock_admin') }}" class="btn btn-outline-light btn-sm">Replacement Stock</a>

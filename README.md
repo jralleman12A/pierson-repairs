@@ -6,11 +6,12 @@ Boxlight panel repair tracking with a customer-facing client portal.
 
 | Surface | URL | Who | Auth |
 |---|---|---|---|
-| Staff admin | `/` | Pierson staff | `User` table, hashed |
-| Client portal | `/portal` | Customers (MCPS) | `ClientAccount` table, hashed |
+| Staff admin | `/login` → `/dashboard` | Pierson staff | `User` table, hashed |
+| Client portal | `/` or `/portal/login` → `/portal` | Customers (MCPS) | `ClientAccount` table, hashed |
+| Boxlight portal | same public login → `/boxlight` | Boxlight reps | `BoxlightAccount` table, hashed |
 
-Sessions are namespaced (`admin_user_id` vs `client_portal_id`) so the two never
-interfere. You can be signed into both in the same browser.
+Sessions are namespaced (`admin_user_id`, `client_portal_id`, and `boxlight_account_id`) so the
+three surfaces do not overwrite one another during normal use.
 
 The driver portal and the old shared-password `/customer` view have been removed.
 Old URLs redirect rather than 404.
@@ -34,6 +35,9 @@ Required:
 
 First-run client (optional, can be removed after the account exists):
 - `BOOTSTRAP_CLIENT_COMPANY`, `BOOTSTRAP_CLIENT_USERNAME`, `BOOTSTRAP_CLIENT_PASSWORD`
+
+First-run Boxlight rep (optional):
+- `BOXLIGHT_USERNAME`, `BOXLIGHT_PASSWORD`
 
 Email reports (optional):
 - `GMAIL_USER`, `GMAIL_APP_PASSWORD`
