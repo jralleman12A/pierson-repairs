@@ -54,12 +54,9 @@
                         <div class="col-md-6">
                             <label class="small-label">Status</label>
                             <select class="form-select" name="status">
-                                <option value="Awaiting Diagnosis" {% if unit["status"] == "Awaiting Diagnosis" %}selected{% endif %}>Awaiting Diagnosis</option>
-                                <option value="In Repair" {% if unit["status"] == "In Repair" %}selected{% endif %}>In Repair</option>
-                                <option value="Waiting on Parts" {% if unit["status"] == "Waiting on Parts" %}selected{% endif %}>Waiting on Parts</option>
-                                <option value="Completed" {% if unit["status"] == "Completed" %}selected{% endif %}>Completed</option>
-                                <option value="Shipped Back to MCPS" {% if unit["status"] == "Shipped Back to MCPS" %}selected{% endif %}>Shipped Back to MCPS</option>
-                                <option value="Scrapped" {% if unit["status"] == "Scrapped" %}selected{% endif %}>Scrapped</option>
+                                {% for status in STATUSES %}
+                                <option value="{{ status }}" {% if unit["status"] == status %}selected{% endif %}>{{ status }}</option>
+                                {% endfor %}
                             </select>
                         </div>
 

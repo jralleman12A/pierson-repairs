@@ -219,12 +219,9 @@
                         <label class="small-label">Status</label>
 
                         <select class="form-select" name="status">
-                            <option value="Awaiting Diagnosis">Awaiting Diagnosis</option>
-                            <option value="In Repair">In Repair</option>
-                            <option value="Waiting on Parts">Waiting on Parts</option>
-                            <option value="Completed">Completed</option>
-                            <option value="Shipped Back to MCPS">Shipped Back to MCPS</option>
-                            <option value="Scrapped">Scrapped</option>
+                            {% for status in STATUSES %}
+                            <option value="{{ status }}">{{ status }}</option>
+                            {% endfor %}
                         </select>
                     </div>
 
