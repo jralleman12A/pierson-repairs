@@ -178,6 +178,20 @@
     {% endif %}
 </section>
 
+
+{% if is_mcps and warranty_stock %}
+<section class="cp-section dashboard-panel dashboard-panel--wide" style="margin-top:24px;">
+    <div class="cp-section-head">
+        <div><div class="cp-section-title">Warranty replacement inventory at Pierson</div><div class="dashboard-subtitle">Brand-new replacement panels currently recorded in Pierson stock</div></div>
+        <div class="cp-section-meta">{{ warranty_stock|selectattr('status','equalto','Available')|list|length }} available · {{ warranty_stock|length }} total</div>
+    </div>
+    <table class="cp-table">
+        <thead><tr><th>Replacement serial</th><th>Model</th><th>Status</th><th>Received</th><th>Allocated repair</th></tr></thead>
+        <tbody>{% for p in warranty_stock %}<tr><td class="mono"><strong>{{ p.serial_number }}</strong></td><td>{{ p.model|dash }}</td><td>{{ p.status }}</td><td>{{ p.date_received|nicedate }}</td><td>{% if p.used_for_unit %}{{ p.used_for_unit.intake_id }} · {{ p.used_for_unit.serial_number }}{% else %}—{% endif %}</td></tr>{% endfor %}</tbody>
+    </table>
+</section>
+{% endif %}
+
 {% if files %}
 <div class="cp-section">
     <div class="cp-section-head"><div class="cp-section-title">Shared files</div></div>

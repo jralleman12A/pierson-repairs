@@ -3,6 +3,10 @@ from __future__ import annotations
 import csv
 import io
 import json
+import hashlib
+import zipfile
+from email import policy
+from email.parser import BytesParser
 import os
 import re
 import smtplib
@@ -58,9 +62,11 @@ BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_ROOT = Path(os.getenv("UPLOAD_FOLDER", BASE_DIR / "uploads")).resolve()
 CHECKOFF_FOLDER = UPLOAD_ROOT / "checkoff_slips"
 CLIENT_FOLDER = UPLOAD_ROOT / "client_files"
+RECON_FOLDER = UPLOAD_ROOT / "mcps_reconciliation"
 
 CHECKOFF_FOLDER.mkdir(parents=True, exist_ok=True)
 CLIENT_FOLDER.mkdir(parents=True, exist_ok=True)
+RECON_FOLDER.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_CHECKOFF_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "webp"}
 ALLOWED_CLIENT_FILE_EXTENSIONS = {
@@ -274,6 +280,44 @@ class ReplacementPanel(db.Model, RowLikeMixin):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     used_for_unit = db.relationship("Unit", foreign_keys=[used_for_unit_id], backref="replacement_panel")
+
+
+class ReconciliationSource(db.Model, RowLikeMixin):
+    __tablename__ = "reconciliation_sources"
+
+    id = db.Column(db.Integer, primary_key=True)
+    source_type = db.Column(db.String(40), nullable=False, default="boxlight_email")
+    filename = db.Column(db.String(255), nullable=False, default="")
+    sha256 = db.Column(db.String(64), nullable=False, index=True)
+    subject = db.Column(db.String(500), default="")
+    sender = db.Column(db.String(300), default="")
+    recipient = db.Column(db.String(500), default="")
+    message_date = db.Column(db.String(120), default="")
+    raw_path = db.Column(db.String(500), default="")
+    raw_text = db.Column(db.Text, default="")
+    extracted_json = db.Column(db.Text, default="{}")
+    match_status = db.Column(db.String(40), nullable=False, default="Needs Review")
+    matched_unit_id = db.Column(db.Integer, db.ForeignKey("units.id"), nullable=True, index=True)
+    matched_replacement_id = db.Column(db.Integer, db.ForeignKey("replacement_panels.id"), nullable=True, index=True)
+    review_notes = db.Column(db.Text, default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+
+    matched_unit = db.relationship("Unit", foreign_keys=[matched_unit_id])
+    matched_replacement = db.relationship("ReplacementPanel", foreign_keys=[matched_replacement_id])
+
+
+class ReconciliationAction(db.Model, RowLikeMixin):
+    __tablename__ = "reconciliation_actions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    source_id = db.Column(db.Integer, db.ForeignKey("reconciliation_sources.id"), nullable=False, index=True)
+    action = db.Column(db.String(80), nullable=False)
+    details = db.Column(db.Text, default="")
+    created_by = db.Column(db.String(120), default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    source = db.relationship("ReconciliationSource", backref=db.backref("actions", lazy=True, cascade="all, delete-orphan"))
 
 
 class Unit(db.Model, RowLikeMixin):
@@ -1226,7 +1270,7 @@ def sync_postgres_sequences() -> None:
     if db.engine.dialect.name != "postgresql":
         return
 
-    for table_name in ("units", "repair_notes", "replacement_panels", "boxlight_accounts", "boxlight_message_threads", "boxlight_messages", "new_story_accounts", "new_story_locations", "new_story_requests", "new_story_request_items", "new_story_assets", "new_story_shipments", "new_story_shipment_items", "new_story_activity", "new_story_stock_items", "new_story_inventory_movements"):
+    for table_name in ("units", "repair_notes", "replacement_panels", "boxlight_accounts", "boxlight_message_threads", "boxlight_messages", "reconciliation_sources", "reconciliation_actions", "new_story_accounts", "new_story_locations", "new_story_requests", "new_story_request_items", "new_story_assets", "new_story_shipments", "new_story_shipment_items", "new_story_activity", "new_story_stock_items", "new_story_inventory_movements"):
         try:
             db.session.execute(text(f"""
                 SELECT setval(
@@ -2323,6 +2367,215 @@ def email_settings():
 # CLIENT PORTAL — the single customer-facing surface
 # ═══════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════
+# MCPS / BOXLIGHT RECONCILIATION
+# ═══════════════════════════════════════════════════════════
+
+SERIAL_RE = re.compile(r"(?<!\d)\d{12,16}(?!\d)")
+MCPS_ASSET_RE = re.compile(r"\b[A-Za-z]{1,2}\d{5,6}\b")
+CASE_RE = re.compile(r"\b(?:RMA|CASE|TICKET|INCIDENT)\s*[#:\-]?\s*([A-Za-z0-9\-]{4,30})", re.I)
+
+
+def _email_body(msg) -> str:
+    if msg.is_multipart():
+        plain = []
+        html = []
+        for part in msg.walk():
+            if part.get_content_disposition() == "attachment":
+                continue
+            ctype = part.get_content_type()
+            try:
+                content = part.get_content()
+            except Exception:
+                continue
+            if ctype == "text/plain" and content:
+                plain.append(str(content))
+            elif ctype == "text/html" and content:
+                html.append(re.sub(r"<[^>]+>", " ", str(content)))
+        return "\n".join(plain or html)
+    try:
+        return str(msg.get_content())
+    except Exception:
+        return ""
+
+
+def _parse_recon_bytes(filename: str, data: bytes) -> dict:
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    meta = {"subject": "", "sender": "", "recipient": "", "date": "", "body": ""}
+    if ext == "eml":
+        msg = BytesParser(policy=policy.default).parsebytes(data)
+        meta.update({
+            "subject": str(msg.get("subject", "")),
+            "sender": str(msg.get("from", "")),
+            "recipient": str(msg.get("to", "")),
+            "date": str(msg.get("date", "")),
+            "body": _email_body(msg),
+        })
+    elif ext == "msg":
+        try:
+            import extract_msg
+            tmp = RECON_FOLDER / ("_parse_" + secure_filename(filename))
+            tmp.write_bytes(data)
+            try:
+                m = extract_msg.Message(str(tmp))
+                meta.update({"subject": m.subject or "", "sender": m.sender or "", "recipient": m.to or "", "date": str(m.date or ""), "body": m.body or ""})
+            finally:
+                tmp.unlink(missing_ok=True)
+        except Exception as exc:
+            raise ValueError(f"Could not parse Outlook MSG file: {exc}")
+    elif ext in {"txt", "html", "htm"}:
+        text_body = data.decode("utf-8", errors="replace")
+        if ext in {"html", "htm"}:
+            text_body = re.sub(r"<[^>]+>", " ", text_body)
+        meta["body"] = text_body
+    else:
+        raise ValueError("Supported email files are .eml, .msg, .txt, .html, and .zip bundles of those files.")
+
+    haystack = "\n".join([meta["subject"], meta["body"]])
+    serials = list(dict.fromkeys(SERIAL_RE.findall(haystack)))
+    assets = list(dict.fromkeys(x.upper() for x in MCPS_ASSET_RE.findall(haystack)))
+    cases = list(dict.fromkeys(CASE_RE.findall(haystack)))
+    meta["serial_candidates"] = serials[:100]
+    meta["mcps_asset_candidates"] = assets[:100]
+    meta["case_candidates"] = cases[:50]
+    return meta
+
+
+def _match_recon(meta: dict):
+    serials = meta.get("serial_candidates", [])
+    unit_matches = []
+    replacement_matches = []
+    if serials:
+        unit_matches = Unit.query.filter(Unit.serial_number.in_(serials), Unit.is_deleted.is_(False)).all()
+        replacement_matches = ReplacementPanel.query.filter(ReplacementPanel.serial_number.in_(serials)).all()
+    # Also try MCPS asset/intake IDs found in the message.
+    assets = meta.get("mcps_asset_candidates", [])
+    if assets:
+        unit_matches += Unit.query.filter(Unit.intake_id.in_(assets), Unit.is_deleted.is_(False)).all()
+    unit_matches = list({u.id: u for u in unit_matches}.values())
+    replacement_matches = list({r.id: r for r in replacement_matches}.values())
+    if len(unit_matches) == 1 and len(replacement_matches) <= 1:
+        return "Matched", unit_matches[0], replacement_matches[0] if replacement_matches else None
+    if not unit_matches and len(replacement_matches) == 1:
+        return "Possible Match", None, replacement_matches[0]
+    if len(unit_matches) > 1 or len(replacement_matches) > 1:
+        return "Conflicting Data", None, None
+    return "Needs Review", None, None
+
+
+def _store_recon_file(filename: str, data: bytes) -> tuple[ReconciliationSource | None, str]:
+    digest = hashlib.sha256(data).hexdigest()
+    existing = ReconciliationSource.query.filter_by(sha256=digest).first()
+    if existing:
+        return None, f"Duplicate skipped: {filename}"
+    meta = _parse_recon_bytes(filename, data)
+    status, unit, replacement = _match_recon(meta)
+    safe = secure_filename(filename) or "source.eml"
+    stored_name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{safe}"
+    raw_path = RECON_FOLDER / stored_name
+    raw_path.write_bytes(data)
+    src = ReconciliationSource(
+        source_type="boxlight_email", filename=filename, sha256=digest,
+        subject=meta.get("subject", "")[:500], sender=meta.get("sender", "")[:300],
+        recipient=meta.get("recipient", "")[:500], message_date=meta.get("date", "")[:120],
+        raw_path=stored_name, raw_text=meta.get("body", ""), extracted_json=json.dumps(meta),
+        match_status=status, matched_unit_id=unit.id if unit else None,
+        matched_replacement_id=replacement.id if replacement else None,
+    )
+    db.session.add(src)
+    db.session.flush()
+    db.session.add(ReconciliationAction(source_id=src.id, action="Imported", details=f"Parsed {filename}; initial result: {status}", created_by=session.get("username", "admin")))
+    return src, f"Imported: {filename}"
+
+
+@app.route("/reconciliation", methods=["GET"])
+@admin_login_required
+def reconciliation_dashboard():
+    status = request.args.get("status", "").strip()
+    q = request.args.get("q", "").strip()
+    query = ReconciliationSource.query
+    if status:
+        query = query.filter(ReconciliationSource.match_status == status)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(ReconciliationSource.filename.ilike(like), ReconciliationSource.subject.ilike(like), ReconciliationSource.sender.ilike(like), ReconciliationSource.raw_text.ilike(like)))
+    rows = query.order_by(ReconciliationSource.created_at.desc()).limit(500).all()
+    counts = dict(db.session.query(ReconciliationSource.match_status, db.func.count(ReconciliationSource.id)).group_by(ReconciliationSource.match_status).all())
+    stock = ReplacementPanel.query.order_by(ReplacementPanel.status.asc(), ReplacementPanel.model.asc(), ReplacementPanel.serial_number.asc()).all()
+    return render_template("reconciliation/dashboard.html", rows=rows, counts=counts, stock=stock, active_status=status, q=q)
+
+
+@app.route("/reconciliation/upload", methods=["POST"])
+@admin_login_required
+def reconciliation_upload():
+    files = request.files.getlist("files")
+    if not files or not any(f.filename for f in files):
+        flash("Choose one or more Boxlight email files first.", "warning")
+        return redirect(url_for("reconciliation_dashboard"))
+    imported = skipped = failed = 0
+    for f in files:
+        if not f.filename:
+            continue
+        data = f.read()
+        ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
+        items = []
+        if ext == "zip":
+            try:
+                with zipfile.ZipFile(io.BytesIO(data)) as z:
+                    for name in z.namelist():
+                        if name.endswith("/"):
+                            continue
+                        inner_ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+                        if inner_ext in {"eml", "msg", "txt", "html", "htm"}:
+                            items.append((Path(name).name, z.read(name)))
+            except Exception as exc:
+                flash(f"Could not open {f.filename}: {exc}", "danger")
+                failed += 1
+                continue
+        else:
+            items = [(f.filename, data)]
+        for name, payload in items:
+            try:
+                src, _ = _store_recon_file(name, payload)
+                if src:
+                    imported += 1
+                else:
+                    skipped += 1
+            except Exception as exc:
+                app.logger.exception("Reconciliation import failed for %s", name)
+                failed += 1
+                flash(f"Could not parse {name}: {exc}", "danger")
+    db.session.commit()
+    flash(f"Reconciliation import complete: {imported} imported, {skipped} duplicates skipped, {failed} failed.", "success" if not failed else "warning")
+    return redirect(url_for("reconciliation_dashboard"))
+
+
+@app.route("/reconciliation/<int:source_id>", methods=["GET", "POST"])
+@admin_login_required
+def reconciliation_detail(source_id):
+    src = db.session.get(ReconciliationSource, source_id)
+    if not src:
+        abort(404)
+    if request.method == "POST":
+        new_status = request.form.get("match_status", src.match_status).strip()
+        unit_id = request.form.get("unit_id", "").strip()
+        replacement_id = request.form.get("replacement_id", "").strip()
+        notes = request.form.get("review_notes", "").strip()
+        src.match_status = new_status if new_status in {"Matched", "Missing from Pierson", "Conflicting Data", "Possible Match", "Needs Review", "Resolved", "Ignored"} else src.match_status
+        src.matched_unit_id = int(unit_id) if unit_id.isdigit() and db.session.get(Unit, int(unit_id)) else None
+        src.matched_replacement_id = int(replacement_id) if replacement_id.isdigit() and db.session.get(ReplacementPanel, int(replacement_id)) else None
+        src.review_notes = notes
+        src.reviewed_at = datetime.utcnow()
+        db.session.add(ReconciliationAction(source_id=src.id, action="Reviewed", details=f"Status set to {src.match_status}", created_by=session.get("username", "admin")))
+        db.session.commit()
+        flash("Reconciliation review saved. Live repair data was not changed.", "success")
+        return redirect(url_for("reconciliation_detail", source_id=src.id))
+    meta = json.loads(src.extracted_json or "{}")
+    units = Unit.query.filter(Unit.is_deleted.is_(False)).order_by(Unit.intake_id.asc()).all()
+    replacements = ReplacementPanel.query.order_by(ReplacementPanel.serial_number.asc()).all()
+    return render_template("reconciliation/detail.html", src=src, meta=meta, units=units, replacements=replacements)
+
+
 @app.route("/", methods=["GET", "POST"])
 @app.route("/portal/login", methods=["GET", "POST"])
 def cp_login():
@@ -2472,12 +2725,18 @@ def cp_dashboard():
                       .filter_by(client_id=client.id, is_deleted=False)
                       .order_by(Unit.id.desc()).limit(5).all())
 
+    company_key = (client.company or "").lower()
+    is_mcps = "mcps" in company_key or "montgomery" in company_key
+    warranty_stock = (ReplacementPanel.query
+                      .order_by(ReplacementPanel.status.asc(), ReplacementPanel.model.asc(), ReplacementPanel.serial_number.asc())
+                      .all()) if is_mcps else []
+
     return render_template(
         "portal/cp_dashboard.html",
         client=client, upcoming=upcoming, recent_eod=recent_eod, files=files,
         open_repairs=open_repairs, total_repairs=total_repairs,
         recent_repairs=recent_repairs, stats=client_repair_stats(client.id),
-        pickups=pickups,
+        pickups=pickups, warranty_stock=warranty_stock, is_mcps=is_mcps,
     )
 
 

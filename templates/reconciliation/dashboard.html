@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-end mb-3 gap-3 flex-wrap">
+  <div><h2 class="mb-1">MCPS / Boxlight Reconciliation</h2><div class="text-muted">Recover history from Boxlight emails without changing live repair records.</div></div>
+</div>
+
+<div class="card-clean mb-3"><div class="card-body">
+  <div class="section-title">Import Boxlight correspondence</div>
+  <form method="post" action="{{ url_for('reconciliation_upload') }}" enctype="multipart/form-data" class="row g-2 align-items-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="col-lg-8"><label class="form-label">Email files</label><input class="form-control" type="file" name="files" multiple accept=".eml,.msg,.txt,.html,.htm,.zip" required><div class="form-text">Upload individual emails or a ZIP. Originals are retained for audit/review.</div></div>
+    <div class="col-lg-4"><button class="btn btn-primary w-100">Parse & Reconcile</button></div>
+  </form>
+</div></div>
+
+<div class="row g-2 mb-3">
+{% for label in ['Matched','Possible Match','Needs Review','Conflicting Data','Missing from Pierson','Resolved'] %}
+<div class="col-6 col-md-2"><a class="text-decoration-none" href="{{ url_for('reconciliation_dashboard', status=label) }}"><div class="stat-card stat-archived"><div class="stat-label">{{ label }}</div><div class="stat-value">{{ counts.get(label,0) }}</div></div></a></div>
+{% endfor %}
+</div>
+
+<div class="card-clean mb-3"><div class="card-body">
+  <div class="d-flex justify-content-between align-items-center mb-2"><div class="section-title mb-0">Imported evidence</div><form class="d-flex gap-2" method="get"><input class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="Search serial, asset, subject, sender..."><button class="btn btn-outline-primary btn-sm">Search</button><a href="{{ url_for('reconciliation_dashboard') }}" class="btn btn-outline-secondary btn-sm">Clear</a></form></div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Result</th><th>Date</th><th>Subject / File</th><th>Sender</th><th>Matched Repair</th><th>Replacement</th><th></th></tr></thead><tbody>
+  {% for r in rows %}<tr><td><strong>{{ r.match_status }}</strong></td><td>{{ r.message_date or r.created_at.strftime('%Y-%m-%d') }}</td><td><div>{{ r.subject or '(No subject)' }}</div><small class="text-muted">{{ r.filename }}</small></td><td>{{ r.sender }}</td><td>{% if r.matched_unit %}{{ r.matched_unit.intake_id }} · {{ r.matched_unit.serial_number }}{% else %}—{% endif %}</td><td>{% if r.matched_replacement %}{{ r.matched_replacement.serial_number }}{% else %}—{% endif %}</td><td><a class="btn btn-outline-primary btn-sm" href="{{ url_for('reconciliation_detail', source_id=r.id) }}">Review</a></td></tr>{% else %}<tr><td colspan="7" class="text-center text-muted py-4">No reconciliation evidence imported yet.</td></tr>{% endfor %}
+  </tbody></table></div>
+</div></div>
+
+<div class="card-clean"><div class="card-body">
+  <div class="section-title">Warranty replacement stock already in Pierson</div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Serial</th><th>Model</th><th>Status</th><th>Received</th><th>Allocated To</th></tr></thead><tbody>
+  {% for p in stock %}<tr><td><strong>{{ p.serial_number }}</strong></td><td>{{ p.model or '—' }}</td><td>{{ p.status }}</td><td>{{ p.date_received or '—' }}</td><td>{% if p.used_for_unit %}{{ p.used_for_unit.intake_id }} · {{ p.used_for_unit.serial_number }}{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="5" class="text-muted">No replacement stock records.</td></tr>{% endfor %}
+  </tbody></table></div>
+</div></div>
+{% endblock %}
