@@ -102,8 +102,14 @@ STATUS_BADGE_CLASSES = {
 def normalize_database_url(url: str | None) -> str:
     if not url:
         return "sqlite:///repair_tracker_local.db"
+    # Render may provide postgres://, postgresql://, or an explicit psycopg v3 URL.
+    # This project installs psycopg2-binary, so always select that driver explicitly.
+    if url.startswith("postgresql+psycopg://"):
+        return url.replace("postgresql+psycopg://", "postgresql+psycopg2://", 1)
     if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql://", 1)
+        return url.replace("postgres://", "postgresql+psycopg2://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg2://", 1)
     return url
 
 
