@@ -2222,6 +2222,34 @@ def packing_slip_for_unit(unit_id: int):
                            today=datetime.now().strftime("%Y-%m-%d"), portal="admin")
 
 
+@app.route("/units/bulk-status", methods=["POST"])
+@admin_login_required
+def bulk_status_update():
+    new_status = request.form.get("status", "").strip()
+    if new_status not in STATUSES:
+        return {"ok": False, "error": "Invalid status"}, 400
+
+    raw_ids = request.form.getlist("unit_ids")
+    unit_ids = []
+    for raw_id in raw_ids:
+        try:
+            unit_ids.append(int(raw_id))
+        except (TypeError, ValueError):
+            continue
+    unit_ids = sorted(set(unit_ids))
+    if not unit_ids:
+        return {"ok": False, "error": "No units selected"}, 400
+
+    units = Unit.query.filter(Unit.id.in_(unit_ids), Unit.is_deleted.is_(False)).all()
+    if not units:
+        return {"ok": False, "error": "No active units found"}, 404
+
+    for unit in units:
+        apply_status_side_effects(unit, new_status)
+    db.session.commit()
+    return {"ok": True, "status": new_status, "updated": len(units)}
+
+
 @app.route("/unit/<int:unit_id>/quick-status", methods=["POST"])
 @admin_login_required
 def quick_status_update(unit_id: int):

@@ -81,6 +81,7 @@
 
 /* Column sizing by name, not position — adding or moving a column
    no longer shifts every rule after it. */
+.units-table .col-select  { width: 34px; text-align: center; }
 .units-table .col-id      { width: 44px;  text-align: center; }
 .units-table .col-intake  { min-width: 120px; }
 .units-table .col-actions { min-width: 112px; }
@@ -219,8 +220,8 @@
                         <label class="small-label">Status</label>
 
                         <select class="form-select" name="status">
-                            {% for status in STATUSES %}
-                            <option value="{{ status }}">{{ status }}</option>
+                            {% for s in STATUSES %}
+                                <option value="{{ s }}">{{ s }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -264,36 +265,9 @@
                     <div class="col-md-3">
                         <select class="form-select" name="status">
                             <option value="">All Statuses</option>
-
-                            <option value="Awaiting Diagnosis"
-                                {% if status_filter == "Awaiting Diagnosis" %}selected{% endif %}>
-                                Awaiting Diagnosis
-                            </option>
-
-                            <option value="In Repair"
-                                {% if status_filter == "In Repair" %}selected{% endif %}>
-                                In Repair
-                            </option>
-
-                            <option value="Waiting on Parts"
-                                {% if status_filter == "Waiting on Parts" %}selected{% endif %}>
-                                Waiting on Parts
-                            </option>
-
-                            <option value="Completed"
-                                {% if status_filter == "Completed" %}selected{% endif %}>
-                                Completed
-                            </option>
-
-                            <option value="Shipped Back to MCPS"
-                                {% if status_filter == "Shipped Back to MCPS" %}selected{% endif %}>
-                                Shipped Back to MCPS
-                            </option>
-
-                            <option value="Scrapped"
-                                {% if status_filter == "Scrapped" %}selected{% endif %}>
-                                Scrapped
-                            </option>
+                            {% for s in STATUSES %}
+                                <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
+                            {% endfor %}
                         </select>
                     </div>
 
@@ -315,12 +289,22 @@
                     <span class="badge text-bg-secondary">{{ units|length }} shown</span>
                 </div>
 
+                <div id="bulkStatusBar" class="d-none align-items-center gap-2 mb-3 p-2" style="border:1px solid var(--border); background:var(--surface-2);">
+                    <strong id="bulkSelectedCount">0 selected</strong>
+                    <select id="bulkStatus" class="form-select form-select-sm" style="max-width:230px;">
+                        {% for s in STATUSES %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="applyBulkStatus()">Change Status</button>
+                    <button type="button" class="btn btn-soft btn-sm" onclick="clearBulkSelection()">Clear</button>
+                </div>
+
                 <div class="table-wrap">
 
                     <table class="table table-hover align-middle units-table">
 
                         <thead>
                             <tr>
+                                <th class="col-select"><input type="checkbox" id="selectAllUnits" aria-label="Select all shown units" onchange="toggleAllUnits(this.checked)"></th>
                                 <th class="col-id">ID</th>
                                 <th class="col-intake">Intake</th>
                                 <th class="col-actions">Actions</th>
@@ -338,8 +322,9 @@
                         <tbody>
 
                             {% for unit in units %}
-                            <tr>
+                            <tr data-unit-row="{{ unit['id'] }}">
 
+                                <td class="col-select"><input type="checkbox" class="unit-select" value="{{ unit['id'] }}" aria-label="Select {{ unit['intake_id'] }}" onchange="updateBulkBar()"></td>
                                 <td class="col-id">{{ unit["id"] }}</td>
 
                                 <td class="col-intake">
@@ -418,6 +403,46 @@
 
 
 <script>
+function selectedUnitIds() {
+    return Array.from(document.querySelectorAll('.unit-select:checked')).map(cb => cb.value);
+}
+function updateBulkBar() {
+    const selected = selectedUnitIds();
+    const bar = document.getElementById('bulkStatusBar');
+    document.getElementById('bulkSelectedCount').textContent = `${selected.length} selected`;
+    bar.classList.toggle('d-none', selected.length === 0);
+    bar.classList.toggle('d-flex', selected.length > 0);
+    const boxes = Array.from(document.querySelectorAll('.unit-select'));
+    const all = document.getElementById('selectAllUnits');
+    all.checked = boxes.length > 0 && boxes.every(cb => cb.checked);
+    all.indeterminate = selected.length > 0 && !all.checked;
+}
+function toggleAllUnits(checked) {
+    document.querySelectorAll('.unit-select').forEach(cb => cb.checked = checked);
+    updateBulkBar();
+}
+function clearBulkSelection() {
+    document.querySelectorAll('.unit-select').forEach(cb => cb.checked = false);
+    updateBulkBar();
+}
+async function applyBulkStatus() {
+    const ids = selectedUnitIds();
+    const status = document.getElementById('bulkStatus').value;
+    if (!ids.length) return;
+    if (!confirm(`Change ${ids.length} selected panel${ids.length === 1 ? '' : 's'} to "${status}"?`)) return;
+    const formData = new FormData();
+    formData.append('status', status);
+    ids.forEach(id => formData.append('unit_ids', id));
+    try {
+        const res = await fetch('/units/bulk-status', {method:'POST', headers:{'X-CSRFToken': window.CSRF_TOKEN}, body:formData});
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Bulk update failed');
+        window.location.reload();
+    } catch (e) {
+        alert('Failed to update selected panels: ' + e.message);
+    }
+}
+
 async function quickStatusUpdate(select, unitId) {
     const status = select.value;
     select.classList.add('updating');
